@@ -1,3 +1,3 @@
-pub mod sqlite_connection;
+pub mod connection;
 pub mod error;
 pub mod migrations;

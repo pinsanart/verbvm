@@ -5,11 +5,11 @@ use rusqlite::Connection;
 use std::path::Path;
 use std::sync::Mutex;
 
-pub struct SQLiteConnection {
+pub struct SqliteHandle {
     conn: Mutex<Connection>,
 }
 
-impl SQLiteConnection {
+impl SqliteHandle {
     pub fn new(file_path: impl AsRef<Path>) -> Result<Self, DbError> {
         let mut conn = Connection::open(file_path)?;
 
