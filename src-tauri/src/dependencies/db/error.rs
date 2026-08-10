@@ -7,4 +7,7 @@ pub enum DbError {
 
     #[error("MIGRATION ERROR: {0}")]
     Migration(#[from] rusqlite_migration::Error),
+
+    #[error("IO ERROR: {0}")]
+    Io(#[from] std::io::Error),
 }

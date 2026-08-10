@@ -2,6 +2,7 @@ use super::error::DbError;
 use super::migrations;
 
 use rusqlite::Connection;
+use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -11,6 +12,14 @@ pub struct SqliteHandle {
 
 impl SqliteHandle {
     pub fn new(file_path: impl AsRef<Path>) -> Result<Self, DbError> {
+        let file_path = file_path.as_ref();
+
+        // SQLite won't create missing parent directories, and the app data dir
+        // doesn't exist until something writes to it.
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
         let mut conn = Connection::open(file_path)?;
 
         conn.execute_batch(
