@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: Inter, Avenir, Helvetica, Arial, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}

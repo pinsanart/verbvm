@@ -1,14 +1,26 @@
-import React from "react";
 import ReactDOM from "react-dom/client";
-import { createBrowserRouter } from "react-router";
+import { createHashRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 
-import App from "./App";
+import "./index.css";
 
-const router = createBrowserRouter([
-  { path: "/", Component: App },
+import Root from "./routes/Root";
+import Home from "./routes/Home";
+import Create from "./routes/Create";
+import Review from "./routes/Review";
+
+const router = createHashRouter([
+  {
+    path: "/",
+    Component: Root,
+    children: [
+      { index: true, Component: Home },
+      { path: "create", Component: Create },
+      { path: "review", Component: Review },
+    ]
+  }
 ]);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <RouterProvider router={router}/>
+  <RouterProvider router={router} />
 );
