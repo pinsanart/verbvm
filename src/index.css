@@ -1,7 +1,15 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: Inter, Avenir, Helvetica, Arial, sans-serif;
+  --font-sans: Roboto, Inter, Avenir, Helvetica, Arial, sans-serif;
+
+  
+  --color-panel: #232428;
+  --color-panel-border: #5B5858;
+  --color-vocabulary: #204AF5;
+  --color-stack: #F5204D;
+  --color-phonetic: #F5BE20;
+  --color-orthographic: #22F544;
 }
 
 html,
