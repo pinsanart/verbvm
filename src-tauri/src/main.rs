@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    verbvm_desktop_lib::run()
+    verbvm_lib::run()
 }
