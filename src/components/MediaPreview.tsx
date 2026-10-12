@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "motion/react";
 import { TriangleAlert, X } from "lucide-react";
 import { Media } from "../types/Media";
 
@@ -13,8 +14,17 @@ export function MediaPreview({ media, onRemove }: MediaPreviewProps) {
 
     return (
         <div className="flex flex-wrap items-start gap-2 rounded-xl border border-white/10 bg-white/5 p-2">
+            <AnimatePresence initial={false}>
             {media.map((item) => (
-                <div key={item.sha256} className="relative">
+                <motion.div
+                    key={item.sha256}
+                    layout
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.15 }}
+                    className="relative"
+                >
                     {item.url === null ? (
                         <div className="flex h-16 items-center gap-1.5 rounded-lg bg-white/5 px-3 text-xs text-white/50">
                             <TriangleAlert size={14} />
@@ -35,8 +45,9 @@ export function MediaPreview({ media, onRemove }: MediaPreviewProps) {
                             <X size={12} />
                         </button>
                     )}
-                </div>
+                </motion.div>
             ))}
+            </AnimatePresence>
         </div>
     );
 }
