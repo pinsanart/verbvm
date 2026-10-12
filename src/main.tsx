@@ -10,6 +10,7 @@ import Review from "./routes/Review";
 import Create from "./routes/Create";
 import Dashboard from "./routes/Dashboard";
 import Settings from "./routes/Settings";
+import LanguageTests from "./routes/LanguageTests";
 
 const router = createHashRouter([
   {
@@ -21,6 +22,7 @@ const router = createHashRouter([
       { path: "create", Component: Create },
       { path: "dashboard", Component: Dashboard },
       { path: "settings", Component: Settings },
+      { path: "language_tests", Component: LanguageTests },
     ],
   },
 ]);
