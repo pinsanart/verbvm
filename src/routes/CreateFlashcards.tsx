@@ -1,10 +1,12 @@
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, Save } from "lucide-react";
-import { Link, useParams } from "react-router";
+import { Layers, Save } from "lucide-react";
+import { useParams } from "react-router";
 import { Button } from "../components/Button";
 import { CountryFlag } from "../components/CountryFlag";
+import { EmptyState } from "../components/EmptyState";
 import { FlashcardInput } from "../components/FlashcardInput";
 import { Notice } from "../components/Notice";
+import { Page } from "../components/Page";
 import { TypePicker } from "../components/TypePicker";
 import { TRANSITION_BASE } from "../lib/motion";
 import { useFlashcardEditorViewModel } from "../viewmodels/useFlashcardEditorViewModel";
@@ -15,21 +17,18 @@ export default function CreateFlashcards() {
   const vm = useFlashcardEditorViewModel(deckName);
 
   return (
-    <div className="mx-auto flex w-full flex-col gap-6 p-6 md:max-w-[60%]">
-      <div className="flex flex-col gap-2">
-        <Link to="/create" className="flex items-center gap-1 self-start text-sm text-muted hover:text-white">
-          <ArrowLeft size={14} />
-          Decks
-        </Link>
-        <h1 className="text-2xl font-semibold">{deckName}</h1>
-        {vm.form && (
-          <div className="flex items-center gap-2 text-sm text-muted">
+    <Page
+      title={deckName}
+      back={{ to: "/create", label: "Decks" }}
+      meta={
+        vm.form && (
+          <>
             <CountryFlag code={vm.form.variant.countryCode} className="h-3.5 w-5" />
             {vm.form.variant.variantName}
-          </div>
-        )}
-      </div>
-
+          </>
+        )
+      }
+    >
       <AnimatePresence initial={false}>
         {vm.error && (
           <Notice key="error" tone="error">
@@ -43,14 +42,20 @@ export default function CreateFlashcards() {
         )}
       </AnimatePresence>
 
-      {vm.status === "loading" && <p className="text-sm text-muted">Loading...</p>}
+      {vm.status === "loading" && (
+        <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading flashcards">
+          <div className="h-48 animate-pulse rounded-2xl border border-line bg-panel" />
+        </div>
+      )}
 
       {vm.status === "ready" && vm.form && (
         <>
           {vm.drafts.length === 0 && (
-            <p className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
-              No flashcards yet. Pick a type below to add one.
-            </p>
+            <EmptyState
+              icon={Layers}
+              title="Add your first flashcard"
+              description="Choose a type below. Your cards stay here as drafts until you press Save all."
+            />
           )}
 
           <div className="flex flex-col gap-6">
@@ -61,9 +66,9 @@ export default function CreateFlashcards() {
                   <motion.div
                     key={draft.uuid}
                     layout="position"
-                    initial={{ opacity: 0, y: 16 }}
+                    initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.96 }}
+                    exit={{ opacity: 0, scale: 0.97 }}
                     transition={TRANSITION_BASE}
                   >
                     <FlashcardInput
@@ -90,15 +95,15 @@ export default function CreateFlashcards() {
             </AnimatePresence>
           </div>
 
-          <div className="sticky bottom-16 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-panel/90 px-6 py-3 backdrop-blur md:bottom-0">
+          <div className="sticky bottom-16 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas/90 px-4 py-3 backdrop-blur md:-mx-8 md:bottom-0 md:px-8">
             <TypePicker onPick={vm.addDraft} disabled={vm.busy} />
-            <Button onClick={vm.saveAll} disabled={vm.busy || vm.drafts.length === 0}>
-              <Save size={16} />
+            <Button onClick={vm.saveAll} loading={vm.busy} disabled={vm.drafts.length === 0}>
+              <Save size={16} aria-hidden />
               Save all ({vm.drafts.length})
             </Button>
           </div>
         </>
       )}
-    </div>
+    </Page>
   );
 }

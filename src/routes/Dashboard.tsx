@@ -1,7 +1,15 @@
+import { LayoutDashboard } from "lucide-react";
+import { EmptyState } from "../components/EmptyState";
+import { Page } from "../components/Page";
+
 export default function Dashboard() {
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
-    </div>
+    <Page title="Dashboard">
+      <EmptyState
+        icon={LayoutDashboard}
+        title="No progress to show yet"
+        description="Your review history and statistics will appear here once you start reviewing."
+      />
+    </Page>
   );
 }

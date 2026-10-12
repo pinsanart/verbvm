@@ -1,7 +1,15 @@
+import { Settings2 } from "lucide-react";
+import { EmptyState } from "../components/EmptyState";
+import { Page } from "../components/Page";
+
 export default function Settings() {
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold">Settings</h1>
-    </div>
+    <Page title="Settings">
+      <EmptyState
+        icon={Settings2}
+        title="Nothing to configure yet"
+        description="Preferences for studying and for the app will be added here."
+      />
+    </Page>
   );
 }

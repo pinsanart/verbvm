@@ -1,11 +1,13 @@
 import { useRef, useState } from "react";
-import { AnimatePresence } from "motion/react";
-import { Plus } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { FolderPlus, Plus } from "lucide-react";
 import { useNavigate } from "react-router";
 import { Button } from "../components/Button";
 import { DeckCard } from "../components/DeckCard";
+import { EmptyState } from "../components/EmptyState";
 import { NewDeckForm } from "../components/NewDeckForm";
 import { Notice } from "../components/Notice";
+import { Page } from "../components/Page";
 import { useDecksViewModel } from "../viewmodels/useDecksViewModel";
 
 /** The first step of creating flashcards: pick a deck, or create one. */
@@ -24,20 +26,21 @@ export default function Create() {
   const openDeck = (name: string) => navigate(`/create/${encodeURIComponent(name)}`);
 
   return (
-    <div className="mx-auto flex w-full flex-col gap-6 p-6 md:max-w-[60%]">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Create flashcards</h1>
+    <Page
+      title="Create flashcards"
+      width="wide"
+      actions={
         <Button
           ref={newDeckButton}
           onClick={() => setCreating(true)}
           disabled={vm.status !== "ready" || creating}
           aria-expanded={creating}
         >
-          <Plus size={16} />
+          <Plus size={16} aria-hidden />
           New deck
         </Button>
-      </div>
-
+      }
+    >
       <AnimatePresence initial={false}>
         {vm.error && !creating && (
           <Notice key="error" tone="error">
@@ -61,20 +64,23 @@ export default function Create() {
       </AnimatePresence>
 
       {vm.status === "loading" && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2" aria-busy="true" aria-label="Loading decks">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-busy="true" aria-label="Loading decks">
           {[0, 1].map((n) => (
-            <div key={n} className="h-32 animate-pulse rounded-2xl border border-line bg-white/5" />
+            <div key={n} className="h-32 animate-pulse rounded-2xl border border-line bg-panel" />
           ))}
         </div>
       )}
 
-      {vm.status === "ready" && vm.decks.length === 0 && (
-        <p className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
-          No decks yet. Create one to start adding flashcards.
-        </p>
+      {vm.status === "ready" && vm.decks.length === 0 && !creating && (
+        <EmptyState
+          icon={FolderPlus}
+          title="No decks yet"
+          description="A deck holds flashcards in one language and accent. Create your first one to start writing cards."
+          action={<Button onClick={() => setCreating(true)}>New deck</Button>}
+        />
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <motion.div layout="position" className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <AnimatePresence>
           {vm.decks.map((deck) => (
             <DeckCard
@@ -85,8 +91,7 @@ export default function Create() {
             />
           ))}
         </AnimatePresence>
-      </div>
-
-    </div>
+      </motion.div>
+    </Page>
   );
 }
