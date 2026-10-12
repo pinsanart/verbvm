@@ -57,6 +57,7 @@ export function NewDeckForm({ languages, loadVariants, onCreate, onCancel, busy,
 
     return (
         <motion.form
+            layout
             aria-labelledby="new-deck-title"
             onSubmit={submit}
             onKeyDown={(e) => {
@@ -66,7 +67,7 @@ export function NewDeckForm({ languages, loadVariants, onCreate, onCancel, busy,
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={TRANSITION_BASE}
-            className="flex flex-col gap-5 rounded-2xl border border-line bg-panel p-5 md:p-6"
+            className="flex flex-col gap-5 rounded-2xl border border-line-strong bg-panel p-5 md:col-span-2 md:p-6"
         >
             <h2 id="new-deck-title" className="text-heading">
                 New deck
