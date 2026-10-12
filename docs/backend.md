@@ -73,7 +73,7 @@ The other modules follow the same layout. `flashcards` has one repository trait 
 
 An orchestrator holds the `*Api` traits of the modules it needs and nothing else. See [architecture.md](architecture.md) for what each one does. `OrchestratorError` (`NotFound`, `Invalid`, `Conflict`, `Internal`) is built from each module's error and from `MediaError`.
 
-The editor orchestrator enforces the rules that need the card type, the language and the deck together: a draft can only hold the fields of its type for the deck's language, rich values are sanitized when they are saved, media can only be attached to fields that allow it (at most 10 files per field), and a required field must have text or media for the drafts to be published. Publishing checks every draft first. If any has a problem, nothing is saved and the problems are returned per draft and field.
+The editor orchestrator works on a deck's single list of drafts, which mixes flashcard types. It enforces the rules that need the card type, the language and the deck together: a draft can only hold the fields of its own type for the deck's language, rich values are sanitized when they are saved, media can only be attached to fields that allow it (at most 10 files per field), and a required field must have text or media for the drafts to be published. Publishing checks every draft first, each against its own type. If any has a problem, nothing is saved and the problems are returned per draft and field.
 
 ## Commands (`src-tauri/src/commands/`)
 
@@ -81,7 +81,7 @@ Thin adapters over an orchestrator (or a service):
 
 - The DTOs have `serde` and camelCase names. Entities have no serde. Nothing carries a database id.
 - Errors become `CommandError { kind, message }`, where `kind` is `not_found`, `invalid`, `conflict` or `internal`.
-- Commands: `list_languages`, `list_language_variants`, `list_decks`, `create_deck`, `delete_deck`, `get_flashcard_form`, `list_drafts`, `create_draft`, `update_draft`, `duplicate_draft`, `move_draft`, `delete_draft`, `attach_media`, `remove_media` and `publish_drafts`.
+- Commands: `list_languages`, `list_language_variants`, `list_decks`, `create_deck`, `delete_deck`, `get_flashcard_form(deckName)` (the form of every type), `list_drafts(deckName)`, `create_draft(deckName, typeSlug)`, `update_draft`, `duplicate_draft`, `move_draft`, `delete_draft`, `attach_media`, `remove_media` and `publish_drafts(deckName)`.
 - Commands are `async` and receive their state as `State<'_, Arc<...>>`.
 - A draft's DTO includes, for each attached file, its absolute `path`, which the view previews through the asset protocol.
 - Each file has tests that pin the JSON shape the TypeScript types rely on (`iso6393`, `bcp47Code`, `fieldKey`...).

@@ -49,7 +49,7 @@ Integer ids stay inside Rust. Orchestrators resolve natural keys into ids, and m
 
 | Module | Tables | Status |
 |---|---|---|
-| `languages` | `languages`, `language_variants` | Implemented. Seeded with common languages. Only the lists are exposed to the view |
+| `languages` | `languages`, `language_variants` | Implemented. Seeded with four accents (en-US, en-GB, fr-FR, pt-BR). Only the lists are exposed to the view |
 | `decks` | `decks` | Implemented |
 | `card_types` | `flashcard_types`, `field_definitions` | Implemented. Seeded with vocabulary, phonetic and orthographic |
 | `flashcards` | `flashcards`, `flashcard_fields`, `flashcard_drafts`, `flashcard_draft_media`, `field_media` | Implemented: flashcards, drafts, media |
@@ -68,7 +68,7 @@ Orchestrators:
 | Orchestrator | Coordinates | Use cases |
 |---|---|---|
 | `DeckOverviewOrchestrator` | decks, languages, card types, flashcards | List decks with language, accent and card counts by type. Create a deck from a language and an optional accent. Delete a deck |
-| `FlashcardEditorOrchestrator` | decks, languages, card types, flashcards, sanitizer, media store | The form of a type in a deck. Edit, move, duplicate and delete drafts. Attach and remove media. Publish drafts |
+| `FlashcardEditorOrchestrator` | decks, languages, card types, flashcards, sanitizer, media store | The form of every type in a deck. Add a draft of a type, edit, move, duplicate and delete drafts in the deck's single mixed list. Attach and remove media. Publish all the drafts, each against the fields of its own type |
 
 ## How the view logic is organized
 
@@ -77,6 +77,7 @@ Dependencies point one way: `routes (views) -> viewmodels -> api -> Tauri invoke
 - **api** (`src/api/`): one typed function per command. No state.
 - **viewmodel** (`src/viewmodels/`): one hook per screen. It owns the state (a loading status, the data, per-item errors), the async actions and the derived data. It receives route params as arguments and imports no JSX and no router. `useAsyncRunner` wraps every action with error capture and a `busy` flag.
 - **views** (`src/routes/`): compose components from the viewmodel's object and keep only UI state.
+- **No system dialogs for confirmations.** Deleting asks inside the view (`ConfirmDeleteButton`, with Keep and Delete buttons), never with `window.confirm`, which does nothing in the Tauri webview. The only native dialog is the file picker, which is needed to choose a file.
 - **components** (`src/components/`): presentational. Data and callbacks come in through props, so a new flashcard type or field needs no component change.
 
 The editor viewmodel keeps Rust as the source of truth. Add, move, duplicate and delete replace the list with the one the backend returns. Typing is applied locally right away and saved after a short pause, and pending saves are flushed before any other action and when the screen closes. Required fields, key checks and sanitizing are enforced in Rust. The viewmodel only shows what the backend reports.

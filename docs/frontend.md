@@ -22,17 +22,25 @@ src/
 | Route | Screen |
 |---|---|
 | `/create` | `Create`: the deck list, with a dialog to create a deck |
-| `/create/:deckName` | `CreateTypes`: tiles for Stack, Vocabulary, Phonetic and Orthographic in their brand colors (only vocabulary is enabled) |
-| `/create/:deckName/:typeSlug` | `CreateFlashcards`: the editor of the drafts of a type in a deck |
+| `/create/:deckName` | `CreateFlashcards`: the editor of a deck, with its flashcards of any type in one list and the type buttons at the bottom |
 | `/`, `/review`, `/dashboard`, `/settings` | Placeholders |
 
 ## The create flow
 
 1. **Deck list** (`Create`, `DeckCard`, `NewDeckDialog`, `useDecksViewModel`): each deck shows its flag, name, language and accent, description and card counts by type. The dialog creates a deck from a name, a language and an accent (preselected with the language's default) and a description.
-2. **Type selection** (`CreateTypes`): dotted tiles with the brand colors of `data/FlashcardTypeStyles.ts` (the theme colors in `index.css`). Stack is not a flashcard type but a way to link cards, and the other types are not built yet, so they show a "Soon" badge.
-3. **Editor** (`CreateFlashcards`, `FlashcardInput`, `useFlashcardEditorViewModel`): a list of drafts. The control bar of each card moves it up or down, duplicates it or deletes it. "Add card" appends a draft and "Save all" publishes them. Drafts are stored by the backend, so closing the app loses nothing.
+2. **Editor** (`CreateFlashcards`, `FlashcardInput`, `TypePicker`, `useFlashcardEditorViewModel`): clicking a deck opens **one screen** with the deck's flashcards in a single list that mixes types. The **type buttons are at the bottom** of the screen: pressing an enabled one adds a card of that type to the end of the list. Stack, Phonetic and Orthographic show a "Soon" badge, and only vocabulary is enabled (`ENABLED_TYPE_SLUGS` in `data/FlashcardTypeStyles.ts`). The control bar of each card moves it up or down, duplicates it or deletes it, whatever its type. "Save all" publishes every card. Drafts are stored by the backend, so closing the app loses nothing. A deck with no cards shows an empty state.
 
-The editor is **driven by the field definitions** the backend sends: `FlashcardInput` renders the fields it receives, grouped under front and back, and `FieldInput` picks the rich editor (`isRich`) or plain text. A new type or a language-specific field (for example romaji for Japanese) needs no component change. Required fields are marked with an asterisk, and the errors that publishing returns are shown under the field.
+The editor is **driven by the field definitions** the backend sends: for each draft, `FlashcardInput` renders the fields of the draft's type, grouped under front and back, and `FieldInput` picks the rich editor (`isRich`) or plain text. A new type or a language-specific field (for example a gender field for French) needs no component change. Required fields are marked with an asterisk, and the errors that publishing returns are shown under the field.
+
+### Confirmations and controls
+
+- **No system dialogs for confirmations.** `ConfirmDeleteButton` replaces the trash button with **Keep** and **Delete** buttons inside the view. Keep takes focus first, and Keep, Escape, clicking elsewhere and a 5 second timeout go back to the trash button. It is used for decks and flashcards. `window.confirm` does nothing in the Tauri webview, and the file picker is the only native dialog.
+- **`Select`** is a dark dropdown (ARIA select-only combobox, with keyboard support) used instead of the native `<select>`, whose list the system draws and cannot be themed. `index.css` also sets `color-scheme: dark`.
+- **`Button`** (primary, outline, ghost and danger), **`Notice`** (animated success and error messages) and the shared control classes in `formStyles.ts` keep controls consistent. Every interactive element has a visible focus ring.
+
+### Motion
+
+Animations use `motion/react`. `Root` wraps the app in `MotionConfig reducedMotion="user"`, so they turn off for people who ask the system for less motion, and fades between screens. Lists use `AnimatePresence` with `layout`: cards slide in, fade out and glide when one is moved or removed. Dialogs, notices, the dropdown and media previews animate in and out. The "saved" notice dismisses itself after about 4 seconds.
 
 ### Flags
 

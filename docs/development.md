@@ -21,7 +21,8 @@ The schema is still being edited directly in v1.0. After changing `migrations.rs
 ## Known limitations
 
 - **`http` does not compile.** `src-tauri/src/dependencies/http/` (a `reqwest` wrapper with `Auth::{None, Bearer}`) is switched off: `pub mod http;` is commented out in `dependencies.rs` because `reqwest` is not in `Cargo.toml`. To turn it on, add `reqwest` with the `json` feature and uncomment it.
-- **Only vocabulary can be created from the UI.** Phonetic and orthographic have their schema and seed fields, but their tiles are disabled. Stack has no editor yet.
+- **Only vocabulary can be added from the UI.** Phonetic and orthographic have their schema and seed fields, and the editor already renders them, but their buttons are disabled in `ENABLED_TYPE_SLUGS` (`data/FlashcardTypeStyles.ts`). Stack has no editor yet.
+- **Only four accents are seeded** (en-US, en-GB, fr-FR, pt-BR), and there is no screen to add more.
 - **No review screen yet.** The `reviews` module is done but is not wired to `lib.rs`, and there is no orchestrator, command or screen for it.
 - **Orphan media files.** Detaching media from a draft, or deleting a draft, leaves the file in the `media/` folder. A cleanup that deletes files no row references is not written yet.
 - **No S3 sync yet.** `field_media.remote_key` is reserved for it.

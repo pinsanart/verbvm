@@ -39,7 +39,7 @@ erDiagram
 - `languages`: `iso_639_1` (2 letters, optional), `iso_639_3` (3 letters, required and unique), `name` and `default_variant_id`.
 - `language_variants`: `language_id`, `bcp47_code` (unique, up to 10 characters), `variant_name` and `country_code` (2 letters, optional, used for the flag). Deleting a language deletes its variants.
 - The two tables reference each other, so `default_variant_id` is nullable and is set once the variant exists. The first variant created for a language becomes its default.
-- **Seed:** English (en-US, en-GB), Portuguese (pt-BR, pt-PT), Spanish (es-ES, es-MX), French (fr-FR, fr-CA), Italian, German, Japanese, Chinese (zh-CN, zh-TW) and Korean. The first variant listed is the default.
+- **Seed:** the app starts with four accents: English (en-US, which is the default, and en-GB), French (fr-FR) and Portuguese (pt-BR). More languages and accents are added later as data.
 
 ## Decks
 
@@ -76,9 +76,9 @@ That the `field_definition_id` of a `flashcard_fields` row belongs to the card's
 
 ## Drafts
 
-`flashcard_drafts` are unsaved flashcards being edited, so the work survives restarts: `uuid`, `deck_id` (`ON DELETE CASCADE`), `flashcard_type_id`, `position` (the order in the editor), `values_json` and `updated_at`. `values_json` maps a field key to the typed text. It is opaque to SQL and never queried by field.
+`flashcard_drafts` are unsaved flashcards being edited, so the work survives restarts: `uuid`, `deck_id` (`ON DELETE CASCADE`), `flashcard_type_id`, `position`, `values_json` and `updated_at`. A deck has **one list of drafts that mixes flashcard types**: `position` is the order in that list, across types. `values_json` maps a field key to the typed text. It is opaque to SQL and never queried by field.
 
-Publishing turns a deck's drafts of a type into flashcards and deletes them, all or nothing.
+Publishing turns all of a deck's drafts into flashcards, each with the type of its draft, and deletes the drafts, all or nothing.
 
 ## Media
 
