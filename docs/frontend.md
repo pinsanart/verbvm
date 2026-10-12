@@ -52,7 +52,7 @@ The tokens live in `index.css` (Tailwind `@theme`). Use them instead of ad hoc v
 
 ### Page frame and common components
 
-- **`Page`** is the frame of every screen: a slim sticky bar with a breadcrumb (`Create / Travel phrases`) whose last step is the page's `h1`, set in uppercase, with optional meta (the deck's accent) and page actions at its end. There is no large heading, so the content starts right below. Screens that have nothing yet use **`EmptyState`**, which says what the place is for and what to do next.
+- **`Page`** is the frame of every screen: a slim sticky bar with a breadcrumb (`Create / Travel phrases`) whose last step is the page's `h1`, set in uppercase, with optional meta (the deck's accent) and page actions at its end. On a phone the title is 20px, uppercase and centered, with a back arrow to the closest parent on one side and the actions on the other. There is no large heading, so the content starts right below. Screens that have nothing yet use **`EmptyState`**, which says what the place is for and what to do next.
 - **No modals for tasks that need neither interruption nor trapped focus.** Creating and editing a deck happen in place.
 - **No system dialogs for confirmations.** `ConfirmDeleteButton` replaces the trash button with **Keep** and **Delete** buttons inside the view. Keep takes focus first, and Keep, Escape, clicking elsewhere and a 5 second timeout go back to the trash button. It is used for decks and flashcards. `window.confirm` does nothing in the Tauri webview, and the file picker is the only native dialog.
 - **`Select`** is a dark dropdown (ARIA select-only combobox, with keyboard support) used instead of the native `<select>`, whose list the system draws and cannot be themed.
