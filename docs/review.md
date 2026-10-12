@@ -66,7 +66,7 @@ A session is stateless. After every answer the next card is asked for again: **l
 
 ### The screen
 
-The type name is the title. The front of the card is shown with a **Show response** button (Space or Enter). After it the back appears under a divider and the four answers appear: **Again, Hard, Good, Easy**, with the keys 1 to 4. Each answer is recorded through `ReviewApi::record_review`, with how long it took. Rich fields are sanitized HTML, and the media of a field (images and audio) shows under it. The **Actions** menu is only visual for now: its items (Edit card, Delete card) are disabled and marked "Soon". Editing a saved flashcard is not built yet.
+The type name is the title. The front of the card is set large (40 to 64px) and centered, with the `lang` of the deck's accent, so scripts such as Japanese get the right spacing. **Show response** (Space or Enter) reveals the back under a divider, and the four answers appear: **Again, Hard, Good, Easy** (keys 1 to 4). Each answer is quiet until hovered and shows how long the card would wait for it (for example 10 min, 1 day, 6 days), computed by the backend with the SM-2 rule without recording anything. Each is recorded through `ReviewApi::record_review` with how long it took. Rich fields are sanitized HTML, and the media of a field (images and audio) shows under it. **R** plays the card's audio again. When the queue is empty, a summary shows how many cards were answered, remembered and missed, when the next card comes back, and links to the other types of the deck that still have cards waiting. Editing or deleting a saved flashcard from a review is not built yet, so there is no Actions menu.
 
 ## Path to ML
 
