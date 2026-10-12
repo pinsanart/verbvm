@@ -75,6 +75,7 @@ pub fn run() {
             commands::flashcards::attach_media,
             commands::flashcards::remove_media,
             commands::flashcards::publish_drafts,
+            commands::media::read_media,
             commands::flashcards::list_saved_cards,
             commands::flashcards::update_saved_card,
             commands::flashcards::attach_saved_card_media,

@@ -11,6 +11,14 @@ pub struct CommandError {
 }
 
 impl CommandError {
+    pub fn invalid(message: impl Into<String>) -> Self {
+        Self { kind: "invalid", message: message.into() }
+    }
+
+    pub fn not_found(message: impl Into<String>) -> Self {
+        Self { kind: "not_found", message: message.into() }
+    }
+
     pub fn internal(message: impl Into<String>) -> Self {
         Self { kind: "internal", message: message.into() }
     }

@@ -345,6 +345,7 @@ mod tests {
                 kind: "IMAGE".into(),
                 mime_type: "image/png".into(),
                 path: Some("/data/media/ab.png".into()),
+                file_name: "ab.png".into(),
             }],
         );
         let draft = DraftDto { uuid: "u".into(), type_slug: "vocabulary".into(), position: 1, values, media };
@@ -352,7 +353,7 @@ mod tests {
             serde_json::to_value(draft).unwrap(),
             json!({
                 "uuid": "u", "typeSlug": "vocabulary", "position": 1, "values": {"phrase": "hi"},
-                "media": {"phrase": [{"sha256": "ab", "kind": "IMAGE", "mimeType": "image/png", "path": "/data/media/ab.png"}]}
+                "media": {"phrase": [{"sha256": "ab", "kind": "IMAGE", "mimeType": "image/png", "path": "/data/media/ab.png", "fileName": "ab.png"}]}
             })
         );
 

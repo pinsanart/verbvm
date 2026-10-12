@@ -1,3 +1,4 @@
+import { AudioPlayer } from "./AudioPlayer";
 import { AnimatePresence, motion } from "motion/react";
 import { TriangleAlert, X } from "lucide-react";
 import { TRANSITION_FAST } from "../lib/motion";
@@ -34,7 +35,7 @@ export function MediaPreview({ media, onRemove }: MediaPreviewProps) {
                     ) : item.kind === "IMAGE" ? (
                         <img src={item.url} alt="" className="h-16 w-16 rounded-lg object-cover" />
                     ) : (
-                        <audio controls src={item.url} className="h-9" />
+                        <AudioPlayer media={item} className="h-9" />
                     )}
                     {onRemove && (
                         <button

@@ -1,4 +1,5 @@
 import { TriangleAlert } from "lucide-react";
+import { AudioPlayer } from "./AudioPlayer";
 import type { Media } from "../types/Media";
 
 /**
@@ -23,7 +24,7 @@ export function ReviewMedia({ media }: { media: Media[] }) {
                 return item.kind === "IMAGE" ? (
                     <img key={item.sha256} src={item.url} alt="" className="max-h-64 max-w-full rounded-xl object-contain" />
                 ) : (
-                    <audio key={item.sha256} controls data-review-audio src={item.url} className="w-full max-w-md" />
+                    <AudioPlayer key={item.sha256} media={item} reviewAudio className="w-full max-w-md" />
                 );
             })}
             {hasAudio && (

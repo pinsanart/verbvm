@@ -1,4 +1,4 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import type { Media, MediaKind } from "../types/Media";
 
 /** What the backend sends for a media file: it comes with its path on disk. */
@@ -7,6 +7,7 @@ export interface MediaDto {
     kind: MediaKind;
     mimeType: string;
     path: string | null;
+    fileName: string;
 }
 
 /**
@@ -18,4 +19,8 @@ export const toMedia = (dto: MediaDto): Media => ({
     kind: dto.kind,
     mimeType: dto.mimeType,
     url: dto.path ? convertFileSrc(dto.path) : null,
+    fileName: dto.fileName,
 });
+
+/** The bytes of a stored media file, read by the backend. */
+export const readMedia = (fileName: string) => invoke<ArrayBuffer>("read_media", { fileName });

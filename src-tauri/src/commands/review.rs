@@ -237,6 +237,7 @@ mod tests {
                         kind: "AUDIO".into(),
                         mime_type: "audio/mpeg".into(),
                         path: Some("/m/ab.mp3".into()),
+                        file_name: "ab.mp3".into(),
                     }],
                 }],
             }),
@@ -252,7 +253,7 @@ mod tests {
                     "uuid": "u", "typeSlug": "vocabulary", "typeName": "Vocabulary", "state": "learning",
                     "fields": [{
                         "key": "phrase", "label": "Phrase", "side": "FRONT", "isRich": true, "content": "<b>hi</b>",
-                        "media": [{"sha256": "ab", "kind": "AUDIO", "mimeType": "audio/mpeg", "path": "/m/ab.mp3"}]
+                        "media": [{"sha256": "ab", "kind": "AUDIO", "mimeType": "audio/mpeg", "path": "/m/ab.mp3", "fileName": "ab.mp3"}]
                     }]
                 },
                 "counts": {"new": 0, "learning": 1, "review": 0},

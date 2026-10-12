@@ -7,4 +7,6 @@ export interface Media {
     kind: MediaKind;
     mimeType: string;
     url: string | null;
+    /** The name of the stored file, to read its bytes. */
+    fileName: string;
 }
