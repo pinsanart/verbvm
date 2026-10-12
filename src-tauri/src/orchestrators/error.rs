@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+use crate::dependencies::media_store::MediaError;
 use crate::modules::card_types::CardTypesError;
 use crate::modules::decks::DecksError;
 use crate::modules::flashcards::FlashcardsError;
@@ -44,3 +45,15 @@ convert_module_error!(LanguagesError);
 convert_module_error!(DecksError);
 convert_module_error!(CardTypesError);
 convert_module_error!(FlashcardsError);
+
+impl From<MediaError> for OrchestratorError {
+    fn from(err: MediaError) -> Self {
+        let message = err.to_string();
+        match err {
+            MediaError::NotAFile | MediaError::TooLarge | MediaError::UnsupportedType => {
+                OrchestratorError::Invalid(message)
+            }
+            MediaError::Io(_) => OrchestratorError::Internal(message),
+        }
+    }
+}

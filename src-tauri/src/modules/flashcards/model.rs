@@ -3,6 +3,8 @@ use std::collections::{BTreeMap, HashSet};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+use crate::dependencies::media_store::MediaKind;
+
 use super::error::{FlashcardsError, FlashcardsResult};
 
 /// Longest content a single field can hold, in characters.
@@ -37,6 +39,79 @@ impl FieldValue {
     }
 }
 
+/// An image or audio file attached to a field. The file itself is in the media store under
+/// `file_name`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MediaAttachment {
+    kind: MediaKind,
+    mime_type: String,
+    sha256: String,
+    file_name: String,
+    size_bytes: i64,
+    position: i64,
+}
+
+impl MediaAttachment {
+    /// An attachment for a stored file. `sha256` is the 64 hex characters of the content hash.
+    pub fn new(
+        kind: MediaKind,
+        mime_type: String,
+        sha256: String,
+        file_name: String,
+        size_bytes: i64,
+    ) -> FlashcardsResult<Self> {
+        if sha256.len() != 64 || !sha256.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(FlashcardsError::Invalid { field: "sha256", reason: "must be 64 hex characters" });
+        }
+        if file_name.is_empty() || size_bytes < 0 {
+            return Err(FlashcardsError::Invalid { field: "media", reason: "is incomplete" });
+        }
+        Ok(Self { kind, mime_type, sha256, file_name, size_bytes, position: 0 })
+    }
+
+    pub(super) fn restore(
+        kind: MediaKind,
+        mime_type: String,
+        sha256: String,
+        file_name: String,
+        size_bytes: i64,
+        position: i64,
+    ) -> Self {
+        Self { kind, mime_type, sha256, file_name, size_bytes, position }
+    }
+
+    pub fn kind(&self) -> MediaKind {
+        self.kind
+    }
+
+    pub fn mime_type(&self) -> &str {
+        &self.mime_type
+    }
+
+    pub fn sha256(&self) -> &str {
+        &self.sha256
+    }
+
+    pub fn file_name(&self) -> &str {
+        &self.file_name
+    }
+
+    pub fn size_bytes(&self) -> i64 {
+        self.size_bytes
+    }
+
+    pub fn position(&self) -> i64 {
+        self.position
+    }
+}
+
+/// A media attachment of a saved flashcard, with the field definition it belongs to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldMedia {
+    pub field_definition_id: i64,
+    pub attachment: MediaAttachment,
+}
+
 /// A saved flashcard of a deck, with one value per field it has content for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Flashcard {
@@ -47,11 +122,17 @@ pub struct Flashcard {
     created_at: Option<DateTime<Utc>>,
     updated_at: Option<DateTime<Utc>>,
     fields: Vec<FieldValue>,
+    media: Vec<FieldMedia>,
 }
 
 impl Flashcard {
     /// An unsaved flashcard with a fresh uuid. A field can appear only once.
-    pub fn new(deck_id: i64, flashcard_type_id: i64, fields: Vec<FieldValue>) -> FlashcardsResult<Self> {
+    pub fn new(
+        deck_id: i64,
+        flashcard_type_id: i64,
+        fields: Vec<FieldValue>,
+        media: Vec<FieldMedia>,
+    ) -> FlashcardsResult<Self> {
         let mut seen = HashSet::new();
         if !fields.iter().all(|f| seen.insert(f.field_definition_id())) {
             return Err(FlashcardsError::Invalid { field: "fields", reason: "a field is repeated" });
@@ -64,6 +145,7 @@ impl Flashcard {
             created_at: None,
             updated_at: None,
             fields,
+            media,
         })
     }
 
@@ -75,6 +157,7 @@ impl Flashcard {
         created_at: DateTime<Utc>,
         updated_at: Option<DateTime<Utc>>,
         fields: Vec<FieldValue>,
+        media: Vec<FieldMedia>,
     ) -> Self {
         Self {
             id: Some(id),
@@ -84,6 +167,7 @@ impl Flashcard {
             created_at: Some(created_at),
             updated_at,
             fields,
+            media,
         }
     }
 
@@ -114,6 +198,10 @@ impl Flashcard {
     pub fn fields(&self) -> &[FieldValue] {
         &self.fields
     }
+
+    pub fn media(&self) -> &[FieldMedia] {
+        &self.media
+    }
 }
 
 /// An unsaved flashcard being edited. `values` maps a field key to what was typed.
@@ -125,6 +213,8 @@ pub struct FlashcardDraft {
     flashcard_type_id: i64,
     position: i64,
     values: BTreeMap<String, String>,
+    /// Attached media by field key.
+    media: BTreeMap<String, Vec<MediaAttachment>>,
     updated_at: Option<DateTime<Utc>>,
 }
 
@@ -138,6 +228,7 @@ impl FlashcardDraft {
             flashcard_type_id,
             position: 0,
             values: BTreeMap::new(),
+            media: BTreeMap::new(),
             updated_at: None,
         }
     }
@@ -149,6 +240,7 @@ impl FlashcardDraft {
         flashcard_type_id: i64,
         position: i64,
         values: BTreeMap<String, String>,
+        media: BTreeMap<String, Vec<MediaAttachment>>,
         updated_at: DateTime<Utc>,
     ) -> Self {
         Self {
@@ -158,6 +250,7 @@ impl FlashcardDraft {
             flashcard_type_id,
             position,
             values,
+            media,
             updated_at: Some(updated_at),
         }
     }
@@ -186,6 +279,15 @@ impl FlashcardDraft {
         &self.values
     }
 
+    pub fn media(&self) -> &BTreeMap<String, Vec<MediaAttachment>> {
+        &self.media
+    }
+
+    pub(super) fn with_media(mut self, media: BTreeMap<String, Vec<MediaAttachment>>) -> Self {
+        self.media = media;
+        self
+    }
+
     pub fn updated_at(&self) -> Option<DateTime<Utc>> {
         self.updated_at
     }
@@ -211,6 +313,7 @@ impl FlashcardDraft {
             flashcard_type_id: self.flashcard_type_id,
             position: self.position + 1,
             values: self.values.clone(),
+            media: self.media.clone(),
             updated_at: None,
         }
     }
@@ -237,8 +340,8 @@ mod tests {
     #[test]
     fn a_flashcard_cannot_repeat_a_field() {
         let value = |id| FieldValue::new(id, "x".into()).unwrap();
-        assert!(Flashcard::new(1, 1, vec![value(1), value(1)]).is_err());
-        let card = Flashcard::new(1, 1, vec![value(1), value(2)]).unwrap();
+        assert!(Flashcard::new(1, 1, vec![value(1), value(1)], vec![]).is_err());
+        let card = Flashcard::new(1, 1, vec![value(1), value(2)], vec![]).unwrap();
         assert_eq!(card.fields().len(), 2);
         assert!(card.id().is_none());
         assert_eq!(card.uuid().len(), 36);

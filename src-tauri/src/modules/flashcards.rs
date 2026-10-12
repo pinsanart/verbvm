@@ -14,6 +14,8 @@ mod repository;
 mod service;
 
 pub use error::{FlashcardsError, FlashcardsResult};
-pub use model::{Direction, FieldValue, Flashcard, FlashcardDraft, TypeCount};
+pub use model::{
+    Direction, FieldMedia, FieldValue, Flashcard, FlashcardDraft, MediaAttachment, TypeCount,
+};
 pub use repository::{FlashcardRepository, SqliteFlashcardRepository};
 pub use service::{FlashcardApi, FlashcardService, PublishedDraft};

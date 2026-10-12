@@ -1,12 +1,14 @@
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use super::error::{OrchestratorError, OrchestratorResult};
+use crate::dependencies::media_store::MediaStorage;
 use crate::dependencies::sanitizer::HtmlSanitizer;
 use crate::modules::card_types::{CardTypeApi, FieldDefinition, FlashcardType};
 use crate::modules::decks::{Deck, DeckApi};
 use crate::modules::flashcards::{
-    Direction, FieldValue, FlashcardApi, FlashcardDraft, PublishedDraft,
+    Direction, FieldMedia, FieldValue, FlashcardApi, FlashcardDraft, MediaAttachment, PublishedDraft,
 };
 use crate::modules::languages::{Language, LanguageApi, LanguageVariant};
 
@@ -42,14 +44,19 @@ pub struct PublishOutcome {
 ///
 /// Rules enforced here, because they need the card type, the language and the deck together:
 /// only fields of the type (for the deck's language) can be filled, rich fields are sanitized
-/// before they are stored, and required fields must have content to be published.
+/// before they are stored, media can only be attached to fields that allow it, and required
+/// fields must have text or media to be published.
 pub struct FlashcardEditorOrchestrator {
     decks: Arc<dyn DeckApi>,
     languages: Arc<dyn LanguageApi>,
     card_types: Arc<dyn CardTypeApi>,
     flashcards: Arc<dyn FlashcardApi>,
     sanitizer: Arc<dyn HtmlSanitizer>,
+    media: Arc<dyn MediaStorage>,
 }
+
+/// The most media files one field can hold.
+const MAX_MEDIA_PER_FIELD: usize = 10;
 
 struct Context {
     deck: Deck,
@@ -72,8 +79,9 @@ impl FlashcardEditorOrchestrator {
         card_types: Arc<dyn CardTypeApi>,
         flashcards: Arc<dyn FlashcardApi>,
         sanitizer: Arc<dyn HtmlSanitizer>,
+        media: Arc<dyn MediaStorage>,
     ) -> Self {
-        Self { decks, languages, card_types, flashcards, sanitizer }
+        Self { decks, languages, card_types, flashcards, sanitizer, media }
     }
 
     pub fn form(&self, deck_name: &str, type_slug: &str) -> OrchestratorResult<EditorForm> {
@@ -119,6 +127,57 @@ impl FlashcardEditorOrchestrator {
         Ok(self.flashcards.update_draft(draft_uuid, cleaned)?)
     }
 
+    /// Copies a file into the media store and attaches it to a field of a draft. The field must
+    /// allow media and hold at most 10 files. Only images and audio are accepted, judged by the
+    /// content of the file.
+    pub fn attach_media(
+        &self,
+        draft_uuid: &str,
+        field_key: &str,
+        source: &Path,
+    ) -> OrchestratorResult<FlashcardDraft> {
+        let draft = self.flashcards.get_draft(draft_uuid)?;
+        let ctx = self.context_of(&draft)?;
+        let definition = ctx.fields.iter().find(|f| f.key() == field_key).ok_or_else(|| {
+            OrchestratorError::Invalid(format!("'{field_key}' is not a field of this flashcard type"))
+        })?;
+        if !definition.media_allowed() {
+            return Err(OrchestratorError::Invalid(format!("{} does not accept media", definition.label())));
+        }
+        let attached = draft.media().get(field_key).map_or(0, Vec::len);
+        if attached >= MAX_MEDIA_PER_FIELD {
+            return Err(OrchestratorError::Invalid(format!(
+                "{} already has {MAX_MEDIA_PER_FIELD} files",
+                definition.label()
+            )));
+        }
+
+        let stored = self.media.import(source)?;
+        let attachment = MediaAttachment::new(
+            stored.kind,
+            stored.mime_type,
+            stored.sha256,
+            stored.file_name,
+            i64::try_from(stored.size_bytes).unwrap_or(i64::MAX),
+        )?;
+        Ok(self.flashcards.attach_draft_media(draft_uuid, field_key, attachment)?)
+    }
+
+    /// Detaches a file (by its hash) from a field of a draft. The file stays in the media store.
+    pub fn remove_media(
+        &self,
+        draft_uuid: &str,
+        field_key: &str,
+        sha256: &str,
+    ) -> OrchestratorResult<FlashcardDraft> {
+        Ok(self.flashcards.remove_draft_media(draft_uuid, field_key, sha256)?)
+    }
+
+    /// Where a stored media file is on disk, for the view to preview.
+    pub fn media_path(&self, file_name: &str) -> Option<PathBuf> {
+        self.media.path_of(file_name)
+    }
+
     /// Copies a draft right after itself and returns the updated list.
     pub fn duplicate_draft(&self, draft_uuid: &str) -> OrchestratorResult<Vec<FlashcardDraft>> {
         let draft = self.flashcards.get_draft(draft_uuid)?;
@@ -148,7 +207,19 @@ impl FlashcardEditorOrchestrator {
         let mut ready = Vec::with_capacity(drafts.len());
         for draft in &drafts {
             let mut fields = Vec::new();
+            let mut media = Vec::new();
             for definition in &ctx.fields {
+                let attached = if definition.media_allowed() {
+                    draft.media().get(definition.key()).map(Vec::as_slice).unwrap_or(&[])
+                } else {
+                    &[]
+                };
+                let definition_id = saved_id(definition.id(), "field definition")?;
+                media.extend(attached.iter().map(|attachment| FieldMedia {
+                    field_definition_id: definition_id,
+                    attachment: attachment.clone(),
+                }));
+
                 let raw = draft.values().get(definition.key()).map(String::as_str).unwrap_or("");
                 let content = if definition.is_rich() { self.sanitizer.sanitize_html(raw) } else { raw.trim().to_owned() };
                 let has_content = if definition.is_rich() {
@@ -157,7 +228,7 @@ impl FlashcardEditorOrchestrator {
                     !content.is_empty()
                 };
 
-                if !has_content {
+                if !has_content && attached.is_empty() {
                     if definition.is_required() {
                         issues.push(DraftIssue {
                             draft_uuid: draft.uuid().to_owned(),
@@ -167,7 +238,9 @@ impl FlashcardEditorOrchestrator {
                     }
                     continue;
                 }
-                let definition_id = saved_id(definition.id(), "field definition")?;
+                if !has_content {
+                    continue; // media is the only content of this field
+                }
                 match FieldValue::new(definition_id, content) {
                     Ok(value) => fields.push(value),
                     Err(err) => issues.push(DraftIssue {
@@ -177,7 +250,7 @@ impl FlashcardEditorOrchestrator {
                     }),
                 }
             }
-            ready.push(PublishedDraft { draft_uuid: draft.uuid().to_owned(), fields });
+            ready.push(PublishedDraft { draft_uuid: draft.uuid().to_owned(), fields, media });
         }
 
         if !issues.is_empty() || ready.is_empty() {

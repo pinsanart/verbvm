@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use super::*;
 use crate::dependencies::db::connection::SqliteHandle;
+use crate::dependencies::media_store::LocalMediaStore;
 use crate::dependencies::sanitizer::AmmoniaSanitizer;
 use crate::modules::card_types::{CardTypeApi, CardTypeService, Side};
 use crate::modules::decks::{DeckApi, DeckService};
@@ -23,6 +24,8 @@ impl Drop for Fixture {
         for suffix in ["", "-wal", "-shm"] {
             let _ = std::fs::remove_file(format!("{}{suffix}", self.path.display()));
         }
+        let _ = std::fs::remove_dir_all(self.path.with_extension("media"));
+        let _ = std::fs::remove_dir_all(self.path.with_extension("src"));
     }
 }
 
@@ -51,6 +54,7 @@ fn fixture() -> Fixture {
             card_types.clone(),
             flashcards.clone(),
             Arc::new(AmmoniaSanitizer::new()),
+            Arc::new(LocalMediaStore::new(path.with_extension("media"))),
         ),
         languages,
         card_types,
@@ -253,4 +257,74 @@ fn publishing_with_no_drafts_does_nothing() {
     f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let outcome = f.editor.publish_drafts("Deck", "vocabulary").unwrap();
     assert_eq!((outcome.published, outcome.issues.len()), (0, 0));
+}
+
+// ---- media ----
+
+const PNG: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0];
+
+fn source_file(f: &Fixture, name: &str, bytes: &[u8]) -> std::path::PathBuf {
+    let dir = f.path.with_extension("src");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(name);
+    std::fs::write(&path, bytes).unwrap();
+    path
+}
+
+#[test]
+fn attaching_media_stores_the_file_and_adds_it_to_the_draft() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
+
+    let updated = f.editor.attach_media(draft.uuid(), "phrase", &source_file(&f, "a.png", PNG)).unwrap();
+    let attached = &updated.media()["phrase"];
+    assert_eq!(attached.len(), 1);
+    assert_eq!(attached[0].mime_type(), "image/png");
+    let stored = f.editor.media_path(attached[0].file_name()).unwrap();
+    assert_eq!(std::fs::read(stored).unwrap(), PNG);
+    assert!(f.editor.media_path("../escape.png").is_none());
+
+    let again = f.editor.attach_media(draft.uuid(), "phrase", &source_file(&f, "b.png", PNG)).unwrap();
+    assert_eq!(again.media()["phrase"].len(), 1, "the same content counts once");
+
+    let removed = f.editor.remove_media(draft.uuid(), "phrase", attached[0].sha256()).unwrap();
+    assert!(removed.media().get("phrase").map_or(true, Vec::is_empty));
+}
+
+#[test]
+fn media_is_only_accepted_for_fields_that_allow_it_and_for_real_images_and_audio() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
+    let png = source_file(&f, "a.png", PNG);
+
+    assert!(matches!(f.editor.attach_media(draft.uuid(), "meaning", &png), Err(OrchestratorError::Invalid(_))));
+    assert!(matches!(f.editor.attach_media(draft.uuid(), "nope", &png), Err(OrchestratorError::Invalid(_))));
+    let text = source_file(&f, "fake.png", b"not an image");
+    assert!(matches!(f.editor.attach_media(draft.uuid(), "phrase", &text), Err(OrchestratorError::Invalid(_))));
+    assert!(matches!(
+        f.editor.attach_media("nope", "phrase", &png),
+        Err(OrchestratorError::NotFound(_))
+    ));
+}
+
+#[test]
+fn a_required_field_with_only_media_can_be_published() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
+    f.editor.update_draft(draft.uuid(), values(&[("word_or_expression", "cat"), ("meaning", "an animal")])).unwrap();
+
+    let blocked = f.editor.publish_drafts("Deck", "vocabulary").unwrap();
+    assert_eq!(blocked.issues.len(), 1, "the phrase has neither text nor media");
+
+    f.editor.attach_media(draft.uuid(), "phrase", &source_file(&f, "cat.png", PNG)).unwrap();
+    let outcome = f.editor.publish_drafts("Deck", "vocabulary").unwrap();
+    assert_eq!((outcome.published, outcome.issues.len()), (1, 0));
+
+    let deck_id = f.overview.get("Deck").unwrap().deck.id().unwrap();
+    let cards = f.flashcards.list_flashcards(deck_id).unwrap();
+    assert_eq!(cards[0].media().len(), 1);
+    assert_eq!(cards[0].fields().len(), 3);
 }

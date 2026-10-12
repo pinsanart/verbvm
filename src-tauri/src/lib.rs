@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tauri::Manager;
 
 use dependencies::db::connection::SqliteHandle;
+use dependencies::media_store::{LocalMediaStore, MediaStorage};
 use dependencies::sanitizer::{AmmoniaSanitizer, HtmlSanitizer};
 use modules::card_types::{CardTypeApi, CardTypeService};
 use modules::decks::{DeckApi, DeckService};
@@ -19,8 +20,12 @@ use orchestrators::{DeckOverviewOrchestrator, FlashcardEditorOrchestrator};
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            let db = Arc::new(SqliteHandle::new(app.path().app_data_dir()?.join("verbvm.db"))?);
+            let data_dir = app.path().app_data_dir()?;
+            let db = Arc::new(SqliteHandle::new(data_dir.join("verbvm.db"))?);
+            // The asset protocol scope in tauri.conf.json is limited to this folder.
+            let media: Arc<dyn MediaStorage> = Arc::new(LocalMediaStore::new(data_dir.join("media")));
 
             let languages: Arc<dyn LanguageApi> = Arc::new(LanguageService::sqlite(db.clone()));
             let decks: Arc<dyn DeckApi> = Arc::new(DeckService::sqlite(db.clone()));
@@ -36,7 +41,7 @@ pub fn run() {
                 flashcards.clone(),
             )));
             app.manage(Arc::new(FlashcardEditorOrchestrator::new(
-                decks, languages, card_types, flashcards, sanitizer,
+                decks, languages, card_types, flashcards, sanitizer, media,
             )));
 
             Ok(())

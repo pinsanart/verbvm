@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use super::error::{FlashcardsError, FlashcardsResult};
-use super::model::{Direction, FieldValue, Flashcard, FlashcardDraft, TypeCount};
+use super::model::{
+    Direction, FieldMedia, FieldValue, Flashcard, FlashcardDraft, MediaAttachment, TypeCount,
+};
 use super::repository::{FlashcardRepository, SqliteFlashcardRepository};
 use crate::dependencies::db::connection::SqliteHandle;
 
@@ -11,6 +13,7 @@ use crate::dependencies::db::connection::SqliteHandle;
 pub struct PublishedDraft {
     pub draft_uuid: String,
     pub fields: Vec<FieldValue>,
+    pub media: Vec<FieldMedia>,
 }
 
 /// Public API of the flashcards module. Other modules depend on this trait only.
@@ -24,6 +27,7 @@ pub trait FlashcardApi: Send + Sync {
         deck_id: i64,
         flashcard_type_id: i64,
         fields: Vec<FieldValue>,
+        media: Vec<FieldMedia>,
     ) -> FlashcardsResult<Flashcard>;
     fn get_flashcard(&self, uuid: &str) -> FlashcardsResult<Flashcard>;
     fn list_flashcards(&self, deck_id: i64) -> FlashcardsResult<Vec<Flashcard>>;
@@ -43,6 +47,15 @@ pub trait FlashcardApi: Send + Sync {
     /// Moves a draft one place. Moving the first draft up or the last one down changes nothing.
     fn move_draft(&self, uuid: &str, direction: Direction) -> FlashcardsResult<()>;
     fn delete_draft(&self, uuid: &str) -> FlashcardsResult<()>;
+    /// Attaches a stored file to a field of a draft. The same file attached twice counts once.
+    fn attach_draft_media(
+        &self,
+        uuid: &str,
+        field_key: &str,
+        media: MediaAttachment,
+    ) -> FlashcardsResult<FlashcardDraft>;
+    /// Detaches the file with this hash from a field of a draft.
+    fn remove_draft_media(&self, uuid: &str, field_key: &str, sha256: &str) -> FlashcardsResult<FlashcardDraft>;
 
     /// Turns drafts into flashcards of one deck and type and deletes the drafts, all or nothing.
     fn publish_drafts(
@@ -78,8 +91,9 @@ impl FlashcardApi for FlashcardService {
         deck_id: i64,
         flashcard_type_id: i64,
         fields: Vec<FieldValue>,
+        media: Vec<FieldMedia>,
     ) -> FlashcardsResult<Flashcard> {
-        let flashcard = Flashcard::new(deck_id, flashcard_type_id, fields)?;
+        let flashcard = Flashcard::new(deck_id, flashcard_type_id, fields, media)?;
         Ok(self.repository.insert_flashcard(&flashcard)?)
     }
 
@@ -157,6 +171,26 @@ impl FlashcardApi for FlashcardService {
         }
     }
 
+    fn attach_draft_media(
+        &self,
+        uuid: &str,
+        field_key: &str,
+        media: MediaAttachment,
+    ) -> FlashcardsResult<FlashcardDraft> {
+        if !self.repository.add_draft_media(uuid, field_key, &media)? {
+            return Err(FlashcardsError::NotFound("draft"));
+        }
+        self.draft(uuid)
+    }
+
+    fn remove_draft_media(&self, uuid: &str, field_key: &str, sha256: &str) -> FlashcardsResult<FlashcardDraft> {
+        self.draft(uuid)?;
+        if !self.repository.remove_draft_media(uuid, field_key, sha256)? {
+            return Err(FlashcardsError::NotFound("media"));
+        }
+        self.draft(uuid)
+    }
+
     fn publish_drafts(
         &self,
         deck_id: i64,
@@ -166,7 +200,7 @@ impl FlashcardApi for FlashcardService {
         let mut flashcards = Vec::with_capacity(drafts.len());
         let mut draft_uuids = Vec::with_capacity(drafts.len());
         for draft in drafts {
-            flashcards.push(Flashcard::new(deck_id, flashcard_type_id, draft.fields)?);
+            flashcards.push(Flashcard::new(deck_id, flashcard_type_id, draft.fields, draft.media)?);
             draft_uuids.push(draft.draft_uuid);
         }
         Ok(self.repository.publish(&flashcards, &draft_uuids)?)
@@ -176,6 +210,7 @@ impl FlashcardApi for FlashcardService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dependencies::media_store::MediaKind;
 
     // From the migration seed: variant 1 is en-US, type 1 is vocabulary, and field definitions
     // 1, 2 and 3 are its phrase, word_or_expression and meaning.
@@ -231,7 +266,7 @@ mod tests {
             FieldValue::new(1, "<b>It's raining</b>".into()).unwrap(),
             FieldValue::new(2, "raining cats and dogs".into()).unwrap(),
         ];
-        let created = f.service.create_flashcard(f.deck_id, VOCABULARY, fields.clone()).unwrap();
+        let created = f.service.create_flashcard(f.deck_id, VOCABULARY, fields.clone(), vec![]).unwrap();
         assert!(created.id().is_some() && created.created_at().is_some());
 
         let found = f.service.get_flashcard(created.uuid()).unwrap();
@@ -251,12 +286,12 @@ mod tests {
     fn a_flashcard_for_a_missing_deck_or_field_conflicts() {
         let f = fixture();
         assert!(matches!(
-            f.service.create_flashcard(99, VOCABULARY, vec![]),
+            f.service.create_flashcard(99, VOCABULARY, vec![], vec![]),
             Err(FlashcardsError::Conflict(_))
         ));
         let bad_field = vec![FieldValue::new(999, "x".into()).unwrap()];
         assert!(matches!(
-            f.service.create_flashcard(f.deck_id, VOCABULARY, bad_field),
+            f.service.create_flashcard(f.deck_id, VOCABULARY, bad_field, vec![]),
             Err(FlashcardsError::Conflict(_))
         ));
         assert_eq!(count(&f, "flashcards"), 0, "the failed insert is rolled back");
@@ -337,8 +372,8 @@ mod tests {
         let a = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
         let b = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
         let items = vec![
-            PublishedDraft { draft_uuid: a.uuid().into(), fields: vec![FieldValue::new(1, "one".into()).unwrap()] },
-            PublishedDraft { draft_uuid: b.uuid().into(), fields: vec![FieldValue::new(1, "two".into()).unwrap()] },
+            PublishedDraft { draft_uuid: a.uuid().into(), fields: vec![FieldValue::new(1, "one".into()).unwrap()], media: vec![] },
+            PublishedDraft { draft_uuid: b.uuid().into(), fields: vec![FieldValue::new(1, "two".into()).unwrap()], media: vec![] },
         ];
         let published = f.service.publish_drafts(f.deck_id, VOCABULARY, items).unwrap();
         assert_eq!(published.len(), 2);
@@ -352,8 +387,8 @@ mod tests {
         let a = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
         let b = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
         let items = vec![
-            PublishedDraft { draft_uuid: a.uuid().into(), fields: vec![FieldValue::new(1, "ok".into()).unwrap()] },
-            PublishedDraft { draft_uuid: b.uuid().into(), fields: vec![FieldValue::new(999, "bad".into()).unwrap()] },
+            PublishedDraft { draft_uuid: a.uuid().into(), fields: vec![FieldValue::new(1, "ok".into()).unwrap()], media: vec![] },
+            PublishedDraft { draft_uuid: b.uuid().into(), fields: vec![FieldValue::new(999, "bad".into()).unwrap()], media: vec![] },
         ];
         assert!(f.service.publish_drafts(f.deck_id, VOCABULARY, items).is_err());
         assert_eq!(count(&f, "flashcards"), 0);
@@ -363,11 +398,89 @@ mod tests {
     #[test]
     fn deleting_a_deck_removes_its_flashcards_and_drafts() {
         let f = fixture();
-        f.service.create_flashcard(f.deck_id, VOCABULARY, vec![FieldValue::new(1, "x".into()).unwrap()]).unwrap();
+        f.service.create_flashcard(f.deck_id, VOCABULARY, vec![FieldValue::new(1, "x".into()).unwrap()], vec![]).unwrap();
         f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
         f.db.with_connection(|conn| conn.execute("DELETE FROM decks", []).map(|_| ())).unwrap();
         assert_eq!(count(&f, "flashcards"), 0);
         assert_eq!(count(&f, "flashcard_fields"), 0);
         assert_eq!(count(&f, "flashcard_drafts"), 0);
+    }
+
+    fn media(fill: char, kind: MediaKind) -> MediaAttachment {
+        let sha256: String = std::iter::repeat(fill).take(64).collect();
+        let (mime, ext) = match kind {
+            MediaKind::Image => ("image/png", "png"),
+            MediaKind::Audio => ("audio/mpeg", "mp3"),
+        };
+        MediaAttachment::new(kind, mime.into(), sha256.clone(), format!("{sha256}.{ext}"), 12).unwrap()
+    }
+
+    #[test]
+    fn media_attached_to_a_draft_keeps_its_order_and_ignores_repeats() {
+        let f = fixture();
+        let draft = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
+        f.service.attach_draft_media(draft.uuid(), "phrase", media('a', MediaKind::Image)).unwrap();
+        f.service.attach_draft_media(draft.uuid(), "phrase", media('b', MediaKind::Audio)).unwrap();
+        let updated = f.service.attach_draft_media(draft.uuid(), "phrase", media('a', MediaKind::Image)).unwrap();
+        let attached = &updated.media()["phrase"];
+        assert_eq!(attached.iter().map(|m| m.kind()).collect::<Vec<_>>(), vec![MediaKind::Image, MediaKind::Audio]);
+        assert_eq!(attached[0].position(), 0);
+        assert_eq!(attached[1].position(), 1);
+
+        let listed = f.service.list_drafts(f.deck_id, VOCABULARY).unwrap();
+        assert_eq!(listed[0].media()["phrase"].len(), 2, "list_drafts includes the media");
+
+        let after_remove = f.service.remove_draft_media(draft.uuid(), "phrase", &"a".repeat(64)).unwrap();
+        assert_eq!(after_remove.media()["phrase"].len(), 1);
+        assert!(matches!(
+            f.service.remove_draft_media(draft.uuid(), "phrase", &"a".repeat(64)),
+            Err(FlashcardsError::NotFound(_))
+        ));
+        assert!(matches!(
+            f.service.attach_draft_media("nope", "phrase", media('c', MediaKind::Image)),
+            Err(FlashcardsError::NotFound(_))
+        ));
+    }
+
+    #[test]
+    fn media_attachments_validate_their_hash() {
+        assert!(MediaAttachment::new(MediaKind::Image, "image/png".into(), "xyz".into(), "x.png".into(), 1).is_err());
+        assert!(MediaAttachment::new(MediaKind::Image, "image/png".into(), "a".repeat(64), "".into(), 1).is_err());
+    }
+
+    #[test]
+    fn duplicating_a_draft_copies_its_media() {
+        let f = fixture();
+        let draft = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
+        f.service.attach_draft_media(draft.uuid(), "phrase", media('a', MediaKind::Image)).unwrap();
+        let copy = f.service.duplicate_draft(draft.uuid()).unwrap();
+        assert_eq!(copy.media()["phrase"].len(), 1);
+        f.service.delete_draft(draft.uuid()).unwrap();
+        assert_eq!(f.service.get_draft(copy.uuid()).unwrap().media()["phrase"].len(), 1, "the copy keeps its own rows");
+    }
+
+    #[test]
+    fn publishing_stores_media_even_when_it_is_the_only_content_of_a_field() {
+        let f = fixture();
+        let draft = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
+        let item = PublishedDraft {
+            draft_uuid: draft.uuid().into(),
+            fields: vec![FieldValue::new(2, "word".into()).unwrap()],
+            media: vec![FieldMedia { field_definition_id: 1, attachment: media('a', MediaKind::Image) }],
+        };
+        let published = f.service.publish_drafts(f.deck_id, VOCABULARY, vec![item]).unwrap();
+
+        let card = f.service.get_flashcard(published[0].uuid()).unwrap();
+        assert_eq!(card.media().len(), 1);
+        assert_eq!(card.media()[0].field_definition_id, 1);
+        assert_eq!(card.media()[0].attachment.kind(), MediaKind::Image);
+        let phrase = card.fields().iter().find(|v| v.field_definition_id() == 1).unwrap();
+        assert_eq!(phrase.content(), "", "a field with only media has empty text");
+        assert_eq!(f.service.list_flashcards(f.deck_id).unwrap()[0].media().len(), 1);
+        assert_eq!(count(&f, "field_media"), 1);
+        assert_eq!(count(&f, "flashcard_draft_media"), 0, "the draft and its media rows are gone");
+
+        f.service.delete_flashcard(card.uuid()).unwrap();
+        assert_eq!(count(&f, "field_media"), 0);
     }
 }
