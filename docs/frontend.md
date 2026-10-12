@@ -78,10 +78,10 @@ Motion conveys state: something appeared, moved, was removed or was pressed. It 
 
 Fields that allow media (the phrase of a vocabulary card, the phrase of an orthographic card) have an attach button.
 
-1. `pickMediaFiles` (`api/files.ts`) opens the system file picker for images and audio.
+1. `pickMediaFiles` (`api/files.ts`) opens the system file picker for images, audio and video.
 2. `attachMedia` sends the path to the backend, which validates the file, copies it into its media folder and attaches it to the draft.
 3. The backend returns the draft with the absolute path of each file. `api/flashcards.ts` turns it into an asset protocol URL with `convertFileSrc`, so components only receive ready-to-use `Media` (`sha256`, `kind`, `mimeType`, `url`).
-4. `MediaPreview` shows images as thumbnails and audio with a player, each with a remove button. A file that is missing from disk shows "File not found".
+4. `MediaPreview` shows images as thumbnails, audio and video with a player (read through the backend, because the Linux webview cannot stream them from the asset protocol), each with a remove button. A file that is missing from disk shows "File not found".
 
 The asset protocol only serves the app's media folder (see [backend.md](backend.md)). Typing is never overwritten when media changes: the viewmodel takes only the `media` of the returned draft.
 

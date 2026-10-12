@@ -111,7 +111,7 @@ pub fn migrations() -> Migrations<'static> {
             CREATE TABLE field_media (
                 id                 INTEGER PRIMARY KEY,
                 flashcard_field_id INTEGER NOT NULL REFERENCES flashcard_fields(id) ON DELETE CASCADE,
-                kind               TEXT NOT NULL CHECK (kind IN ('IMAGE', 'AUDIO')),
+                kind               TEXT NOT NULL CHECK (kind IN ('IMAGE', 'AUDIO', 'VIDEO')),
                 mime_type          TEXT NOT NULL,
                 sha256             TEXT NOT NULL,
                 file_name          TEXT NOT NULL,
@@ -129,7 +129,7 @@ pub fn migrations() -> Migrations<'static> {
                 id         INTEGER PRIMARY KEY,
                 draft_id   INTEGER NOT NULL REFERENCES flashcard_drafts(id) ON DELETE CASCADE,
                 field_key  TEXT NOT NULL,
-                kind       TEXT NOT NULL CHECK (kind IN ('IMAGE', 'AUDIO')),
+                kind       TEXT NOT NULL CHECK (kind IN ('IMAGE', 'AUDIO', 'VIDEO')),
                 mime_type  TEXT NOT NULL,
                 sha256     TEXT NOT NULL,
                 file_name  TEXT NOT NULL,

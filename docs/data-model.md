@@ -82,9 +82,9 @@ Publishing turns all of a deck's drafts into flashcards, each with the type of i
 
 ## Media
 
-Images and audio live in S3 and are read offline from a local folder (`media/` inside the app data folder). The files are named `<sha256>.<ext>`, so identical content is stored once.
+Images, audio and video live in S3 and are read offline from a local folder (`media/` inside the app data folder). The files are named `<sha256>.<ext>`, so identical content is stored once.
 
-- `flashcard_draft_media`: files attached to a draft by field key (`kind` `IMAGE` or `AUDIO`, `mime_type`, `sha256`, `file_name`, `size_bytes`, `position`). Unique per draft, field and hash.
+- `flashcard_draft_media`: files attached to a draft by field key (`kind` `IMAGE`, `AUDIO` or `VIDEO`, `mime_type`, `sha256`, `file_name`, `size_bytes`, `position`). Unique per draft, field and hash.
 - `field_media`: the same for a saved field (`flashcard_field_id`), plus `remote_key`, the S3 object key, NULL until the file is uploaded.
 
 Publishing copies the draft rows into `field_media`. A future sync compares the rows with the files on disk, downloads the missing ones and uploads the rows without a `remote_key`.

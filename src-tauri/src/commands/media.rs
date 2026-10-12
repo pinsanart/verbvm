@@ -16,7 +16,7 @@ use crate::modules::flashcards::MediaAttachment;
 #[serde(rename_all = "camelCase")]
 pub struct MediaDto {
     pub sha256: String,
-    /// `IMAGE` or `AUDIO`.
+    /// `IMAGE`, `AUDIO` or `VIDEO`.
     pub kind: String,
     pub mime_type: String,
     pub path: Option<String>,
@@ -31,6 +31,7 @@ pub fn media_dto(media: &MediaAttachment, path: Option<PathBuf>) -> MediaDto {
         kind: match media.kind() {
             MediaKind::Image => "IMAGE",
             MediaKind::Audio => "AUDIO",
+            MediaKind::Video => "VIDEO",
         }
         .to_owned(),
         mime_type: media.mime_type().to_owned(),

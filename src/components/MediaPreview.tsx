@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { TriangleAlert, X } from "lucide-react";
-import { AudioPlayer } from "./AudioPlayer";
+import { MediaPlayer } from "./MediaPlayer";
 import { TRANSITION_FAST } from "../lib/motion";
 import type { Media, MediaKind } from "../types/Media";
 
@@ -14,6 +14,7 @@ export interface MediaPreviewProps {
 const GROUPS: { kind: MediaKind; title: string }[] = [
     { kind: "IMAGE", title: "Images" },
     { kind: "AUDIO", title: "Audio" },
+    { kind: "VIDEO", title: "Videos" },
 ];
 
 function RemoveButton({ onRemove }: { onRemove: () => void }) {
@@ -47,7 +48,7 @@ export function MediaPreview({ media, onRemove }: MediaPreviewProps) {
                             {title}
                             <span className="tabular-nums text-subtle">{items.length}</span>
                         </h4>
-                        <ul className={kind === "IMAGE" ? "flex flex-wrap gap-2" : "flex flex-col gap-2"}>
+                        <ul className={kind === "IMAGE" ? "flex flex-wrap gap-2" : "flex flex-col gap-3"}>
                             <AnimatePresence initial={false}>
                                 {items.map((item) => (
                                     <motion.li
@@ -66,8 +67,10 @@ export function MediaPreview({ media, onRemove }: MediaPreviewProps) {
                                             </p>
                                         ) : kind === "IMAGE" ? (
                                             <img src={item.url} alt="" className="size-20 rounded-lg object-cover" />
+                                        ) : kind === "VIDEO" ? (
+                                            <MediaPlayer media={item} className="max-h-56 min-w-0 flex-1 rounded-lg bg-black" />
                                         ) : (
-                                            <AudioPlayer media={item} className="h-10 min-w-0 flex-1" />
+                                            <MediaPlayer media={item} className="h-10 min-w-0 flex-1" />
                                         )}
                                         {onRemove &&
                                             (kind === "IMAGE" ? (

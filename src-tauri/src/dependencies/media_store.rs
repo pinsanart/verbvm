@@ -1,4 +1,4 @@
-//! Local storage of flashcard media (images and audio).
+//! Local storage of flashcard media (images, audio and video).
 //!
 //! Media files live in S3 and are read offline from a local folder. This is the local side: it
 //! copies a picked file into the folder under the name `<sha256>.<ext>`, so the same file is
@@ -12,12 +12,12 @@ use std::path::{Path, PathBuf};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
-/// Largest file that is imported, in bytes.
+/// Largest image or audio file that is imported, in bytes. Video may be twice as large.
 pub const MAX_MEDIA_BYTES: u64 = 50 * 1024 * 1024;
 
 /// Formats that are accepted, by detected MIME type. SVG is left out on purpose: it can carry
 /// scripts.
-const ALLOWED_MIME_TYPES: [&str; 10] = [
+const ALLOWED_MIME_TYPES: [&str; 13] = [
     "image/jpeg",
     "image/png",
     "image/gif",
@@ -28,12 +28,16 @@ const ALLOWED_MIME_TYPES: [&str; 10] = [
     "audio/x-flac",
     "audio/m4a",
     "audio/aac",
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MediaKind {
     Image,
     Audio,
+    Video,
 }
 
 impl MediaKind {
@@ -42,6 +46,7 @@ impl MediaKind {
         match self {
             MediaKind::Image => "IMAGE",
             MediaKind::Audio => "AUDIO",
+            MediaKind::Video => "VIDEO",
         }
     }
 
@@ -49,6 +54,7 @@ impl MediaKind {
         match value {
             "IMAGE" => Some(MediaKind::Image),
             "AUDIO" => Some(MediaKind::Audio),
+            "VIDEO" => Some(MediaKind::Video),
             _ => None,
         }
     }
@@ -70,10 +76,10 @@ pub enum MediaError {
     #[error("the file does not exist or is not a regular file")]
     NotAFile,
 
-    #[error("the file is larger than {} MB", MAX_MEDIA_BYTES / (1024 * 1024))]
+    #[error("the file is too large: images and audio up to {} MB, video up to {} MB", MAX_MEDIA_BYTES / (1024 * 1024), 2 * MAX_MEDIA_BYTES / (1024 * 1024))]
     TooLarge,
 
-    #[error("unsupported file type: only JPEG, PNG, GIF, WebP, MP3, OGG, WAV, FLAC, M4A and AAC are accepted")]
+    #[error("unsupported file type: only JPEG, PNG, GIF, WebP, MP3, OGG, WAV, FLAC, M4A, AAC, MP4, WebM and MOV are accepted")]
     UnsupportedType,
 
     #[error("could not read or store the file: {0}")]
@@ -117,7 +123,8 @@ impl MediaStorage for LocalMediaStore {
         if !metadata.is_file() {
             return Err(MediaError::NotAFile);
         }
-        if metadata.len() > self.max_bytes {
+        // Video is the only kind allowed past the base limit, so anything above that is too large.
+        if metadata.len() > self.max_bytes * 2 {
             return Err(MediaError::TooLarge);
         }
 
@@ -127,7 +134,16 @@ impl MediaStorage for LocalMediaStore {
         if !ALLOWED_MIME_TYPES.contains(&mime_type) {
             return Err(MediaError::UnsupportedType);
         }
-        let media_kind = if mime_type.starts_with("image/") { MediaKind::Image } else { MediaKind::Audio };
+        let media_kind = if mime_type.starts_with("image/") {
+            MediaKind::Image
+        } else if mime_type.starts_with("video/") {
+            MediaKind::Video
+        } else {
+            MediaKind::Audio
+        };
+        if media_kind != MediaKind::Video && bytes.len() as u64 > self.max_bytes {
+            return Err(MediaError::TooLarge);
+        }
 
         let sha256 = hex(&Sha256::digest(&bytes));
         let file_name = format!("{sha256}.{}", kind.extension());
@@ -231,6 +247,24 @@ mod tests {
         assert!(matches!(store.import(&tmp.0), Err(MediaError::NotAFile)));
     }
 
+    const MP4: &[u8] = b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom";
+
+    #[test]
+    fn video_is_accepted_and_may_be_twice_as_large() {
+        let tmp = TempDir::new("video");
+        let store = LocalMediaStore::with_limit(tmp.0.join("media"), 16);
+        let video = store.import(&tmp.write("clip.mp4", MP4)).unwrap();
+        assert_eq!((video.kind, video.mime_type.as_str()), (MediaKind::Video, "video/mp4"));
+        assert_eq!(video.size_bytes, 24, "24 bytes is over the base limit of 16");
+
+        let mut big_png = PNG.to_vec();
+        big_png.resize(24, 0);
+        assert!(matches!(store.import(&tmp.write("big.png", &big_png)), Err(MediaError::TooLarge)));
+        let mut huge_video = MP4.to_vec();
+        huge_video.resize(40, 0);
+        assert!(matches!(store.import(&tmp.write("huge.mp4", &huge_video)), Err(MediaError::TooLarge)));
+    }
+
     #[test]
     fn svg_is_not_accepted() {
         let tmp = TempDir::new("svg");
@@ -252,6 +286,7 @@ mod tests {
     fn kind_round_trips_through_its_stored_value() {
         assert_eq!(MediaKind::parse(MediaKind::Image.as_str()), Some(MediaKind::Image));
         assert_eq!(MediaKind::parse(MediaKind::Audio.as_str()), Some(MediaKind::Audio));
-        assert_eq!(MediaKind::parse("VIDEO"), None);
+        assert_eq!(MediaKind::parse(MediaKind::Video.as_str()), Some(MediaKind::Video));
+        assert_eq!(MediaKind::parse("GIF"), None);
     }
 }

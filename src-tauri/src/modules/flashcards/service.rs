@@ -486,6 +486,7 @@ mod tests {
         let (mime, ext) = match kind {
             MediaKind::Image => ("image/png", "png"),
             MediaKind::Audio => ("audio/mpeg", "mp3"),
+            MediaKind::Video => ("video/mp4", "mp4"),
         };
         MediaAttachment::new(kind, mime.into(), sha256.clone(), format!("{sha256}.{ext}"), 12).unwrap()
     }

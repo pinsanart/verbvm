@@ -38,7 +38,7 @@ The database stores in the file itself which migration version has been applied.
 
 ## Media store and sanitizer
 
-- **`MediaStorage`** (`LocalMediaStore`): `import(path)` validates a file **by its content**, not its extension (JPEG, PNG, GIF, WebP, MP3, OGG, WAV, FLAC, M4A and AAC, at most 50 MB, and no SVG because it can carry scripts) and copies it to `media/<sha256>.<ext>`. Importing the same content again returns the same entry. `path_of(file_name)` gives the absolute path and refuses anything that is not a plain file name.
+- **`MediaStorage`** (`LocalMediaStore`): `import(path)` validates a file **by its content**, not its extension (JPEG, PNG, GIF, WebP, MP3, OGG, WAV, FLAC, M4A, AAC, MP4, WebM and MOV, at most 50 MB, or 100 MB for video, and no SVG because it can carry scripts) and copies it to `media/<sha256>.<ext>`. Importing the same content again returns the same entry. `path_of(file_name)` gives the absolute path and refuses anything that is not a plain file name.
 - **`HtmlSanitizer`** (`AmmoniaSanitizer`): `sanitize_html` keeps a small allow-list of formatting tags (b, i, u, br, p, ul, li and a few more) and removes scripts, event handlers and links. `strip_tags` reduces HTML to text, which the editor uses to tell whether a rich field is empty.
 
 ## Startup (`lib.rs`)

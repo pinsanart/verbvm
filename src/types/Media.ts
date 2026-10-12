@@ -1,4 +1,4 @@
-export type MediaKind = "IMAGE" | "AUDIO";
+export type MediaKind = "IMAGE" | "AUDIO" | "VIDEO";
 
 /** A file attached to a field, ready to preview. `url` is null when the file is missing. */
 export interface Media {
