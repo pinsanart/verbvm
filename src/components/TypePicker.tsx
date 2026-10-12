@@ -45,17 +45,17 @@ export function TypePicker({ onPick, disabled }: TypePickerProps) {
             {/* Wide screens: one button per type. */}
             <div className="hidden flex-wrap items-center gap-2 md:flex" role="group" aria-label="Add a flashcard">
                 {ENABLED_TYPE_SLUGS.map((slug) => {
-                    const { icon: Icon, label, tile } = styleForType(slug);
+                    const { icon: Icon, label, text } = styleForType(slug);
                     return (
                         <button
                             key={slug}
                             type="button"
                             disabled={disabled}
                             onClick={() => pick(slug)}
-                            className={`flex items-center gap-2 rounded-lg border-2 border-dotted px-3 py-2 text-ui font-medium text-ink transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tile}`}
+                            className="flex min-h-10 items-center gap-2 rounded-full px-4 text-ui font-medium text-ink transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            <Plus size={16} aria-hidden />
-                            <Icon size={18} aria-hidden />
+                            <Plus size={16} className="text-muted" aria-hidden />
+                            <Icon size={18} className={text} aria-hidden />
                             {label}
                         </button>
                     );

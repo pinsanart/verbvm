@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Layers, Save } from "lucide-react";
+import { Layers } from "lucide-react";
 import { useParams } from "react-router";
 import { Button } from "../components/Button";
 import { CountryFlag } from "../components/CountryFlag";
+import { EditorDock } from "../components/EditorDock";
 import { EmptyState } from "../components/EmptyState";
 import { FlashcardInput } from "../components/FlashcardInput";
 import { Notice } from "../components/Notice";
 import { Page } from "../components/Page";
 import { SavedCardList } from "../components/SavedCardList";
 import { SavedCardPanel } from "../components/SavedCardPanel";
-import { TypePicker } from "../components/TypePicker";
 import { TRANSITION_BASE } from "../lib/motion";
 import { useFlashcardEditorViewModel } from "../viewmodels/useFlashcardEditorViewModel";
 import { useSavedCardsViewModel } from "../viewmodels/useSavedCardsViewModel";
@@ -65,11 +65,6 @@ export default function DeckEditor() {
         {saved.error && !saved.selected && (
           <Notice key="saved-error" tone="error">
             {saved.error}
-          </Notice>
-        )}
-        {vm.lastPublished !== null && (
-          <Notice key="published" tone="success">
-            {vm.lastPublished} {vm.lastPublished === 1 ? "flashcard" : "flashcards"} saved.
           </Notice>
         )}
       </AnimatePresence>
@@ -135,7 +130,7 @@ export default function DeckEditor() {
             <EmptyState
               icon={Layers}
               title="Add your first flashcard"
-              description="Use the button below to add a card. Your cards stay here as drafts until you press Save all."
+              description="Use the + below to add a card. Your cards stay here as drafts until you save them."
             />
           )}
 
@@ -176,13 +171,13 @@ export default function DeckEditor() {
             </AnimatePresence>
           </div>
 
-          <div className="sticky bottom-0 z-10 -mx-4 flex flex-row-reverse flex-wrap items-center justify-between md:flex-row gap-3 border-t border-line bg-canvas/90 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
-            <TypePicker onPick={vm.addDraft} disabled={vm.busy} />
-            <Button onClick={vm.saveAll} loading={vm.busy} disabled={vm.drafts.length === 0}>
-              <Save size={16} aria-hidden />
-              Save all ({vm.drafts.length})
-            </Button>
-          </div>
+          <EditorDock
+            pending={vm.drafts.length}
+            justSaved={vm.lastPublished}
+            busy={vm.busy}
+            onAdd={vm.addDraft}
+            onSave={vm.saveAll}
+          />
         </div>
       )}
 
