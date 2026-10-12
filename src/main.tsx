@@ -8,6 +8,7 @@ import "./index.css";
 import Root from "./routes/Root";
 import Home from "./routes/Home";
 import Review from "./routes/Review";
+import ReviewSession from "./routes/ReviewSession";
 import Decks from "./routes/Decks";
 import DeckEditor from "./routes/DeckEditor";
 import Dashboard from "./routes/Dashboard";
@@ -20,6 +21,7 @@ const router = createHashRouter([
     children: [
       { index: true, Component: Home },
       { path: "review", Component: Review },
+      { path: "review/:deckName/:typeSlug", Component: ReviewSession },
       { path: "decks", Component: Decks },
       { path: "decks/:deckName", Component: DeckEditor },
       { path: "dashboard", Component: Dashboard },
