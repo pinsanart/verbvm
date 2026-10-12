@@ -126,3 +126,44 @@ pub async fn set_default_language_variant(
 pub async fn delete_language_variant(api: Api<'_>, bcp47_code: String) -> CommandResult<()> {
     Ok(api.delete_variant(&bcp47_code)?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn language_and_variant_dtos_match_the_typescript_types() {
+        let language = LanguageDto {
+            iso_639_1: Some("ja".into()),
+            iso_639_3: "jpn".into(),
+            name: "Japanese".into(),
+            default_variant_code: Some("ja-JP".into()),
+        };
+        assert_eq!(
+            serde_json::to_value(language).unwrap(),
+            json!({"iso6391": "ja", "iso6393": "jpn", "name": "Japanese", "defaultVariantCode": "ja-JP"})
+        );
+        let variant = LanguageVariantDto {
+            bcp47_code: "ja-JP".into(),
+            variant_name: "Japanese (Japan)".into(),
+            country_code: Some("JP".into()),
+        };
+        assert_eq!(
+            serde_json::to_value(variant).unwrap(),
+            json!({"bcp47Code": "ja-JP", "variantName": "Japanese (Japan)", "countryCode": "JP"})
+        );
+    }
+
+    #[test]
+    fn inputs_are_read_from_the_typescript_shape() {
+        let language: NewLanguageInput =
+            serde_json::from_value(json!({"iso6391": null, "iso6393": "tlh", "name": "Klingon"})).unwrap();
+        assert_eq!(language.iso_639_3, "tlh");
+        let variant: NewLanguageVariantInput = serde_json::from_value(json!({
+            "languageIso6393": "tlh", "bcp47Code": "tlh-a", "variantName": "A", "countryCode": null
+        }))
+        .unwrap();
+        assert_eq!((variant.language_iso_639_3.as_str(), variant.bcp47_code.as_str()), ("tlh", "tlh-a"));
+    }
+}

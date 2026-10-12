@@ -204,3 +204,63 @@ pub async fn publish_drafts(
 ) -> CommandResult<PublishResultDto> {
     Ok(publish_dto(&api.publish_drafts(&deck_name, &type_slug)?))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn dtos_match_the_typescript_types() {
+        let field = FieldDefinitionDto {
+            key: "phrase".into(),
+            label: "Phrase".into(),
+            side: "FRONT".into(),
+            position: 0,
+            is_required: true,
+            is_rich: true,
+            media_allowed: true,
+        };
+        assert_eq!(
+            serde_json::to_value(field).unwrap(),
+            json!({"key": "phrase", "label": "Phrase", "side": "FRONT", "position": 0,
+                   "isRequired": true, "isRich": true, "mediaAllowed": true})
+        );
+
+        let mut values = BTreeMap::new();
+        values.insert("phrase".to_string(), "hi".to_string());
+        let draft = DraftDto { uuid: "u".into(), position: 1, values };
+        assert_eq!(
+            serde_json::to_value(draft).unwrap(),
+            json!({"uuid": "u", "position": 1, "values": {"phrase": "hi"}})
+        );
+
+        let result = PublishResultDto {
+            published: 0,
+            issues: vec![DraftIssueDto {
+                draft_uuid: "u".into(),
+                field_key: Some("phrase".into()),
+                message: "Phrase is required".into(),
+            }],
+        };
+        assert_eq!(
+            serde_json::to_value(result).unwrap(),
+            json!({"published": 0, "issues": [{"draftUuid": "u", "fieldKey": "phrase", "message": "Phrase is required"}]})
+        );
+    }
+
+    #[test]
+    fn direction_is_read_as_lowercase_text() {
+        let up: DirectionInput = serde_json::from_value(json!("up")).unwrap();
+        let down: DirectionInput = serde_json::from_value(json!("down")).unwrap();
+        assert_eq!(Direction::from(up), Direction::Up);
+        assert_eq!(Direction::from(down), Direction::Down);
+        assert!(serde_json::from_value::<DirectionInput>(json!("left")).is_err());
+    }
+
+    #[test]
+    fn command_errors_carry_a_kind_and_a_message() {
+        let error = CommandError::from(crate::orchestrators::OrchestratorError::NotFound("deck not found".into()));
+        assert_eq!(serde_json::to_value(error).unwrap(), json!({"kind": "not_found", "message": "deck not found"}));
+    }
+}

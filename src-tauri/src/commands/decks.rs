@@ -102,3 +102,53 @@ pub async fn create_deck(api: Api<'_>, input: NewDeckInput) -> CommandResult<Dec
 pub async fn delete_deck(api: Api<'_>, name: String) -> CommandResult<()> {
     Ok(api.delete(&name)?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn deck_dto_matches_the_typescript_type() {
+        let deck = DeckDto {
+            name: "Travel".into(),
+            description: None,
+            created_at: Some("2026-10-12 08:00:00".into()),
+            language: LanguageSummaryDto { name: "English".into(), iso_639_3: "eng".into() },
+            variant: LanguageVariantDto {
+                bcp47_code: "en-US".into(),
+                variant_name: "English (United States)".into(),
+                country_code: Some("US".into()),
+            },
+            stats: DeckStatsDto {
+                total_cards: 3,
+                cards_by_type: vec![TypeCountDto {
+                    type_slug: "vocabulary".into(),
+                    type_name: "Vocabulary".into(),
+                    count: 3,
+                }],
+            },
+        };
+        assert_eq!(
+            serde_json::to_value(deck).unwrap(),
+            json!({
+                "name": "Travel",
+                "description": null,
+                "createdAt": "2026-10-12 08:00:00",
+                "language": {"name": "English", "iso6393": "eng"},
+                "variant": {"bcp47Code": "en-US", "variantName": "English (United States)", "countryCode": "US"},
+                "stats": {"totalCards": 3, "cardsByType": [{"typeSlug": "vocabulary", "typeName": "Vocabulary", "count": 3}]}
+            })
+        );
+    }
+
+    #[test]
+    fn new_deck_input_is_read_from_the_typescript_shape() {
+        let input: NewDeckInput = serde_json::from_value(json!({
+            "name": "Travel", "languageIso6393": "eng", "variantBcp47Code": null, "description": "x"
+        }))
+        .unwrap();
+        assert_eq!(input.language_iso_639_3, "eng");
+        assert!(input.variant_bcp47_code.is_none());
+    }
+}
