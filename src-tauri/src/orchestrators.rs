@@ -7,12 +7,19 @@
 mod deck_overview;
 mod error;
 mod flashcard_editor;
+mod review_session;
 
 pub use deck_overview::{DeckOverview, DeckOverviewOrchestrator};
 pub use error::{OrchestratorError, OrchestratorResult};
+pub use review_session::{
+    CardState, DeckReview, ReviewCardView, ReviewCounts, ReviewField, ReviewNext, ReviewSessionOrchestrator,
+    TypeReview,
+};
 pub use flashcard_editor::{
     DraftIssue, EditorForm, FlashcardEditorOrchestrator, PublishOutcome, TypeForm,
 };
 
+#[cfg(test)]
+mod review_session_tests;
 #[cfg(test)]
 mod tests;

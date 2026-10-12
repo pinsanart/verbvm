@@ -5,6 +5,7 @@ use crate::modules::card_types::CardTypesError;
 use crate::modules::decks::DecksError;
 use crate::modules::flashcards::FlashcardsError;
 use crate::modules::languages::LanguagesError;
+use crate::modules::reviews::ReviewsError;
 
 pub type OrchestratorResult<T> = Result<T, OrchestratorError>;
 
@@ -54,6 +55,17 @@ impl From<MediaError> for OrchestratorError {
                 OrchestratorError::Invalid(message)
             }
             MediaError::Io(_) => OrchestratorError::Internal(message),
+        }
+    }
+}
+
+impl From<ReviewsError> for OrchestratorError {
+    fn from(err: ReviewsError) -> Self {
+        let message = err.to_string();
+        match err {
+            ReviewsError::Invalid { .. } => OrchestratorError::Invalid(message),
+            ReviewsError::Conflict(_) => OrchestratorError::Conflict(message),
+            ReviewsError::Db(_) => OrchestratorError::Internal(message),
         }
     }
 }
