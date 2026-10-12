@@ -1,3 +1,4 @@
+import { motion } from "motion/react";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { CountryFlag } from "./CountryFlag";
 import { styleForType } from "../data/FlashcardTypeStyles";
@@ -5,14 +6,24 @@ import type { Deck } from "../types/Deck";
 
 export interface DeckCardProps {
     deck: Deck;
+    /** Position in the list, to stagger the entrance. */
+    index?: number;
     onOpen: () => void;
     onDelete: () => void;
 }
 
 /** A deck in the deck list: its name, language and accent, description and card counts. */
-export function DeckCard({ deck, onOpen, onDelete }: DeckCardProps) {
+export function DeckCard({ deck, index = 0, onOpen, onDelete }: DeckCardProps) {
     return (
-        <div className="relative rounded-2xl border border-white/10 bg-panel transition-colors hover:border-white/30">
+        <motion.div
+            layout
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            whileHover={{ y: -2 }}
+            transition={{ duration: 0.2, delay: Math.min(index, 8) * 0.04 }}
+            className="relative rounded-2xl border border-white/10 bg-panel transition-colors hover:border-white/30"
+        >
             <button type="button" onClick={onOpen} className="flex w-full flex-col gap-3 p-4 text-left">
                 <div className="flex items-center gap-3 pr-8">
                     <CountryFlag code={deck.variant.countryCode} className="h-6 w-9 shrink-0" />
@@ -46,6 +57,6 @@ export function DeckCard({ deck, onOpen, onDelete }: DeckCardProps) {
             <div className="absolute right-2 top-2">
                 <ConfirmDeleteButton label={`the deck ${deck.name}`} onConfirm={onDelete} />
             </div>
-        </div>
+        </motion.div>
     );
 }

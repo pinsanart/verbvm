@@ -1,4 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
+import { motion } from "motion/react";
+import { Button } from "./Button";
 import { Select } from "./Select";
 import { controlClass, labelClass } from "./formStyles";
 import type { NewDeck } from "../types/Deck";
@@ -51,8 +53,19 @@ export function NewDeckDialog({ languages, loadVariants, onCreate, onClose, busy
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-            <form
+        <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={onClose}
+        >
+            <motion.form
+                initial={{ opacity: 0, scale: 0.96, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 8 }}
+                transition={{ duration: 0.18 }}
                 role="dialog"
                 aria-modal="true"
                 aria-label="New deck"
@@ -98,16 +111,10 @@ export function NewDeckDialog({ languages, loadVariants, onCreate, onClose, busy
                 </div>
 
                 <div className="flex justify-end gap-2">
-                    <button type="button" onClick={onClose}
-                        className="rounded-lg px-3 py-2 text-sm text-white/60 hover:bg-white/10 hover:text-white">
-                        Cancel
-                    </button>
-                    <button type="submit" disabled={busy || !language}
-                        className="rounded-lg bg-vocabulary px-4 py-2 text-sm font-medium disabled:opacity-50">
-                        Create deck
-                    </button>
+                    <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                    <Button type="submit" disabled={busy || !language}>Create deck</Button>
                 </div>
-            </form>
-        </div>
+            </motion.form>
+        </motion.div>
     );
 }
