@@ -38,7 +38,7 @@ export function Page({ title, parents = [], meta, actions, width = "reading", ch
                                 </li>
                             ))}
                             <li className="flex min-w-0 items-center gap-3">
-                                <h1 className="truncate text-body font-semibold">{title}</h1>
+                                <h1 className="truncate text-ui font-semibold uppercase tracking-[0.08em]">{title}</h1>
                                 {meta && (
                                     <span className="flex shrink-0 items-center gap-2 text-meta text-muted">{meta}</span>
                                 )}

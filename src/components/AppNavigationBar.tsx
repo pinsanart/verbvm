@@ -46,13 +46,13 @@ export function AppNavigationBar() {
           md:flex
         "
       >
-        <div className="flex items-center gap-3 overflow-hidden px-1 pb-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent p-1.5">
+        <div className="flex items-center gap-3 overflow-hidden px-0.5 pb-5">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent p-2">
             <img src={verbvmLogo} alt="Verbvm" className="h-full w-full object-contain" />
           </div>
           <motion.span
             variants={fadeVariants}
-            className="overflow-hidden whitespace-nowrap text-heading font-semibold"
+            className="overflow-hidden whitespace-nowrap text-heading font-semibold tracking-tight"
           >
             Verbvm
           </motion.span>
@@ -64,8 +64,8 @@ export function AppNavigationBar() {
           ))}
         </div>
 
-        <div className="flex items-center gap-3 overflow-hidden border-t border-line px-1 pt-3">
-          <CircleUserRound size={36} className="shrink-0 text-muted" aria-hidden />
+        <div className="flex items-center gap-3 overflow-hidden border-t border-line px-3 pt-4 pb-1">
+          <CircleUserRound size={24} className="shrink-0 text-muted" aria-hidden />
           <motion.span
             variants={fadeVariants}
             className="overflow-hidden whitespace-nowrap text-ui text-muted"
