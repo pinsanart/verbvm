@@ -1,9 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: Roboto, Inter, Avenir, Helvetica, Arial, sans-serif;
+  /* Inter is bundled with the app, so the text looks the same on every machine and offline.
+     The CJK fonts are fallbacks for the languages Inter does not cover. */
+  --font-sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    "Noto Sans CJK SC", "Hiragino Sans", "Yu Gothic UI", "Microsoft YaHei UI", "Malgun Gothic", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 
-  
+  /* Secondary text. Both keep at least 4.5:1 contrast on the panel color. */
+  --color-muted: rgb(255 255 255 / 0.62);
+  --color-subtle: rgb(255 255 255 / 0.5);
+
   --color-panel: #232428;
   --color-panel-border: #5B5858;
   --color-vocabulary: #204AF5;
@@ -15,6 +22,31 @@
 html {
   /* Scrollbars and any native control follow the dark theme. */
   color-scheme: dark;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-optical-sizing: auto;
+    line-height: 1.5;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
 }
 
 html,

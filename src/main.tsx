@@ -2,6 +2,7 @@ import ReactDOM from "react-dom/client";
 import { createHashRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 
+import "@fontsource-variable/inter";
 import "./index.css";
 
 import Root from "./routes/Root";
