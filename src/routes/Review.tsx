@@ -23,6 +23,12 @@ export default function Review() {
         )}
       </AnimatePresence>
 
+      <p className="max-w-prose text-ui text-muted">
+        <b className="font-medium text-ink">New</b> cards have not been reviewed yet.{" "}
+        <b className="font-medium text-ink">Learning</b> cards were missed and are due again.{" "}
+        <b className="font-medium text-ink">Review</b> cards are due to be reviewed.
+      </p>
+
       {vm.status === "loading" && (
         <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading decks">
           {[0, 1].map((n) => (
