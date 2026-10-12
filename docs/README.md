@@ -1,18 +1,18 @@
-# Documentação do verbvm
+# verbvm documentation
 
-verbvm é um app desktop de flashcards para aprender idiomas. Funciona **offline**: todos os dados ficam em um arquivo SQLite local, sem servidor. É um shell Tauri 2 (Rust) em volta de um frontend React 19 + TypeScript.
+verbvm is a desktop flashcard app for learning languages. It works **offline**: all data lives in a local SQLite file, with no server. It is a Tauri 2 shell (Rust) around a React 19 + TypeScript frontend.
 
-O Rust cuida de toda a lógica e de todos os dados. O frontend só apresenta.
+Rust owns all the logic and all the data. The frontend only presents it.
 
-## Índice
+## Index
 
-| Documento | Conteúdo |
+| Document | Contents |
 |---|---|
-| [arquitetura.md](arquitetura.md) | As camadas, as regras dos módulos e as convenções em aberto |
-| [modelo-de-dados.md](modelo-de-dados.md) | Todas as tabelas, o diagrama ER e as decisões do schema |
-| [backend.md](backend.md) | Banco, migrations, módulos, commands do Tauri e testes. Inclui o passo a passo para criar um módulo |
-| [frontend.md](frontend.md) | Rotas, viewmodels, wrappers do `invoke`. Inclui o passo a passo para criar uma tela |
-| [revisao.md](revisao.md) | O sistema de revisão: SM-2, tabelas, fluxo e o plano para ML |
-| [desenvolvimento.md](desenvolvimento.md) | Comandos do dia a dia e limitações conhecidas |
+| [architecture.md](architecture.md) | The layers, the module rules and the conventions |
+| [data-model.md](data-model.md) | Every table, the ER diagram and the schema decisions |
+| [backend.md](backend.md) | Database, migrations, modules, orchestrators, Tauri commands, media and tests. Includes a step-by-step guide to adding a module |
+| [frontend.md](frontend.md) | Routes, viewmodels, `invoke` wrappers and the media preview. Includes a step-by-step guide to adding a screen |
+| [review.md](review.md) | The review system: SM-2, tables, flow and the plan for ML |
+| [development.md](development.md) | Everyday commands and known limitations |
 
-A documentação de API do código Rust é gerada com `cargo doc --no-deps --document-private-items --open`, dentro de `src-tauri/`.
+The API documentation of the Rust code is generated with `cargo doc --no-deps --document-private-items --open` inside `src-tauri/`.

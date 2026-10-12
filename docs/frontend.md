@@ -1,48 +1,70 @@
 # Frontend
 
-React 19 + TypeScript, build com Vite e estilo com Tailwind CSS v4 (plugin `@tailwindcss/vite`, entrada em `src/index.css`). O frontend só apresenta: dados e regras ficam no Rust.
+React 19 + TypeScript, built with Vite and styled with Tailwind CSS v4 (the `@tailwindcss/vite` plugin, entry in `src/index.css`). The frontend only presents: data and rules live in Rust.
 
-## Estrutura
+## Structure
 
 ```
 src/
-├── main.tsx              # rotas (createHashRouter)
-├── routes/               # telas (as views)
-├── components/           # componentes reutilizáveis
-├── viewmodels/           # a "API" das views
-├── api/                  # wrappers tipados do invoke do Tauri
-├── types/                # tipos compartilhados
-└── data/                 # dados estáticos, como os botões da navegação
+├── main.tsx              # routes (createHashRouter)
+├── routes/               # screens (the views)
+├── components/           # reusable, presentational components
+├── viewmodels/           # the views' API
+├── api/                  # typed wrappers around Tauri's invoke
+├── types/                # shared types
+└── data/                 # static data: navigation buttons, flashcard type colors and icons
 ```
 
-## Rotas
+## Routes
 
-`main.tsx` usa `createHashRouter`, o roteamento por hash que combina com o frontend servido como arquivo pelo Tauri. `routes/Root.tsx` é o layout, com a barra lateral responsiva (`AppNavigationBar`, alimentada por `data/NavigationButton.ts`).
+`main.tsx` uses `createHashRouter`, hash routing that suits a frontend served as files by Tauri. `routes/Root.tsx` is the layout, with the responsive sidebar (`AppNavigationBar`, fed by `data/NavigationButton.ts`).
 
-Rotas: `Home`, `review`, `create`, `dashboard`, `settings` e `language_tests`, uma tela manual para criar idiomas e variants.
+| Route | Screen |
+|---|---|
+| `/create` | `Create`: the deck list, with a dialog to create a deck |
+| `/create/:deckName` | `CreateTypes`: tiles for Stack, Vocabulary, Phonetic and Orthographic in their brand colors (only vocabulary is enabled) |
+| `/create/:deckName/:typeSlug` | `CreateFlashcards`: the editor of the drafts of a type in a deck |
+| `/`, `/review`, `/dashboard`, `/settings` | Placeholders |
 
-## View, viewmodel e api
+## The create flow
 
-O exemplo de referência é `routes/LanguageTests.tsx` com `viewmodels/useLanguagesViewModel.ts` e `api/languages.ts`.
+1. **Deck list** (`Create`, `DeckCard`, `NewDeckDialog`, `useDecksViewModel`): each deck shows its flag, name, language and accent, description and card counts by type. The dialog creates a deck from a name, a language and an accent (preselected with the language's default) and a description.
+2. **Type selection** (`CreateTypes`): dotted tiles with the brand colors of `data/FlashcardTypeStyles.ts` (the theme colors in `index.css`). Stack is not a flashcard type but a way to link cards, and the other types are not built yet, so they show a "Soon" badge.
+3. **Editor** (`CreateFlashcards`, `FlashcardInput`, `useFlashcardEditorViewModel`): a list of drafts. The control bar of each card moves it up or down, duplicates it or deletes it. "Add card" appends a draft and "Save all" publishes them. Drafts are stored by the backend, so closing the app loses nothing.
 
-- **`api/languages.ts`**: funções finas, uma por command (`listLanguages`, `createLanguage`...), com tipos de entrada e saída. Também tem `errorMessage(err)`, que transforma o que o `invoke` rejeitou em texto (lê o `message` do `CommandError`).
-- **`viewmodels/useLanguagesViewModel.ts`**: um hook do React. Guarda o estado (idiomas, variants, idioma selecionado, erro) e expõe ações (`addLanguage`, `removeLanguage`, `addVariant`, `makeDefaultVariant`, `removeVariant`, `selectLanguage`). As ações devolvem `true` quando dão certo, para a view limpar os formulários.
-- **`routes/LanguageTests.tsx`**: só renderiza e guarda o estado dos inputs. Não importa nada de `api/`.
-- **`types/Language.ts`**: os tipos que espelham os DTOs do Rust (`Language`, `LanguageVariant`, `NewLanguage`, `CommandError`...). Os nomes dos campos vêm do `serde(rename_all = "camelCase")` e dos `rename` explícitos (`iso6391`, `iso6393`).
+The editor is **driven by the field definitions** the backend sends: `FlashcardInput` renders the fields it receives, grouped under front and back, and `FieldInput` picks the rich editor (`isRich`) or plain text. A new type or a language-specific field (for example romaji for Japanese) needs no component change. Required fields are marked with an asterisk, and the errors that publishing returns are shown under the field.
 
-### Criando uma tela
+### Flags
 
-1. Escreva os commands no Rust e liste-os em `generate_handler!`.
-2. Crie os tipos em `types/` e os wrappers em `api/`.
-3. Crie o viewmodel em `viewmodels/use<Nome>ViewModel.ts`. Ele concentra estado, ações e erros.
-4. Crie a view em `routes/` consumindo o viewmodel, e registre a rota em `main.tsx`. Se precisar de acesso pela barra lateral, adicione um botão em `data/NavigationButton.ts`.
+`CountryFlag` shows an SVG flag from the accent's country code, using the offline `country-flag-icons` package, or a globe when there is no country. Flag emoji are not used because Windows does not render them.
 
-## Rodando
+## Media preview
 
-- `npm run tauri dev`: o app completo.
-- `npm run dev`: só o frontend, em http://localhost:1420. O `invoke` do Tauri não existe no navegador, então as telas que chamam o backend mostram um erro. Use o app completo para elas.
-- `npm run build`: `tsc` e depois `vite build`.
+Fields that allow media (the phrase of a vocabulary card, the phrase of an orthographic card) have an attach button.
 
-## Pendências
+1. `pickMediaFiles` (`api/files.ts`) opens the system file picker for images and audio.
+2. `attachMedia` sends the path to the backend, which validates the file, copies it into its media folder and attaches it to the draft.
+3. The backend returns the draft with the absolute path of each file. `api/flashcards.ts` turns it into an asset protocol URL with `convertFileSrc`, so components only receive ready-to-use `Media` (`sha256`, `kind`, `mimeType`, `url`).
+4. `MediaPreview` shows images as thumbnails and audio with a player, each with a remove button. A file that is missing from disk shows "File not found".
 
-`types/Flashcard.ts` e os componentes de `Create` (`FlashcardInput` e campos) ainda usam ids string e uma união fixa de tipos (`vocabulary`, `phonetic`, `orthographic`). Eles não refletem o schema do banco e serão reconciliados quando os commands de flashcards existirem.
+The asset protocol only serves the app's media folder (see [backend.md](backend.md)). Typing is never overwritten when media changes: the viewmodel takes only the `media` of the returned draft.
+
+## View, viewmodel and api
+
+- **`api/`**: one function per command, and `errorMessage(err)`, which turns what `invoke` rejected with into text (it reads the `message` of the `CommandError`).
+- **`viewmodels/`**: one hook per screen. `useAsyncRunner` runs actions, captures the error and tracks `busy`. `useDecksViewModel` and `useFlashcardEditorViewModel` are the two screen hooks. The editor one keeps Rust as the source of truth, applies typing locally and saves it after a 500 ms pause, and flushes pending saves before any other action and when the screen closes.
+- **Views** only render and keep UI state, such as an open dialog.
+- **`types/`** mirror the DTOs of the commands. Field names come from `serde(rename_all = "camelCase")` and the explicit renames (`iso6393`).
+
+### Adding a screen
+
+1. Write the commands in Rust and list them in `generate_handler!`.
+2. Create the types in `types/` and the wrappers in `api/`.
+3. Create the viewmodel in `viewmodels/use<Name>ViewModel.ts`. It concentrates state, actions and errors.
+4. Create the view in `routes/` consuming the viewmodel, and register the route in `main.tsx`. For sidebar access, add a button in `data/NavigationButton.ts`.
+
+## Running
+
+- `npm run tauri dev`: the full app.
+- `npm run dev`: the frontend alone, at http://localhost:1420. Tauri's `invoke` does not exist in the browser, so screens that call the backend show an error. Use the full app for them.
+- `npm run build`: `tsc`, then `vite build`.

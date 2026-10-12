@@ -1,78 +1,100 @@
 # Backend
 
-O backend é o crate `verbvm_lib` em `src-tauri/` (`lib.rs`, com `main.rs` só chamando `run()`).
+The backend is the `verbvm_lib` crate in `src-tauri/` (`lib.rs`, with `main.rs` only calling `run()`).
 
-## Estrutura
+## Structure
 
 ```
 src-tauri/src/
-├── lib.rs                  # setup do Tauri: abre o banco, monta os services, registra os commands
-├── dependencies/           # infraestrutura
-│   ├── clock.rs            # Clock (UTC) e o formato dos horários
-│   ├── db/                 # SqliteHandle, DbError, migrations
-│   └── http/               # HttpClient (NÃO compilado, veja desenvolvimento.md)
-├── modules/                # um diretório por módulo
-│   ├── languages/          # model, repository, service, error
-│   └── reviews/            # model, repository, service, error
-└── commands/               # fronteira com o Tauri: DTOs, CommandError, commands
+├── lib.rs                  # Tauri setup: opens the database, builds services and orchestrators, registers commands
+├── dependencies/           # infrastructure
+│   ├── clock.rs            # Clock (UTC) and the time format
+│   ├── db/                 # SqliteHandle, DbError, migrations, sql_time (UTC column readers)
+│   ├── media_store.rs      # MediaStorage: copies picked files into the local media folder
+│   ├── sanitizer.rs        # HtmlSanitizer (ammonia)
+│   └── http/               # HttpClient (NOT compiled, see development.md)
+├── modules/                # one directory per module
+│   ├── languages/  decks/  card_types/  flashcards/  reviews/    # model, repository, service, error
+├── orchestrators/          # use cases across modules
+└── commands/               # the Tauri boundary: DTOs, CommandError, commands
 ```
 
-## Banco e migrations
+## Database and migrations
 
-`SqliteHandle` (`dependencies/db/connection.rs`) embrulha um `Mutex<rusqlite::Connection>`. Ao abrir, ele cria o diretório pai, liga WAL e foreign keys, define `busy_timeout` e roda as migrations (`rusqlite_migration`). Todo acesso passa por `with_connection(|conn| ...)`. Escritas em várias tabelas usam `conn.unchecked_transaction()` dentro dessa chamada, que é o único jeito de compartilhar uma transação entre tabelas.
+`SqliteHandle` (`dependencies/db/connection.rs`) wraps a `Mutex<rusqlite::Connection>`. On open it creates the parent directory, turns on WAL and foreign keys, sets `busy_timeout` and runs the migrations (`rusqlite_migration`). Every access goes through `with_connection(|conn| ...)`. Writes that span several tables use `conn.unchecked_transaction()` inside that call, which is the only way to share a transaction across tables.
 
-O arquivo do banco é `verbvm.db` no diretório de dados do app. No Linux, `~/.local/share/verbvm/verbvm.db` (o identificador do app é `verbvm`).
+The database file is `verbvm.db` in the app data folder. On Linux that is `~/.local/share/verbvm/verbvm.db` (the app identifier is `verbvm`). The media folder is `media/` next to it.
 
-### Evoluindo o schema
+### Evolving the schema
 
-O banco guarda no próprio arquivo qual versão de migration já foi aplicada. Isso tem duas consequências:
+The database stores in the file itself which migration version has been applied. This has two consequences:
 
-- **Em produção**, nunca edite uma migration que já rodou. Adicione uma nova `M::up(...)` ao fim da lista.
-- **Durante o desenvolvimento**, enquanto o schema ainda muda, o dono do projeto edita a v1.0 mesmo. O banco de desenvolvimento que já aplicou a v1.0 não vai reaplicá-la, então é preciso apagar `verbvm.db` e os arquivos `verbvm.db-wal` e `verbvm.db-shm` ao lado dele e reabrir o app.
+- **In production**, never edit a migration that already ran. Append a new `M::up(...)` to the end of the list.
+- **During development**, while the schema is still changing, the owner edits v1.0 directly. A development database that already applied v1.0 will not apply it again, so delete `verbvm.db` and the `verbvm.db-wal` and `verbvm.db-shm` files next to it and reopen the app.
 
-## Horário (UTC)
+## Time (UTC)
 
-`dependencies/clock.rs` define o `trait Clock`, o `SystemClock` (hora atual em UTC, truncada para segundos) e, só em testes, o `FixedClock`, que só anda quando mandam. Também define `format_utc` e `parse_utc`, o único lugar que conhece o formato `YYYY-MM-DD HH:MM:SS`. Services nunca chamam `Utc::now()`. Eles recebem um `Arc<dyn Clock>`.
+`dependencies/clock.rs` defines the `Clock` trait, `SystemClock` (the current UTC time, truncated to seconds) and, in tests only, `FixedClock`, which moves only when told to. It also defines `format_utc` and `parse_utc`, the only place that knows the `YYYY-MM-DD HH:MM:SS` format. `dependencies/db/sql_time.rs` reads those columns from rows. Services never call `Utc::now()`. They receive an `Arc<dyn Clock>`.
+
+## Media store and sanitizer
+
+- **`MediaStorage`** (`LocalMediaStore`): `import(path)` validates a file **by its content**, not its extension (JPEG, PNG, GIF, WebP, MP3, OGG, WAV, FLAC, M4A and AAC, at most 50 MB, and no SVG because it can carry scripts) and copies it to `media/<sha256>.<ext>`. Importing the same content again returns the same entry. `path_of(file_name)` gives the absolute path and refuses anything that is not a plain file name.
+- **`HtmlSanitizer`** (`AmmoniaSanitizer`): `sanitize_html` keeps a small allow-list of formatting tags (b, i, u, br, p, ul, li and a few more) and removes scripts, event handlers and links. `strip_tags` reduces HTML to text, which the editor uses to tell whether a rich field is empty.
 
 ## Startup (`lib.rs`)
 
-Em `setup`, o app abre `verbvm.db`, monta os services e os registra como estado do Tauri, por exemplo `Arc<dyn LanguageApi>`. Os commands são listados em `generate_handler!`. Commands próprios não precisam de entrada em `capabilities/default.json`.
+In `setup` the app opens `verbvm.db`, builds the services and the orchestrators and registers them as Tauri state. The `languages` service is registered as `Arc<dyn LanguageApi>` and the orchestrators as `Arc<DeckOverviewOrchestrator>` and `Arc<FlashcardEditorOrchestrator>`. The commands are listed in `generate_handler!`. The dialog plugin (`tauri-plugin-dialog`) is initialized for the file picker.
 
-O módulo `reviews` ainda não está ligado ao `lib.rs`, porque seus commands dependem do módulo de flashcards.
+The `reviews` module is not wired into `lib.rs` yet, because its commands depend on the review screen.
 
-## Um módulo passo a passo: `languages`
+## One module step by step: `languages`
 
-`src-tauri/src/modules/languages/` é a referência.
+`src-tauri/src/modules/languages/` is the reference.
 
-- **`model.rs`**: `Language` e `LanguageVariant`. Campos privados com getters. `new` cria uma entidade ainda não salva (sem id) e valida tudo. `restore` (visível só no módulo) reconstrói a partir do banco. Regras como `revise(...)` (troca os atributos editáveis, tudo ou nada) e `assign_default_variant(&variant)` (o variant precisa estar salvo e ser do idioma) moram na entidade.
-- **`repository.rs`**: os traits `LanguageRepository` e `LanguageVariantRepository` (`insert`, `find`, `find_all`, `update`, `delete`) e as implementações `Sqlite*`. `insert` usa `INSERT ... RETURNING` para devolver a entidade com o id.
-- **`service.rs`**: o trait `LanguageApi` (a API pública do módulo) e o `LanguageService`, que recebe `Arc<dyn ...Repository>`. `LanguageService::sqlite(db)` monta a versão com SQLite. As regras: criar o primeiro variant o torna o default, e o default precisa pertencer ao idioma.
-- **`error.rs`**: `LanguagesError` (`NotFound`, `Invalid`, `Conflict`, `Db`). Violações de constraint do SQLite, como `iso_639_3` duplicado ou apagar um variant usado por um deck, viram `Conflict`.
-- **`languages.rs`**: documentação do módulo e os `pub use` que formam a superfície pública.
+- **`model.rs`**: `Language` and `LanguageVariant`. Private fields with getters. `new` creates an entity that is not saved yet (no id) and validates everything. `restore` (visible only inside the module) rebuilds one from the database. Rules such as `revise(...)` (replaces the editable attributes, all or nothing) and `assign_default_variant(&variant)` (the variant must be saved and belong to the language) live on the entity.
+- **`repository.rs`**: the `LanguageRepository` and `LanguageVariantRepository` traits (`insert`, `find`, `find_by_iso_639_3` or `find_by_bcp47`, `find_all`, `update`, `delete`) and the `Sqlite*` implementations. `insert` uses `INSERT ... RETURNING` to return the entity with its id.
+- **`service.rs`**: the `LanguageApi` trait (the module's public API) and `LanguageService`, which takes `Arc<dyn ...Repository>`. `LanguageService::sqlite(db)` builds the SQLite version. The API identifies languages by ISO 639-3 code and variants by BCP 47 code. The id-based getters exist for modules that hold a foreign key. The rules: the first variant created becomes the default, and the default must belong to the language.
+- **`error.rs`**: `LanguagesError` (`NotFound`, `Invalid`, `Conflict`, `Db`). SQLite constraint violations, such as a duplicate `iso_639_3`, become `Conflict`.
+- **`languages.rs`**: the module docs and the `pub use` items that make up its public surface.
 
-### Criando um módulo novo
+The other modules follow the same layout. `flashcards` has one repository trait for all of its tables because publishing writes flashcards, fields, media rows and drafts in one transaction, and so does `reviews`.
 
-1. Crie `modules/<nome>.rs` (docs `//!` e `pub use`) e `modules/<nome>/{model,repository,service,error}.rs`. Declare `pub mod <nome>;` em `modules.rs`.
-2. Adicione as tabelas do módulo à migration v1.0 (veja "Evoluindo o schema").
-3. No model, entidades com campos privados, `new` validando e `restore` com visibilidade `pub(super)`.
-4. No repositório, um trait `Send + Sync` e a implementação `Sqlite*`. Só CRUD.
-5. No service, o trait `*Api` (a única coisa que outros módulos podem usar) e a implementação com as regras. Horário vem de um `Clock`.
-6. Testes em `model.rs` e `service.rs` (veja abaixo).
-7. Quando precisar expor ao frontend, crie os commands (próxima seção) e registre o service em `lib.rs`.
+### Adding a module
+
+1. Create `modules/<name>.rs` (`//!` docs and `pub use`) and `modules/<name>/{model,repository,service,error}.rs`. Declare `pub mod <name>;` in `modules.rs`.
+2. Add the module's tables to the v1.0 migration (see "Evolving the schema").
+3. In the model, entities with private fields, a validating `new` and a `pub(super)` `restore`.
+4. In the repository, a `Send + Sync` trait and the `Sqlite*` implementation. CRUD only.
+5. In the service, the `*Api` trait (the only thing other modules may use) and the implementation with the rules. Time comes from a `Clock`.
+6. Tests in `model.rs` and `service.rs` (see below).
+7. When it needs to reach the view, write an orchestrator if the use case spans modules, then the commands, and register everything in `lib.rs`.
+
+## Orchestrators (`src-tauri/src/orchestrators/`)
+
+An orchestrator holds the `*Api` traits of the modules it needs and nothing else. See [architecture.md](architecture.md) for what each one does. `OrchestratorError` (`NotFound`, `Invalid`, `Conflict`, `Internal`) is built from each module's error and from `MediaError`.
+
+The editor orchestrator enforces the rules that need the card type, the language and the deck together: a draft can only hold the fields of its type for the deck's language, rich values are sanitized when they are saved, media can only be attached to fields that allow it (at most 10 files per field), and a required field must have text or media for the drafts to be published. Publishing checks every draft first. If any has a problem, nothing is saved and the problems are returned per draft and field.
 
 ## Commands (`src-tauri/src/commands/`)
 
-Adaptadores finos sobre um service (ou orchestrator):
+Thin adapters over an orchestrator (or a service):
 
-- Os DTOs (`LanguageDto`, `LanguageVariantDto`, os `New*Input`) têm `serde` e nomes em camelCase. As entidades não têm serde.
-- Erros viram `CommandError { kind, message }`, onde `kind` é `not_found`, `invalid`, `conflict` ou `internal`. O frontend decide o que mostrar a partir do `kind`.
-- Commands de `languages`: `list_languages`, `create_language`, `delete_language`, `list_language_variants`, `create_language_variant`, `set_default_language_variant`, `delete_language_variant`.
-- Os commands são `async` e recebem o service como `State<'_, Arc<dyn LanguageApi>>`.
+- The DTOs have `serde` and camelCase names. Entities have no serde. Nothing carries a database id.
+- Errors become `CommandError { kind, message }`, where `kind` is `not_found`, `invalid`, `conflict` or `internal`.
+- Commands: `list_languages`, `list_language_variants`, `list_decks`, `create_deck`, `delete_deck`, `get_flashcard_form`, `list_drafts`, `create_draft`, `update_draft`, `duplicate_draft`, `move_draft`, `delete_draft`, `attach_media`, `remove_media` and `publish_drafts`.
+- Commands are `async` and receive their state as `State<'_, Arc<...>>`.
+- A draft's DTO includes, for each attached file, its absolute `path`, which the view previews through the asset protocol.
+- Each file has tests that pin the JSON shape the TypeScript types rely on (`iso6393`, `bcp47Code`, `fieldKey`...).
 
-## Testes
+### Media preview configuration
 
-Não há linter configurado. Os testes são unitários, dentro dos módulos, e rodam com `cargo test` em `src-tauri/`. Para um só: `cargo test <nome>`.
+`tauri.conf.json` enables the asset protocol with a scope limited to `$APPDATA/media/**`, and the `protocol-asset` feature is on for `tauri` in `Cargo.toml`. The file picker needs `dialog:default` in `capabilities/default.json`. Custom commands need no capability entry.
 
-- Regras das entidades (`model.rs`) testam sem banco.
-- Tests de service rodam contra um arquivo SQLite temporário, com as migrations reais, e removem o arquivo no fim. Tabelas de outros módulos, como `flashcards` nos testes de `reviews`, são preenchidas com SQL puro, porque o módulo testado não é dono delas.
-- Tempo é controlado com `FixedClock`.
+## Tests
+
+There is no linter. The tests are unit tests inside the modules and run with `cargo test` in `src-tauri/`. For a single one: `cargo test <name>`.
+
+- Entity rules (`model.rs`) are tested without a database.
+- Service and orchestrator tests run against a temporary SQLite file with the real migrations (so the seed data is there) and remove it at the end. Tables owned by other modules, such as `flashcards` in the `reviews` tests, are filled with plain SQL.
+- Time is controlled with `FixedClock`.
+- Media tests use a temporary folder and a few bytes with a PNG or MP3 signature.
