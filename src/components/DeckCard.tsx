@@ -1,0 +1,52 @@
+import { Trash2 } from "lucide-react";
+import { CountryFlag } from "./CountryFlag";
+import { IconButton } from "./IconButton";
+import { styleForType } from "../data/FlashcardTypeStyles";
+import type { Deck } from "../types/Deck";
+
+export interface DeckCardProps {
+    deck: Deck;
+    onOpen: () => void;
+    onDelete: () => void;
+}
+
+/** A deck in the deck list: its name, language and accent, description and card counts. */
+export function DeckCard({ deck, onOpen, onDelete }: DeckCardProps) {
+    return (
+        <div className="relative rounded-2xl border border-white/10 bg-panel transition-colors hover:border-white/30">
+            <button type="button" onClick={onOpen} className="flex w-full flex-col gap-3 p-4 text-left">
+                <div className="flex items-center gap-3 pr-8">
+                    <CountryFlag code={deck.variant.countryCode} className="h-6 w-9 shrink-0" />
+                    <div className="min-w-0">
+                        <h2 className="truncate text-base font-semibold">{deck.name}</h2>
+                        <p className="truncate text-sm text-white/50">
+                            {deck.language.name} · {deck.variant.variantName}
+                        </p>
+                    </div>
+                </div>
+
+                {deck.description && <p className="line-clamp-2 text-sm text-white/60">{deck.description}</p>}
+
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 font-medium text-white/70">
+                        {deck.stats.totalCards} {deck.stats.totalCards === 1 ? "card" : "cards"}
+                    </span>
+                    {deck.stats.cardsByType
+                        .filter((entry) => entry.count > 0)
+                        .map((entry) => (
+                            <span
+                                key={entry.typeSlug}
+                                className={`rounded-full px-2 py-0.5 font-medium ${styleForType(entry.typeSlug).badge}`}
+                            >
+                                {entry.typeName} {entry.count}
+                            </span>
+                        ))}
+                </div>
+            </button>
+
+            <div className="absolute right-2 top-2">
+                <IconButton label={`Delete ${deck.name}`} icon={Trash2} iconSize={15} onClick={onDelete} />
+            </div>
+        </div>
+    );
+}
