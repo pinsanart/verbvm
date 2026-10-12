@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { CodeXml, Paperclip } from "lucide-react";
-import { controlClass, errorClass } from "./formStyles";
+import { editorControlClass, errorClass } from "./formStyles";
 import { IconButton } from "./IconButton";
 import { MediaPreview } from "./MediaPreview";
 import { Media } from "../types/Media";
@@ -90,8 +90,8 @@ export function RichInputField({
 
     return (
         <div>
-            <div className="mb-1.5 flex items-center justify-between">
-                <span id={labelId} className="text-meta font-medium text-muted">
+            <div className="mb-2 flex items-center justify-between">
+                <span id={labelId} className="text-ui font-medium text-muted">
                     {label}
                     {required && (
                         <span className="ml-1 text-subtle" aria-hidden>
@@ -119,7 +119,7 @@ export function RichInputField({
                 aria-describedby={error ? errorId : undefined}
                 onInput={handleRichInput}
                 suppressContentEditableWarning
-                className={`${controlClass} min-h-20 leading-6`}
+                className={`${editorControlClass} min-h-24`}
             />
 
             {showHtml && (

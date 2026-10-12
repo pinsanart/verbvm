@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { controlClass, errorClass, labelClass } from "./formStyles";
+import { editorControlClass, editorLabelClass, errorClass } from "./formStyles";
 
 export interface PlainInputFieldProps {
     label: string;
@@ -15,7 +15,7 @@ export function PlainInputField({ label, value, onChange, required, error }: Pla
 
     return (
         <div>
-            <label htmlFor={id} className={labelClass}>
+            <label htmlFor={id} className={editorLabelClass}>
                 {label}
                 {required && (
                     <span className="ml-1 text-subtle" aria-hidden>
@@ -30,7 +30,7 @@ export function PlainInputField({ label, value, onChange, required, error }: Pla
                 aria-required={required || undefined}
                 aria-invalid={error ? true : undefined}
                 aria-describedby={error ? errorId : undefined}
-                className={`${controlClass} min-h-20 resize-y leading-6`}
+                className={`${editorControlClass} min-h-24 resize-y`}
             />
             {error && (
                 <p id={errorId} className={errorClass}>
