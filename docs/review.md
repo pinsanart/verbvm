@@ -46,10 +46,27 @@ Other operations: `due(limit)` (due cards, oldest first), `states_for(ids)`, `st
 
 The three accesses of `record_review` (read state, read statistics, write) are not a single transaction. With one user that is not a problem, but two simultaneous reviews of the same card could overwrite each other.
 
-## Not implemented yet
+## The review screens
 
-- **`ReviewSessionOrchestrator`**: asks the flashcards service for a deck's cards and the reviews service for `states_for(ids)`, and joins the due cards with the new ones, with no join across modules.
-- Commands, `api/reviews.ts` and a review viewmodel and screen.
+`/review` is the overview and `/review/:deckName/:typeSlug` reviews one type of one deck, card by card. Both talk to the `ReviewSessionOrchestrator`, which joins decks, flashcards, card types and the `reviews` module (the `reviews` module itself does not know about decks).
+
+### Counts and the queue
+
+For one type in a deck:
+
+| Count | Which flashcards |
+|---|---|
+| **New** | Never reviewed (no `sm2_states` row). Every one is counted, since there is no daily limit yet |
+| **Learning** | Due now (`due_at <= now`) and the last answer was Again (`repetitions == 0`) |
+| **Review** | Due now and recalled before (`repetitions >= 1`) |
+
+A flashcard that is not due yet is in none of them. A type is **Completed** when all three are 0. The overview only lists the types a deck has flashcards of, so its columns change with the deck.
+
+A session is stateless. After every answer the next card is asked for again: **learning** first (oldest due first), then **review** (oldest due first), then **new** (in creation order). That is why a card answered Again comes back by itself after its 10 minutes, with no queue kept in the view.
+
+### The screen
+
+The type name is the title. The front of the card is shown with a **Show response** button (Space or Enter). After it the back appears under a divider and the four answers appear: **Again, Hard, Good, Easy**, with the keys 1 to 4. Each answer is recorded through `ReviewApi::record_review`, with how long it took. Rich fields are sanitized HTML, and the media of a field (images and audio) shows under it. The **Actions** menu is only visual for now: its items (Edit card, Delete card) are disabled and marked "Soon". Editing a saved flashcard is not built yet.
 
 ## Path to ML
 

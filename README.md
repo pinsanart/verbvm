@@ -2,7 +2,7 @@
 
 A desktop flashcard app for learning languages. It works **offline**: all data lives in a local SQLite file, with no server.
 
-> Work in progress. Today you can create decks in a language and accent, and write vocabulary flashcards with rich text and image or audio previews, with drafts that survive restarts. The SM-2 review engine exists in the backend, but there is no review screen yet.
+> Work in progress. Today you can create decks in a language and accent, and write vocabulary flashcards with rich text and image or audio previews, with drafts that survive restarts. You can review each type of a deck card by card, with SM-2 scheduling.
 
 ## Main ideas
 

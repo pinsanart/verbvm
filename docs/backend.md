@@ -45,7 +45,7 @@ The database stores in the file itself which migration version has been applied.
 
 In `setup` the app opens `verbvm.db`, builds the services and the orchestrators and registers them as Tauri state. The `languages` service is registered as `Arc<dyn LanguageApi>` and the orchestrators as `Arc<DeckOverviewOrchestrator>` and `Arc<FlashcardEditorOrchestrator>`. The commands are listed in `generate_handler!`. The dialog plugin (`tauri-plugin-dialog`) is initialized for the file picker.
 
-The `reviews` module is not wired into `lib.rs` yet, because its commands depend on the review screen.
+The `reviews` service is built with the system clock and used by the `ReviewSessionOrchestrator`.
 
 ## One module step by step: `languages`
 
@@ -81,7 +81,7 @@ Thin adapters over an orchestrator (or a service):
 
 - The DTOs have `serde` and camelCase names. Entities have no serde. Nothing carries a database id.
 - Errors become `CommandError { kind, message }`, where `kind` is `not_found`, `invalid`, `conflict` or `internal`.
-- Commands: `list_languages`, `list_language_variants`, `list_decks`, `create_deck`, `update_deck`, `delete_deck`, `get_flashcard_form(deckName)` (the form of every type), `list_drafts(deckName)`, `create_draft(deckName, typeSlug)`, `update_draft`, `duplicate_draft`, `move_draft`, `delete_draft`, `attach_media`, `remove_media` and `publish_drafts(deckName)`.
+- Commands: `list_languages`, `list_language_variants`, `list_decks`, `create_deck`, `update_deck`, `delete_deck`, `get_flashcard_form(deckName)` (the form of every type), `list_drafts(deckName)`, `create_draft(deckName, typeSlug)`, `update_draft`, `duplicate_draft`, `move_draft`, `delete_draft`, `attach_media`, `remove_media`, `publish_drafts(deckName)`, and for the review `list_review_overview`, `next_review_card(deckName, typeSlug)` and `answer_review_card(cardUuid, rating, durationMs)`.
 - Commands are `async` and receive their state as `State<'_, Arc<...>>`.
 - A draft's DTO includes, for each attached file, its absolute `path`, which the view previews through the asset protocol.
 - Each file has tests that pin the JSON shape the TypeScript types rely on (`iso6393`, `bcp47Code`, `fieldKey`...).

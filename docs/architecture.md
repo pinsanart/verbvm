@@ -53,7 +53,7 @@ Integer ids stay inside Rust. Orchestrators resolve natural keys into ids, and m
 | `decks` | `decks` | Implemented |
 | `card_types` | `flashcard_types`, `field_definitions` | Implemented. Seeded with vocabulary, phonetic and orthographic |
 | `flashcards` | `flashcards`, `flashcard_fields`, `flashcard_drafts`, `flashcard_draft_media`, `field_media` | Implemented: flashcards, drafts, media |
-| `reviews` | `sm2_states`, `review_logs`, `card_stats` | Implemented (model, repository, service). No commands yet |
+| `reviews` | `sm2_states`, `review_logs`, `card_stats` | Implemented, used through the review session orchestrator |
 
 Dependencies, always one way and without cycles:
 
@@ -68,6 +68,7 @@ Orchestrators:
 | Orchestrator | Coordinates | Use cases |
 |---|---|---|
 | `DeckOverviewOrchestrator` | decks, languages, card types, flashcards | List decks with language, accent and card counts by type. Create a deck from a language and an optional accent. Rename a deck and change its description (its language and accent are fixed). Delete a deck |
+| `ReviewSessionOrchestrator` | decks, languages, card types, flashcards, reviews, clock, media store | The review overview (each deck with the types it has cards of and their New, Learning and Review counts), the next card of a session in queue order, and recording an answer |
 | `FlashcardEditorOrchestrator` | decks, languages, card types, flashcards, sanitizer, media store | The form of every type in a deck. Add a draft of a type, edit, move, duplicate and delete drafts in the deck's single mixed list. Attach and remove media. Publish all the drafts, each against the fields of its own type |
 
 ## How the view logic is organized

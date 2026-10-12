@@ -23,7 +23,9 @@ src/
 |---|---|
 | `/decks` | `Decks`: the deck list, with a "+" tile at the end to add a deck and an edit button on each deck |
 | `/decks/:deckName` | `DeckEditor`: the editor of a deck, with its flashcards of any type in one list and the type buttons at the bottom |
-| `/`, `/review`, `/dashboard`, `/settings` | Placeholders |
+| `/review` | `Review`: the decks with the types each has and what is waiting in them, with a Review button per type |
+| `/review/:deckName/:typeSlug` | `ReviewSession`: one card at a time, Show response, then Again, Hard, Good and Easy |
+| `/`, `/dashboard`, `/settings` | Placeholders with an empty state |
 
 ## The decks flow
 
@@ -33,6 +35,13 @@ src/
 Each card has two **faces**: the front is a raised surface with a solid light tag ("Shown first, as the prompt"), the back is a sunken surface with an outlined tag ("Revealed after, as the answer"), with a flip mark between them, so the difference does not depend on color. The text people write is 18px.
 
 The editor is **driven by the field definitions** the backend sends: for each draft, `FlashcardInput` renders the fields of the draft's type, grouped under front and back, and `FieldInput` picks the rich editor (`isRich`) or plain text. A new type or a language-specific field (for example a gender field for French) needs no component change. Required fields are marked with an asterisk, and the errors that publishing returns are shown under the field.
+
+## The review flow
+
+1. **Overview** (`Review`, `ReviewDeckRow`, `ReviewCountList`, `useReviewOverviewViewModel`): each deck is a panel with its flag, name and accent. Inside, one column per flashcard type the deck has cards of, so the columns are dynamic. A column has the type name, the New, Learning and Review counts (accent blue, red and green) and a **Review** button, or **Completed** when nothing is waiting. Columns are separated by lines instead of being cards inside a card, and on a phone they stack. A deck with no cards says so with a link to Decks.
+2. **Session** (`ReviewSession`, `ReviewCardFace`, `ReviewMedia`, `RatingBar`, `ActionsMenu`, `useReviewSessionViewModel`): the type name is the title. The front of the card is large and centered, the back appears under a divider after **Show response** (Space or Enter), and the four answers (keys 1 to 4) are colored with the `rating-*` tokens. Rich fields render sanitized HTML (styled by `.rich` in `index.css`), and images and audio show under the field they belong to. The bar at the bottom shows the waiting counts and the Actions menu, which is only visual for now. The shortcuts leave focused buttons, links and inputs alone. When nothing is left, an empty state says so with how many cards were answered.
+
+The viewmodel holds only the card on screen, whether its response is shown and how long the answer took. The backend keeps the queue, so after each answer the next card is asked for again.
 
 ### Confirmations and controls
 

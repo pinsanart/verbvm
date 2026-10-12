@@ -40,7 +40,7 @@ Rules:
 - A module's tables are touched only by its own repositories. There are no SQL joins across modules.
 - Foreign keys between modules stay in the database, so `ON DELETE CASCADE` can cross a module boundary.
 - Services do not call each other's services. Cross-module checks go through an orchestrator.
-- Modules: `languages`, `decks`, `card_types` (`flashcard_types`, `field_definitions`), `flashcards` (flashcards, fields, drafts, media rows) and `reviews` (`sm2_states`, `review_logs`, `card_stats`). `reviews` is not wired to commands or the UI yet.
+- Modules: `languages`, `decks`, `card_types` (`flashcard_types`, `field_definitions`), `flashcards` (flashcards, fields, drafts, media rows) and `reviews` (`sm2_states`, `review_logs`, `card_stats`). `reviews` is used through `ReviewSessionOrchestrator` (overview with New, Learning and Review counts per type, the next card in queue order, recording an answer).
 
 **Backend (`src-tauri/`)**
 - The crate is `verbvm_lib` (`lib.rs`, with `main.rs` as a thin entry). `lib.rs` opens `verbvm.db` in the app data dir during `setup`, builds the services and orchestrators, registers them as Tauri state and lists the commands in `generate_handler!`. Custom commands need no capability entry.
