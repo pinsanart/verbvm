@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Layers, Save } from "lucide-react";
 import { useParams } from "react-router";
@@ -7,14 +8,40 @@ import { EmptyState } from "../components/EmptyState";
 import { FlashcardInput } from "../components/FlashcardInput";
 import { Notice } from "../components/Notice";
 import { Page } from "../components/Page";
+import { SavedCardList } from "../components/SavedCardList";
+import { SavedCardPanel } from "../components/SavedCardPanel";
 import { TypePicker } from "../components/TypePicker";
 import { TRANSITION_BASE } from "../lib/motion";
 import { useFlashcardEditorViewModel } from "../viewmodels/useFlashcardEditorViewModel";
+import { useSavedCardsViewModel } from "../viewmodels/useSavedCardsViewModel";
 
-/** The editor of a deck: one list of flashcards of any type, with the type buttons at the bottom. */
+type Tab = "new" | "saved";
+
+/**
+ * The screen of a deck. "New cards" is the editor: one list of drafts of any type, with the
+ * buttons that add one at the bottom. "Saved cards" lists what is already saved, and a card opens
+ * in a panel to be edited or deleted.
+ */
 export default function DeckEditor() {
   const { deckName = "" } = useParams();
   const vm = useFlashcardEditorViewModel(deckName);
+  const saved = useSavedCardsViewModel(deckName);
+  const [tab, setTab] = useState<Tab>("new");
+
+  // Cards published from the other tab show up when this one is opened.
+  const { reload } = saved;
+  useEffect(() => {
+    if (tab === "saved") reload();
+  }, [tab, reload]);
+
+  const previewKeys = Object.fromEntries(
+    Object.entries(vm.fieldsByType).map(([slug, fields]) => [slug, { front: fields.front[0], back: fields.back[0] }]),
+  );
+  const panelFields = vm.fieldsByType[saved.selected?.typeSlug ?? ""] ?? { front: [], back: [] };
+  const tabs: { id: Tab; label: string; count: number }[] = [
+    { id: "new", label: "New cards", count: vm.drafts.length },
+    { id: "saved", label: "Saved cards", count: saved.cards.length },
+  ];
 
   return (
     <Page
@@ -35,6 +62,11 @@ export default function DeckEditor() {
             {vm.error}
           </Notice>
         )}
+        {saved.error && !saved.selected && (
+          <Notice key="saved-error" tone="error">
+            {saved.error}
+          </Notice>
+        )}
         {vm.lastPublished !== null && (
           <Notice key="published" tone="success">
             {vm.lastPublished} {vm.lastPublished === 1 ? "flashcard" : "flashcards"} saved.
@@ -49,7 +81,56 @@ export default function DeckEditor() {
       )}
 
       {vm.status === "ready" && vm.form && (
-        <>
+        <div role="tablist" aria-label="Cards of this deck" className="flex gap-1 border-b border-line">
+          {tabs.map(({ id, label, count }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`tab-${id}`}
+              aria-selected={tab === id}
+              aria-controls={`panel-${id}`}
+              onClick={() => setTab(id)}
+              className={`-mb-px min-h-11 border-b-2 px-4 text-ui font-medium transition-colors ${
+                tab === id ? "border-accent-ink text-ink" : "border-transparent text-muted hover:text-ink"
+              }`}
+            >
+              {label} <span className="tabular-nums text-subtle">{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {vm.status === "ready" && vm.form && tab === "saved" && (
+        <div role="tabpanel" id="panel-saved" aria-labelledby="tab-saved">
+          {saved.cards.length === 0 && saved.status !== "loading" ? (
+            <EmptyState
+              icon={Layers}
+              title="No saved cards yet"
+              description="Cards you save from New cards appear here, ready to edit."
+              action={
+                <Button variant="outline" onClick={() => setTab("new")}>
+                  Go to New cards
+                </Button>
+              }
+            />
+          ) : (
+            <SavedCardList
+              all={saved.cards}
+              cards={saved.visible}
+              previewKeys={previewKeys}
+              query={saved.query}
+              typeFilter={saved.typeFilter}
+              onQuery={saved.setQuery}
+              onTypeFilter={saved.setTypeFilter}
+              onOpen={saved.open}
+            />
+          )}
+        </div>
+      )}
+
+      {vm.status === "ready" && vm.form && tab === "new" && (
+        <div role="tabpanel" id="panel-new" aria-labelledby="tab-new" className="contents">
           {vm.drafts.length === 0 && (
             <EmptyState
               icon={Layers}
@@ -102,8 +183,25 @@ export default function DeckEditor() {
               Save all ({vm.drafts.length})
             </Button>
           </div>
-        </>
+        </div>
       )}
+
+      <SavedCardPanel
+        card={saved.selected}
+        frontFields={panelFields.front}
+        backFields={panelFields.back}
+        values={saved.values}
+        dirty={saved.dirty}
+        justSaved={saved.justSaved}
+        error={saved.error}
+        busy={saved.busy}
+        onChange={saved.setValue}
+        onAttachMedia={saved.attachFiles}
+        onRemoveMedia={saved.detachFile}
+        onSave={saved.save}
+        onDelete={saved.remove}
+        onClose={saved.close}
+      />
     </Page>
   );
 }

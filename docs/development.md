@@ -23,7 +23,7 @@ The schema is still being edited directly in v1.0. After changing `migrations.rs
 - **`http` does not compile.** `src-tauri/src/dependencies/http/` (a `reqwest` wrapper with `Auth::{None, Bearer}`) is switched off: `pub mod http;` is commented out in `dependencies.rs` because `reqwest` is not in `Cargo.toml`. To turn it on, add `reqwest` with the `json` feature and uncomment it.
 - **Only vocabulary can be added from the UI.** Phonetic and orthographic have their schema and seed fields, and the editor already renders them, but they are not offered: `ENABLED_TYPE_SLUGS` (`data/FlashcardTypeStyles.ts`) lists only the types that can be written, and the bar shows only those. Stack has no editor yet.
 - **Only four accents are seeded** (en-US, en-GB, fr-FR, pt-BR), and there is no screen to add more.
-- **A review cannot edit or delete the card.** Editing or deleting a saved flashcard is not built yet, so the review has no Actions menu.
+- **A review cannot edit or delete the card.** Saved cards are edited and deleted from the deck's Saved cards tab, but the review still has no Actions menu to jump there.
 - **No daily limits for new cards.** The New count is every card never reviewed. A limit needs a Settings screen.
 - **Orphan media files.** Detaching media from a draft, or deleting a draft, leaves the file in the `media/` folder. A cleanup that deletes files no row references is not written yet.
 - **No S3 sync yet.** `field_media.remote_key` is reserved for it.

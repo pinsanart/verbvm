@@ -134,6 +134,34 @@ function Face({
     );
 }
 
+export interface FlashcardFacesProps {
+    frontFields: FieldDefinition[];
+    backFields: FieldDefinition[];
+    values: Record<string, string>;
+    errors: Record<string, string>;
+    media: Record<string, Media[]>;
+    onChange: (key: string, value: string) => void;
+    onAttachMedia: (key: string) => void;
+    onRemoveMedia: (key: string, sha256: string) => void;
+}
+
+/** The two faces of a card with the flip divider between them. Drafts and saved cards share it. */
+export function FlashcardFaces({ frontFields, backFields, ...faceProps }: FlashcardFacesProps) {
+    return (
+        <>
+            <Face face="front" fields={frontFields} {...faceProps} />
+            {frontFields.length > 0 && backFields.length > 0 && (
+                <div className="flex items-center gap-3 text-subtle" aria-hidden>
+                    <span className="h-px flex-1 bg-line" />
+                    <RotateCw size={16} />
+                    <span className="h-px flex-1 bg-line" />
+                </div>
+            )}
+            <Face face="back" fields={backFields} {...faceProps} columns />
+        </>
+    );
+}
+
 /**
  * The editor of one flashcard. It renders whatever fields it is given, so a new type or a
  * language-specific field needs no change here. Render it with `key` set to the draft's uuid:
@@ -157,8 +185,6 @@ export function FlashcardInput({
     onDuplicate,
     onDelete,
 }: FlashcardInputProps) {
-    const faceProps = { values, errors, media, onChange, onAttachMedia, onRemoveMedia };
-
     return (
         <article className="overflow-hidden rounded-2xl border border-line bg-panel shadow-lg shadow-black/20">
             <div className={`h-1 w-full ${styleForType(typeSlug).accent}`} />
@@ -173,15 +199,11 @@ export function FlashcardInput({
                     onDuplicate={onDuplicate}
                     onDelete={onDelete}
                 />
-                <Face face="front" fields={frontFields} {...faceProps} />
-                {frontFields.length > 0 && backFields.length > 0 && (
-                    <div className="flex items-center gap-3 text-subtle" aria-hidden>
-                        <span className="h-px flex-1 bg-line" />
-                        <RotateCw size={16} />
-                        <span className="h-px flex-1 bg-line" />
-                    </div>
-                )}
-                <Face face="back" fields={backFields} {...faceProps} columns />
+                <FlashcardFaces
+                    frontFields={frontFields}
+                    backFields={backFields}
+                    {...{ values, errors, media, onChange, onAttachMedia, onRemoveMedia }}
+                />
             </div>
         </article>
     );

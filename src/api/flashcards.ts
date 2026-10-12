@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { MediaDto, toMedia } from "./media";
-import type { Draft, FlashcardForm, MoveDirection, PublishResult } from "../types/FlashcardForm";
+import type { Draft, FlashcardForm, MoveDirection, PublishResult, SavedCard } from "../types/FlashcardForm";
 
 interface DraftDto {
     uuid: string;
@@ -15,6 +15,15 @@ const toDraft = (dto: DraftDto): Draft => ({
     typeSlug: dto.typeSlug,
     position: dto.position,
     values: dto.values,
+    media: Object.fromEntries(Object.entries(dto.media).map(([key, items]) => [key, items.map(toMedia)])),
+});
+
+interface SavedCardDto extends Omit<SavedCard, "media"> {
+    media: Record<string, MediaDto[]>;
+}
+
+const toSavedCard = (dto: SavedCardDto): SavedCard => ({
+    ...dto,
     media: Object.fromEntries(Object.entries(dto.media).map(([key, items]) => [key, items.map(toMedia)])),
 });
 
@@ -50,3 +59,20 @@ export const removeMedia = async (draftUuid: string, fieldKey: string, sha256: s
 
 /** Saves every draft of the deck as a flashcard of its own type. */
 export const publishDrafts = (deckName: string) => invoke<PublishResult>("publish_drafts", { deckName });
+
+/** The saved flashcards of a deck, newest first. */
+export const listSavedCards = async (deckName: string) =>
+    (await invoke<SavedCardDto[]>("list_saved_cards", { deckName })).map(toSavedCard);
+
+/** Replaces the text of a saved flashcard. Fields left out are cleared. */
+export const updateSavedCard = async (cardUuid: string, values: Record<string, string>) =>
+    toSavedCard(await invoke<SavedCardDto>("update_saved_card", { cardUuid, values }));
+
+export const attachSavedCardMedia = async (cardUuid: string, fieldKey: string, sourcePath: string) =>
+    toSavedCard(await invoke<SavedCardDto>("attach_saved_card_media", { cardUuid, fieldKey, sourcePath }));
+
+export const removeSavedCardMedia = async (cardUuid: string, fieldKey: string, sha256: string) =>
+    toSavedCard(await invoke<SavedCardDto>("remove_saved_card_media", { cardUuid, fieldKey, sha256 }));
+
+/** Deletes a saved flashcard with its review history. */
+export const deleteSavedCard = (cardUuid: string) => invoke<void>("delete_saved_card", { cardUuid });

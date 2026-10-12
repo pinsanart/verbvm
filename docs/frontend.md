@@ -22,7 +22,7 @@ src/
 | Route | Screen |
 |---|---|
 | `/decks` | `Decks`: the deck list, with a "+" tile at the end to add a deck and an edit button on each deck |
-| `/decks/:deckName` | `DeckEditor`: the editor of a deck, with its flashcards of any type in one list and the type buttons at the bottom |
+| `/decks/:deckName` | `DeckEditor`: the editor of a deck, with two tabs: New cards (drafts, with the type buttons at the bottom) and Saved cards (list and edit panel) |
 | `/review` | `Review`: the decks with the types each has and what is waiting in them, with a Review button per type |
 | `/review/:deckName/:typeSlug` | `ReviewSession`: one card at a time, Show response, then Again, Hard, Good and Easy |
 | `/`, `/dashboard`, `/settings` | Placeholders with an empty state |
@@ -31,6 +31,8 @@ src/
 
 1. **Deck list** (`Decks`, `DeckCard`, `DeckEditForm`, `NewDeckTile`, `NewDeckForm`, `useDecksViewModel`): each deck shows its flag, name, language and accent, description and card counts by type. A dashed **"+" tile after the last deck** adds a deck: it opens the form in that place (name, language, accent preselected with the language's default, and an optional description). The pencil on a deck turns its card into a form for the name and the description. The language and accent are fixed once a deck exists, because the fields of its cards depend on the language. Creating and editing happen in place, not in a modal.
 2. **Editor** (`DeckEditor`, `FlashcardInput`, `TypePicker`, `useFlashcardEditorViewModel`): clicking a deck opens **one screen** with the deck's flashcards in a single list that mixes types. The **type buttons are at the bottom** of the screen: pressing an enabled one adds a card of that type to the end of the list. The bar shows only the types that can be written today (`ENABLED_TYPE_SLUGS` in `data/FlashcardTypeStyles.ts`, currently vocabulary), so every button does something. The control bar of each card moves it up or down, duplicates it or deletes it, whatever its type. "Save all" publishes every card. Drafts are stored by the backend, so closing the app loses nothing. A deck with no cards shows an empty state.
+
+   The screen has two tabs. **New cards** is the editor above. **Saved cards** (`SavedCardList`, `SavedCardPanel`, `useSavedCardsViewModel`) lists what is already saved, newest first, with a search box and a filter by type. Clicking a card opens the **edit panel**: it slides in from the right on a wide screen and fills the screen on a phone, shows the same Front and Back faces as the editor (`FlashcardFaces`), and has Save changes, Close and a delete with Keep and Delete. Text is saved with an explicit Save, because it changes what the learner studies, while media and deletion apply at once. Closing with unsaved text asks first, inside the panel, and Escape closes it. Editing never touches the card's review history.
 
 Each card has two **faces**: the front is a raised surface with a solid light tag ("Shown first, as the prompt"), the back is a sunken surface with an outlined tag ("Revealed after, as the answer"), with a flip mark between them, so the difference does not depend on color. The text people write is 18px.
 

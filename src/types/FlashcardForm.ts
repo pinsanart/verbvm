@@ -47,6 +47,17 @@ export interface Draft {
     media: Record<string, Media[]>;
 }
 
+/** A flashcard that is already saved, shaped like a draft so the same form edits both. */
+export interface SavedCard {
+    uuid: string;
+    typeSlug: string;
+    values: Record<string, string>;
+    media: Record<string, Media[]>;
+    /** UTC, `YYYY-MM-DD HH:MM:SS`. */
+    createdAt: string | null;
+    updatedAt: string | null;
+}
+
 export interface DraftIssue {
     draftUuid: string;
     fieldKey: string | null;
