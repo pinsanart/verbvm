@@ -4,6 +4,7 @@ import { FieldInput } from "./FieldInput";
 import { IconButton } from "./IconButton";
 import { styleForType } from "../data/FlashcardTypeStyles";
 import type { FieldDefinition } from "../types/FlashcardForm";
+import type { Media } from "../types/Media";
 
 export interface FlashcardInputProps {
     typeSlug: string;
@@ -15,9 +16,13 @@ export interface FlashcardInputProps {
     values: Record<string, string>;
     /** Errors by field key. */
     errors: Record<string, string>;
+    /** The attached files by field key. */
+    media: Record<string, Media[]>;
     isFirst: boolean;
     isLast: boolean;
     onChange: (key: string, value: string) => void;
+    onAttachMedia: (key: string) => void;
+    onRemoveMedia: (key: string, sha256: string) => void;
     onMoveUp: () => void;
     onMoveDown: () => void;
     onDuplicate: () => void;
@@ -63,14 +68,20 @@ function Side({
     fields,
     values,
     errors,
+    media,
     onChange,
+    onAttachMedia,
+    onRemoveMedia,
     columns,
 }: {
     title: string;
     fields: FieldDefinition[];
     values: Record<string, string>;
     errors: Record<string, string>;
+    media: Record<string, Media[]>;
     onChange: (key: string, value: string) => void;
+    onAttachMedia: (key: string) => void;
+    onRemoveMedia: (key: string, sha256: string) => void;
     columns?: boolean;
 }) {
     if (fields.length === 0) return null;
@@ -84,7 +95,10 @@ function Side({
                         definition={field}
                         value={values[field.key] ?? ""}
                         error={errors[field.key]}
+                        media={media[field.key]}
                         onChange={(value) => onChange(field.key, value)}
+                        onAttachMedia={() => onAttachMedia(field.key)}
+                        onRemoveMedia={(sha256) => onRemoveMedia(field.key, sha256)}
                     />
                 ))}
             </div>
@@ -104,9 +118,12 @@ export function FlashcardInput({
     backFields,
     values,
     errors,
+    media,
     isFirst,
     isLast,
     onChange,
+    onAttachMedia,
+    onRemoveMedia,
     onMoveUp,
     onMoveDown,
     onDuplicate,
@@ -126,8 +143,10 @@ export function FlashcardInput({
                     onDuplicate={onDuplicate}
                     onDelete={onDelete}
                 />
-                <Side title="Front" fields={frontFields} values={values} errors={errors} onChange={onChange} />
-                <Side title="Back" fields={backFields} values={values} errors={errors} onChange={onChange} columns />
+                <Side title="Front" fields={frontFields} values={values} errors={errors} media={media}
+                    onChange={onChange} onAttachMedia={onAttachMedia} onRemoveMedia={onRemoveMedia} />
+                <Side title="Back" fields={backFields} values={values} errors={errors} media={media}
+                    onChange={onChange} onAttachMedia={onAttachMedia} onRemoveMedia={onRemoveMedia} columns />
             </div>
         </div>
     );

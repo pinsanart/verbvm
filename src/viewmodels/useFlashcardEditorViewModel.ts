@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAsyncRunner } from "./useAsyncRunner";
+import { pickMediaFiles } from "../api/files";
 import {
+    attachMedia,
     createDraft,
     deleteDraft,
     duplicateDraft,
@@ -8,6 +10,7 @@ import {
     listDrafts,
     moveDraft,
     publishDrafts,
+    removeMedia,
     updateDraft,
 } from "../api/flashcards";
 import type { Draft, FieldDefinition, FlashcardForm, MoveDirection } from "../types/FlashcardForm";
@@ -129,6 +132,23 @@ export function useFlashcardEditorViewModel(deckName: string, typeSlug: string) 
             replaceDrafts(remaining.length > 0 ? remaining : await createDraft(deckName, typeSlug));
         });
 
+    /** Takes the media of a draft from the backend and leaves what was typed untouched. */
+    const applyMedia = (updated: Draft) =>
+        replaceDrafts(
+            draftsRef.current.map((d) => (d.uuid === updated.uuid ? { ...d, media: updated.media } : d)),
+        );
+
+    /** Opens the file picker and attaches the chosen files to a field of a draft. */
+    const attachFiles = (uuid: string, key: string) =>
+        run(async () => {
+            for (const path of await pickMediaFiles()) {
+                applyMedia(await attachMedia(uuid, key, path));
+            }
+        });
+
+    const detachFile = (uuid: string, key: string, sha256: string) =>
+        run(async () => applyMedia(await removeMedia(uuid, key, sha256)));
+
     const fieldsBySide = useMemo(() => {
         const bySide = (side: FieldDefinition["side"]) =>
             (form?.fields ?? []).filter((field) => field.side === side);
@@ -149,6 +169,8 @@ export function useFlashcardEditorViewModel(deckName: string, typeSlug: string) 
         duplicate,
         move,
         remove,
+        attachFiles,
+        detachFile,
         saveAll,
     };
 }

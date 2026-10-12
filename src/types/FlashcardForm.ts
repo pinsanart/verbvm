@@ -1,5 +1,6 @@
 import type { LanguageVariant } from "./Language";
 import type { LanguageSummary } from "./Deck";
+import type { Media } from "./Media";
 
 export type FieldSide = "FRONT" | "BACK";
 
@@ -23,11 +24,15 @@ export interface FlashcardForm {
     fields: FieldDefinition[];
 }
 
-/** A flashcard being edited, identified by its uuid. `values` maps a field key to its content. */
+/**
+ * A flashcard being edited, identified by its uuid. `values` maps a field key to its text and
+ * `media` to its attached files.
+ */
 export interface Draft {
     uuid: string;
     position: number;
     values: Record<string, string>;
+    media: Record<string, Media[]>;
 }
 
 export interface DraftIssue {

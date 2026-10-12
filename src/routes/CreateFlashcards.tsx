@@ -51,9 +51,12 @@ export default function CreateFlashcards() {
                 backFields={vm.fieldsBySide.back}
                 values={draft.values}
                 errors={vm.errorsFor(draft.uuid)}
+                media={draft.media}
                 isFirst={index === 0}
                 isLast={index === vm.drafts.length - 1}
                 onChange={(key, value) => vm.setValue(draft.uuid, key, value)}
+                onAttachMedia={(key) => vm.attachFiles(draft.uuid, key)}
+                onRemoveMedia={(key, sha256) => vm.detachFile(draft.uuid, key, sha256)}
                 onMoveUp={() => vm.move(draft.uuid, "up")}
                 onMoveDown={() => vm.move(draft.uuid, "down")}
                 onDuplicate={() => vm.duplicate(draft.uuid)}

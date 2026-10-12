@@ -11,6 +11,9 @@ export interface RichInputFieldProps {
     onChange: (value: string) => void;
     allowMedia?: boolean;
     media?: Media[];
+    /** Opens the file picker for this field. */
+    onAttachMedia?: () => void;
+    onRemoveMedia?: (sha256: string) => void;
     required?: boolean;
     error?: string;
 }
@@ -28,12 +31,21 @@ function highlightHtml(html: string) {
         .join("");
 }
 
-export function RichInputField({ label, value, onChange, allowMedia, media, required, error }: RichInputFieldProps) {
+export function RichInputField({
+    label,
+    value,
+    onChange,
+    allowMedia,
+    media,
+    onAttachMedia,
+    onRemoveMedia,
+    required,
+    error,
+}: RichInputFieldProps) {
     const [showHtml, setShowHtml] = useState(false);
     const [content, setContent] = useState(value);
     const richTextRef = useRef<HTMLDivElement>(null);
     const htmlHighlightRef = useRef<HTMLPreElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const editedFromRichText = useRef(false);
 
     // The contentEditable is never "controlled" through JSX: reapplying innerHTML on
@@ -72,11 +84,6 @@ export function RichInputField({ label, value, onChange, allowMedia, media, requ
         }
     }
 
-    function handleFilesSelected(_e: React.ChangeEvent<HTMLInputElement>) {
-        // Visual structure only: attaching real media (creating Media, updating
-        // field.media) comes in a later step.
-    }
-
     return (
         <div>
             <div className="mb-1.5 flex items-center justify-between">
@@ -87,10 +94,7 @@ export function RichInputField({ label, value, onChange, allowMedia, media, requ
                 <div className="flex items-center gap-0.5">
                     <IconButton label="Toggle HTML" icon={CodeXml} iconSize={14} onClick={() => setShowHtml((v) => !v)} />
                     {allowMedia && (
-                        <>
-                            <IconButton label="Attach media" icon={Paperclip} iconSize={14} onClick={() => fileInputRef.current?.click()} />
-                            <input ref={fileInputRef} type="file" accept="image/*,audio/*" multiple hidden onChange={handleFilesSelected} />
-                        </>
+                        <IconButton label="Attach media" icon={Paperclip} iconSize={14} onClick={onAttachMedia} />
                     )}
                 </div>
             </div>
@@ -133,7 +137,7 @@ export function RichInputField({ label, value, onChange, allowMedia, media, requ
 
             {allowMedia && (
                 <div className="mt-2">
-                    <MediaPreview media={media} />
+                    <MediaPreview media={media} onRemove={onRemoveMedia} />
                 </div>
             )}
         </div>
