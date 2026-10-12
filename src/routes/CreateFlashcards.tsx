@@ -1,7 +1,10 @@
+import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Save } from "lucide-react";
 import { Link, useParams } from "react-router";
+import { Button } from "../components/Button";
 import { CountryFlag } from "../components/CountryFlag";
 import { FlashcardInput } from "../components/FlashcardInput";
+import { Notice } from "../components/Notice";
 import { TypePicker } from "../components/TypePicker";
 import { useFlashcardEditorViewModel } from "../viewmodels/useFlashcardEditorViewModel";
 
@@ -26,17 +29,18 @@ export default function CreateFlashcards() {
         )}
       </div>
 
-      {vm.error && (
-        <div role="alert" className="rounded-lg border border-stack/70 px-3 py-2 text-sm text-stack">
-          {vm.error}
-        </div>
-      )}
-
-      {vm.lastPublished !== null && (
-        <div role="status" className="rounded-lg border border-orthographic/50 px-3 py-2 text-sm text-orthographic">
-          {vm.lastPublished} {vm.lastPublished === 1 ? "flashcard" : "flashcards"} saved.
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {vm.error && (
+          <Notice key="error" tone="error">
+            {vm.error}
+          </Notice>
+        )}
+        {vm.lastPublished !== null && (
+          <Notice key="published" tone="success">
+            {vm.lastPublished} {vm.lastPublished === 1 ? "flashcard" : "flashcards"} saved.
+          </Notice>
+        )}
+      </AnimatePresence>
 
       {vm.status === "loading" && <p className="text-sm text-white/50">Loading...</p>}
 
@@ -49,43 +53,48 @@ export default function CreateFlashcards() {
           )}
 
           <div className="flex flex-col gap-6">
-            {vm.drafts.map((draft, index) => {
-              const fields = vm.fieldsByType[draft.typeSlug] ?? { front: [], back: [] };
-              return (
-                <FlashcardInput
-                  key={draft.uuid}
-                  typeSlug={draft.typeSlug}
-                  accent={{ name: vm.form!.variant.variantName, countryCode: vm.form!.variant.countryCode }}
-                  frontFields={fields.front}
-                  backFields={fields.back}
-                  values={draft.values}
-                  errors={vm.errorsFor(draft.uuid)}
-                  media={draft.media}
-                  isFirst={index === 0}
-                  isLast={index === vm.drafts.length - 1}
-                  onChange={(key, value) => vm.setValue(draft.uuid, key, value)}
-                  onAttachMedia={(key) => vm.attachFiles(draft.uuid, key)}
-                  onRemoveMedia={(key, sha256) => vm.detachFile(draft.uuid, key, sha256)}
-                  onMoveUp={() => vm.move(draft.uuid, "up")}
-                  onMoveDown={() => vm.move(draft.uuid, "down")}
-                  onDuplicate={() => vm.duplicate(draft.uuid)}
-                  onDelete={() => vm.remove(draft.uuid)}
-                />
-              );
-            })}
+            <AnimatePresence initial={false}>
+              {vm.drafts.map((draft, index) => {
+                const fields = vm.fieldsByType[draft.typeSlug] ?? { front: [], back: [] };
+                return (
+                  <motion.div
+                    key={draft.uuid}
+                    layout="position"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <FlashcardInput
+                      typeSlug={draft.typeSlug}
+                      accent={{ name: vm.form!.variant.variantName, countryCode: vm.form!.variant.countryCode }}
+                      frontFields={fields.front}
+                      backFields={fields.back}
+                      values={draft.values}
+                      errors={vm.errorsFor(draft.uuid)}
+                      media={draft.media}
+                      isFirst={index === 0}
+                      isLast={index === vm.drafts.length - 1}
+                      onChange={(key, value) => vm.setValue(draft.uuid, key, value)}
+                      onAttachMedia={(key) => vm.attachFiles(draft.uuid, key)}
+                      onRemoveMedia={(key, sha256) => vm.detachFile(draft.uuid, key, sha256)}
+                      onMoveUp={() => vm.move(draft.uuid, "up")}
+                      onMoveDown={() => vm.move(draft.uuid, "down")}
+                      onDuplicate={() => vm.duplicate(draft.uuid)}
+                      onDelete={() => vm.remove(draft.uuid)}
+                    />
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
 
           <div className="sticky bottom-16 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-panel/90 px-6 py-3 backdrop-blur md:bottom-0">
             <TypePicker onPick={vm.addDraft} disabled={vm.busy} />
-            <button
-              type="button"
-              onClick={vm.saveAll}
-              disabled={vm.busy || vm.drafts.length === 0}
-              className="flex items-center gap-1.5 rounded-lg bg-vocabulary px-4 py-2 text-sm font-medium disabled:opacity-50"
-            >
+            <Button onClick={vm.saveAll} disabled={vm.busy || vm.drafts.length === 0}>
               <Save size={16} />
               Save all ({vm.drafts.length})
-            </button>
+            </Button>
           </div>
         </>
       )}
