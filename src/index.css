@@ -12,6 +12,11 @@
   --color-orthographic: #22F544;
 }
 
+html {
+  /* Scrollbars and any native control follow the dark theme. */
+  color-scheme: dark;
+}
+
 html,
 body,
 #root {
