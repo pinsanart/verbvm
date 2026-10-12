@@ -15,7 +15,7 @@ export function IconButton({label, icon:Icon, iconSize, className, onClick, disa
             type="button"
             onClick={onClick}
             disabled={disabled}
-            className={`inline-flex items-center justify-center rounded-lg p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30 ${className ?? ""}`}
+            className={`inline-flex items-center justify-center rounded-lg p-2 text-muted transition-colors hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30 ${className ?? ""}`}
         >
             <label className="sr-only">{label}</label>
             <Icon size={iconSize}/>

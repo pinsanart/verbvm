@@ -49,7 +49,7 @@ function ControlBar({
                 {label}
             </div>
 
-            <div className="flex items-center gap-1.5 text-sm text-white/60">
+            <div className="flex items-center gap-1.5 text-sm text-muted">
                 <CountryFlag code={accent.countryCode} className="h-3.5 w-5" />
                 {accent.name}
             </div>
@@ -88,7 +88,7 @@ function Side({
     if (fields.length === 0) return null;
     return (
         <section className="flex flex-col gap-3">
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-white/30">{title}</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-subtle">{title}</h3>
             <div className={columns ? "grid grid-cols-1 gap-5 md:grid-cols-2" : "flex flex-col gap-5"}>
                 {fields.map((field) => (
                     <FieldInput

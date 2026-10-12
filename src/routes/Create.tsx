@@ -43,7 +43,7 @@ export default function Create() {
       )}
 
       {vm.status === "ready" && vm.decks.length === 0 && (
-        <p className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-white/50">
+        <p className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-muted">
           No decks yet. Create one to start adding flashcards.
         </p>
       )}

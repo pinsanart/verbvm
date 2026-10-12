@@ -29,15 +29,15 @@ export function DeckCard({ deck, index = 0, onOpen, onDelete }: DeckCardProps) {
                     <CountryFlag code={deck.variant.countryCode} className="h-6 w-9 shrink-0" />
                     <div className="min-w-0">
                         <h2 className="truncate text-base font-semibold">{deck.name}</h2>
-                        <p className="truncate text-sm text-white/50">
+                        <p className="truncate text-sm text-muted">
                             {deck.language.name} · {deck.variant.variantName}
                         </p>
                     </div>
                 </div>
 
-                {deck.description && <p className="line-clamp-2 text-sm text-white/60">{deck.description}</p>}
+                {deck.description && <p className="line-clamp-2 text-sm text-muted">{deck.description}</p>}
 
-                <div className="flex flex-wrap items-center gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2 text-xs tabular-nums">
                     <span className="rounded-full bg-white/10 px-2 py-0.5 font-medium text-white/70">
                         {deck.stats.totalCards} {deck.stats.totalCards === 1 ? "card" : "cards"}
                     </span>

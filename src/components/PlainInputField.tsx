@@ -9,15 +9,15 @@ export interface PlainInputFieldProps {
 export function PlainInputField({ label, value, onChange, required, error }: PlainInputFieldProps) {
     return (
         <div>
-            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-white/40">
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted">
                 {label}
-                {required && <span className="ml-1 text-white/30">*</span>}
+                {required && <span className="ml-1 text-subtle">*</span>}
             </label>
             <textarea
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 aria-invalid={error ? true : undefined}
-                className={`min-h-20 w-full resize-y rounded-xl border bg-white/5 p-3 text-sm text-white outline-none transition-colors placeholder:text-white/30 focus:bg-white/[0.07] ${
+                className={`min-h-20 w-full resize-y rounded-xl border bg-white/5 p-3 text-[15px] leading-6 text-white outline-none transition-colors placeholder:text-white/45 focus:bg-white/[0.07] ${
                     error ? "border-stack/70" : "border-white/10 focus:border-white/30"
                 }`}
             />

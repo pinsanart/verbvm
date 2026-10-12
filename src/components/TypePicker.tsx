@@ -29,7 +29,7 @@ export function TypePicker({ onPick, disabled }: TypePickerProps) {
                         <Icon size={18} strokeWidth={1.5} />
                         {label}
                         {!enabled && (
-                            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/60">
+                            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-muted">
                                 Soon
                             </span>
                         )}

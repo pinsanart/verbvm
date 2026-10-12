@@ -126,7 +126,7 @@ export function Select({ id, options, value, onChange, disabled }: SelectProps) 
                 <ChevronDown
                     size={16}
                     aria-hidden
-                    className={`shrink-0 text-white/50 transition-transform ${open ? "rotate-180" : ""}`}
+                    className={`shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`}
                 />
             </button>
 

@@ -16,13 +16,13 @@ export default function CreateFlashcards() {
   return (
     <div className="mx-auto flex w-full flex-col gap-6 p-6 md:max-w-[60%]">
       <div className="flex flex-col gap-2">
-        <Link to="/create" className="flex items-center gap-1 self-start text-sm text-white/50 hover:text-white">
+        <Link to="/create" className="flex items-center gap-1 self-start text-sm text-muted hover:text-white">
           <ArrowLeft size={14} />
           Decks
         </Link>
         <h1 className="text-2xl font-semibold">{deckName}</h1>
         {vm.form && (
-          <div className="flex items-center gap-2 text-sm text-white/60">
+          <div className="flex items-center gap-2 text-sm text-muted">
             <CountryFlag code={vm.form.variant.countryCode} className="h-3.5 w-5" />
             {vm.form.variant.variantName}
           </div>
@@ -42,12 +42,12 @@ export default function CreateFlashcards() {
         )}
       </AnimatePresence>
 
-      {vm.status === "loading" && <p className="text-sm text-white/50">Loading...</p>}
+      {vm.status === "loading" && <p className="text-sm text-muted">Loading...</p>}
 
       {vm.status === "ready" && vm.form && (
         <>
           {vm.drafts.length === 0 && (
-            <p className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-white/50">
+            <p className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-muted">
               No flashcards yet. Pick a type below to add one.
             </p>
           )}

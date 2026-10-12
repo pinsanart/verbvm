@@ -87,9 +87,9 @@ export function RichInputField({
     return (
         <div>
             <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-xs font-medium uppercase tracking-wide text-white/40">
+                <label className="text-xs font-medium uppercase tracking-wider text-muted">
                     {label}
-                    {required && <span className="ml-1 text-white/30">*</span>}
+                    {required && <span className="ml-1 text-subtle">*</span>}
                 </label>
                 <div className="flex items-center gap-0.5">
                     <IconButton label="Toggle HTML" icon={CodeXml} iconSize={14} onClick={() => setShowHtml((v) => !v)} />
@@ -105,14 +105,14 @@ export function RichInputField({
                 onInput={handleRichInput}
                 suppressContentEditableWarning
                 aria-invalid={error ? true : undefined}
-                className={`min-h-20 w-full rounded-xl border bg-white/5 p-3 text-sm text-white outline-none transition-colors focus:bg-white/[0.07] ${
+                className={`min-h-20 w-full rounded-xl border bg-white/5 p-3 text-[15px] leading-6 text-white outline-none transition-colors focus:bg-white/[0.07] ${
                     error ? "border-stack/70" : "border-white/10 focus:border-white/30"
                 }`}
             />
 
             {showHtml && (
                 <div className="mt-2 overflow-hidden rounded-xl bg-black/30">
-                    <div className="flex items-center gap-1 px-3 pt-2 text-white/40">
+                    <div className="flex items-center gap-1 px-3 pt-2 text-muted">
                         <ChevronDown size={12} />
                     </div>
                     <div className="relative h-24">
