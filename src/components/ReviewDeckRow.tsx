@@ -50,7 +50,7 @@ export function ReviewDeckRow({ deck }: ReviewDeckRowProps) {
                                 </h3>
                                 <ReviewCountList counts={type.counts} />
                                 {completed ? (
-                                    <span className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-orthographic/40 px-3 py-2 text-ui font-medium text-orthographic">
+                                    <span className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-orthographic px-3 py-2 text-ui font-semibold text-canvas">
                                         <Check size={16} aria-hidden />
                                         Completed
                                     </span>
