@@ -22,3 +22,9 @@ body,
 #root {
   height: 100%;
 }
+
+/* A visible focus ring for keyboard users, on every interactive element. */
+:where(button, a, [role="button"], [role="combobox"]):focus-visible {
+  outline: 2px solid var(--color-vocabulary);
+  outline-offset: 2px;
+}
