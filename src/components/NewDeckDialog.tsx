@@ -1,10 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
+import { Select } from "./Select";
+import { controlClass, labelClass } from "./formStyles";
 import type { NewDeck } from "../types/Deck";
 import type { Language, LanguageVariant } from "../types/Language";
-
-const inputClass =
-    "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-white/30 focus:border-white/30";
-const labelClass = "mb-1.5 block text-xs font-medium uppercase tracking-wide text-white/40";
 
 export interface NewDeckDialogProps {
     languages: Language[];
@@ -59,6 +57,9 @@ export function NewDeckDialog({ languages, loadVariants, onCreate, onClose, busy
                 aria-modal="true"
                 aria-label="New deck"
                 onSubmit={submit}
+                onKeyDown={(e) => {
+                    if (e.key === "Escape") onClose();
+                }}
                 onClick={(e) => e.stopPropagation()}
                 className="flex w-full max-w-md flex-col gap-4 rounded-2xl border border-white/10 bg-panel p-5 shadow-xl"
             >
@@ -72,34 +73,27 @@ export function NewDeckDialog({ languages, loadVariants, onCreate, onClose, busy
 
                 <div>
                     <label className={labelClass} htmlFor="deck-name">Name</label>
-                    <input id="deck-name" className={inputClass} value={name} onChange={(e) => setName(e.target.value)}
+                    <input id="deck-name" className={controlClass} value={name} onChange={(e) => setName(e.target.value)}
                         maxLength={100} required autoFocus />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                     <div>
                         <label className={labelClass} htmlFor="deck-language">Language</label>
-                        <select id="deck-language" className={inputClass} value={languageIso}
-                            onChange={(e) => setLanguageIso(e.target.value)} required>
-                            {languages.map((l) => (
-                                <option key={l.iso6393} value={l.iso6393}>{l.name}</option>
-                            ))}
-                        </select>
+                        <Select id="deck-language" value={languageIso} onChange={setLanguageIso}
+                            options={languages.map((l) => ({ value: l.iso6393, label: l.name }))} />
                     </div>
                     <div>
                         <label className={labelClass} htmlFor="deck-accent">Accent</label>
-                        <select id="deck-accent" className={inputClass} value={variantCode}
-                            onChange={(e) => setVariantCode(e.target.value)} disabled={variants.length === 0}>
-                            {variants.map((v) => (
-                                <option key={v.bcp47Code} value={v.bcp47Code}>{v.variantName}</option>
-                            ))}
-                        </select>
+                        <Select id="deck-accent" value={variantCode} onChange={setVariantCode}
+                            disabled={variants.length === 0}
+                            options={variants.map((v) => ({ value: v.bcp47Code, label: v.variantName }))} />
                     </div>
                 </div>
 
                 <div>
                     <label className={labelClass} htmlFor="deck-description">Description</label>
-                    <textarea id="deck-description" className={`${inputClass} min-h-20 resize-y`} value={description}
+                    <textarea id="deck-description" className={`${controlClass} min-h-20 resize-y`} value={description}
                         onChange={(e) => setDescription(e.target.value)} />
                 </div>
 
