@@ -13,11 +13,11 @@ export function AudioField({ label, media }: AudioFieldProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     function handleFilesSelected(_e: React.ChangeEvent<HTMLInputElement>) {
-        // Estrutura visual apenas: anexar áudio de verdade fica para uma etapa futura.
+        // Visual structure only: attaching real audio comes in a later step.
     }
 
     function handleGenerate() {
-        // Estrutura visual apenas: gerar áudio via TTS a partir da phrase fica para uma etapa futura.
+        // Visual structure only: generating audio with TTS from the phrase comes in a later step.
     }
 
     return (

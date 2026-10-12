@@ -15,8 +15,8 @@ function escapeHtml(value: string) {
     return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// Realce leve de sintaxe: só colore os tokens de tag (<b>, </b>, etc.), o
-// resto do texto continua com a cor padrão.
+// Light syntax highlighting: it only colors tag tokens (<b>, </b>, etc.),
+// the rest of the text keeps the default color.
 function highlightHtml(html: string) {
     return html
         .split(/(<\/?[a-zA-Z][^>]*>)/g)
@@ -32,9 +32,10 @@ export function RichInputField({ label, field, onChange, allowMedia }: RichInput
     const fileInputRef = useRef<HTMLInputElement>(null);
     const editedFromRichText = useRef(false);
 
-    // O contentEditable nunca é "controlado" via JSX — reaplicar innerHTML a cada
-    // render resetaria o cursor pro fim do texto a cada tecla. O DOM dele só é
-    // tocado aqui, e só quando a mudança de `content` não veio do próprio div.
+    // The contentEditable is never "controlled" through JSX: reapplying innerHTML on
+    // every render would reset the cursor to the end of the text on every keystroke.
+    // Its DOM is only touched here, and only when the change to `content` did not
+    // come from the div itself.
     useEffect(() => {
         if (editedFromRichText.current) {
             editedFromRichText.current = false;
@@ -68,8 +69,8 @@ export function RichInputField({ label, field, onChange, allowMedia }: RichInput
     }
 
     function handleFilesSelected(_e: React.ChangeEvent<HTMLInputElement>) {
-        // Estrutura visual apenas: anexar mídia de verdade (criar Media, atualizar
-        // field.media) fica para uma etapa futura.
+        // Visual structure only: attaching real media (creating Media, updating
+        // field.media) comes in a later step.
     }
 
     return (

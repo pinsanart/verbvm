@@ -17,7 +17,7 @@ impl HttpClient {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .expect("falha ao construir http client");
+            .expect("failed to build http client");
 
         Self { client }
     }
