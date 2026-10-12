@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use crate::modules::languages::LanguagesError;
+use crate::orchestrators::OrchestratorError;
 
 /// Error returned to the frontend: a stable `kind` to branch on and a message to show.
 #[derive(Debug, Serialize)]
@@ -22,6 +23,18 @@ impl From<LanguagesError> for CommandError {
             LanguagesError::Invalid { .. } => "invalid",
             LanguagesError::Conflict(_) => "conflict",
             LanguagesError::Db(_) => "internal",
+        };
+        Self { kind, message: err.to_string() }
+    }
+}
+
+impl From<OrchestratorError> for CommandError {
+    fn from(err: OrchestratorError) -> Self {
+        let kind = match &err {
+            OrchestratorError::NotFound(_) => "not_found",
+            OrchestratorError::Invalid(_) => "invalid",
+            OrchestratorError::Conflict(_) => "conflict",
+            OrchestratorError::Internal(_) => "internal",
         };
         Self { kind, message: err.to_string() }
     }
