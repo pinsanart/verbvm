@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { useAsyncRunner } from "./useAsyncRunner";
 import {
     createLanguage,
     createLanguageVariant,
     deleteLanguage,
     deleteLanguageVariant,
-    errorMessage,
     listLanguages,
     listLanguageVariants,
     setDefaultLanguageVariant,
@@ -19,20 +19,9 @@ export function useLanguagesViewModel() {
     const [languages, setLanguages] = useState<Language[]>([]);
     const [variants, setVariants] = useState<LanguageVariant[]>([]);
     const [selectedIso, setSelectedIso] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const { error, run } = useAsyncRunner();
 
     const selected = languages.find((language) => language.iso6393 === selectedIso) ?? null;
-
-    const run = useCallback(async (action: () => Promise<void>) => {
-        try {
-            setError(null);
-            await action();
-            return true;
-        } catch (err) {
-            setError(errorMessage(err));
-            return false;
-        }
-    }, []);
 
     const refreshLanguages = useCallback(
         () => run(async () => setLanguages(await listLanguages())),

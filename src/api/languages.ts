@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { CommandError, Language, LanguageVariant, NewLanguage, NewLanguageVariant } from "../types/Language";
+import type { Language, LanguageVariant, NewLanguage, NewLanguageVariant } from "../types/Language";
 
 export const listLanguages = () => invoke<Language[]>("list_languages");
 
@@ -18,14 +18,3 @@ export const setDefaultLanguageVariant = (languageIso: string, bcp47Code: string
 
 export const deleteLanguageVariant = (bcp47Code: string) =>
     invoke<void>("delete_language_variant", { bcp47Code });
-
-/** Turns whatever `invoke` rejected with into a message to show. */
-export function errorMessage(err: unknown): string {
-    if (err && typeof err === "object" && "message" in err) {
-        return (err as CommandError).message;
-    }
-    if (err instanceof TypeError) {
-        return "Tauri is not available here. Run the app with `npm run tauri dev`.";
-    }
-    return String(err);
-}
