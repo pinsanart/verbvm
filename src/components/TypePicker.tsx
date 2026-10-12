@@ -73,7 +73,7 @@ export function TypePicker({ onPick, disabled }: TypePickerProps) {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: 8 }}
                             transition={TRANSITION_FAST}
-                            className="absolute bottom-full left-0 mb-3 flex min-w-48 flex-col gap-1 rounded-2xl border border-line-strong bg-raised p-1.5 shadow-lg shadow-black/40"
+                            className="absolute bottom-full right-0 mb-3 flex min-w-48 flex-col gap-1 rounded-2xl border border-line-strong bg-raised p-1.5 shadow-lg shadow-black/40"
                         >
                             {ENABLED_TYPE_SLUGS.map((slug) => {
                                 const { icon: Icon, label } = styleForType(slug);
