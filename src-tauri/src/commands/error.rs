@@ -42,6 +42,7 @@ impl From<OrchestratorError> for CommandError {
             OrchestratorError::NotFound(_) => "not_found",
             OrchestratorError::Invalid(_) => "invalid",
             OrchestratorError::Conflict(_) => "conflict",
+            OrchestratorError::Unavailable(_) => "unavailable",
             OrchestratorError::Internal(_) => "internal",
         };
         Self { kind, message: err.to_string() }

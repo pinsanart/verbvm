@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ENABLED_TYPE_SLUGS, styleForType } from "../data/FlashcardTypeStyles";
 import { useTypeLabel } from "../i18n/useTypeLabel";
+import { keyboard } from "../lib/keyboard";
 import { TRANSITION_FAST } from "../lib/motion";
 
 export interface TypePickerProps {
@@ -25,16 +26,13 @@ export function TypePicker({ onPick, disabled }: TypePickerProps) {
 
     useEffect(() => {
         if (!open) return;
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setOpen(false);
-        };
         const onPointerDown = (e: PointerEvent) => {
             if (!root.current?.contains(e.target as Node)) setOpen(false);
         };
-        document.addEventListener("keydown", onKeyDown);
+        const stopKeys = keyboard().subscribe({ keys: ["Escape"], notify: () => setOpen(false) });
         document.addEventListener("pointerdown", onPointerDown);
         return () => {
-            document.removeEventListener("keydown", onKeyDown);
+            stopKeys();
             document.removeEventListener("pointerdown", onPointerDown);
         };
     }, [open]);

@@ -14,7 +14,16 @@ pub struct HttpClient {
 
 impl HttpClient {
     pub fn new() -> Self {
-        let client = Client::builder()
+        Self::from_builder(Client::builder())
+    }
+
+    /// A client that sends the given `User-Agent`, for services that refuse the default one.
+    pub fn with_user_agent(user_agent: &str) -> Self {
+        Self::from_builder(Client::builder().user_agent(user_agent))
+    }
+
+    fn from_builder(builder: reqwest::ClientBuilder) -> Self {
+        let client = builder
             .timeout(Duration::from_secs(30))
             .build()
             .expect("failed to build http client");
@@ -33,6 +42,22 @@ impl HttpClient {
     pub async fn get<T: DeserializeOwned>(&self, url: &str, auth: Auth) -> Result<T, HttpError> {
         let resp = self.request(Method::GET, url, auth).send().await?;
         Self::handle_response(resp).await
+    }
+
+    /// GET with query parameters, returning the raw body (for example an audio file).
+    pub async fn get_bytes(
+        &self,
+        url: &str,
+        query: &[(&str, &str)],
+        auth: Auth,
+    ) -> Result<Vec<u8>, HttpError> {
+        let resp = self.request(Method::GET, url, auth).query(query).send().await?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(HttpError::Status { status, body });
+        }
+        Ok(resp.bytes().await?.to_vec())
     }
 
     pub async fn post<B: serde::Serialize, T: DeserializeOwned>(

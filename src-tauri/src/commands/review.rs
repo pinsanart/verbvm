@@ -75,6 +75,10 @@ pub struct ReviewFieldDto {
     pub side: String,
     /// The content is sanitized HTML.
     pub is_rich: bool,
+    /// `PLAIN`, `RICH` or `AUDIO`.
+    pub kind: String,
+    /// For an audio field, the key of the field its audio is spoken from.
+    pub source_key: Option<String>,
     pub content: String,
     pub media: Vec<MediaDto>,
 }
@@ -114,6 +118,8 @@ fn card_dto(api: &ReviewSessionOrchestrator, card: &ReviewCardView) -> ReviewCar
                 }
                 .to_owned(),
                 is_rich: field.is_rich,
+                kind: field.kind.as_str().to_owned(),
+                source_key: field.source_key.clone(),
                 content: field.content.clone(),
                 media: field
                     .media
@@ -151,6 +157,10 @@ pub struct NextReviewCardDto {
     pub intervals: Option<IntervalsDto>,
     /// When there is no card: seconds until the next one is due, if any is scheduled.
     pub next_due_in_seconds: Option<i64>,
+    /// When there is no card: cards are waiting, but the deck's daily limit has been reached.
+    pub daily_limit_reached: bool,
+    /// The deck's setting: the audio of a card plays by itself.
+    pub autoplay_audio: bool,
 }
 
 fn next_dto(api: &ReviewSessionOrchestrator, next: &ReviewNext) -> NextReviewCardDto {
@@ -160,6 +170,8 @@ fn next_dto(api: &ReviewSessionOrchestrator, next: &ReviewNext) -> NextReviewCar
         language_tag: next.language_tag.clone(),
         intervals: next.intervals.map(intervals_dto),
         next_due_in_seconds: next.next_due_in_seconds,
+        daily_limit_reached: next.daily_limit_reached,
+        autoplay_audio: next.autoplay_audio,
     }
 }
 
@@ -175,6 +187,18 @@ pub async fn next_review_card(
     type_slug: String,
 ) -> CommandResult<NextReviewCardDto> {
     Ok(next_dto(&api, &api.next_card(&deck_name, &type_slug)?))
+}
+
+/// Takes back the latest answer given to a flashcard and returns that flashcard again, so the
+/// view can show it as it was before the answer. Each call goes one answer further back.
+#[tauri::command]
+pub async fn undo_review_answer(
+    api: Api<'_>,
+    deck_name: String,
+    type_slug: String,
+    card_uuid: String,
+) -> CommandResult<NextReviewCardDto> {
+    Ok(next_dto(&api, &api.undo_answer(&deck_name, &type_slug, &card_uuid)?))
 }
 
 /// Records the answer to a flashcard. `rating` is 1 (Again) to 4 (Easy), and `duration_ms` is how
@@ -231,6 +255,8 @@ mod tests {
                     label: "Phrase".into(),
                     side: "FRONT".into(),
                     is_rich: true,
+                    kind: "RICH".into(),
+                    source_key: None,
                     content: "<b>hi</b>".into(),
                     media: vec![MediaDto {
                         sha256: "ab".into(),
@@ -245,6 +271,8 @@ mod tests {
             language_tag: "fr-FR".into(),
             intervals: Some(IntervalsDto { again: 600, hard: 86400, good: 86400, easy: 112320 }),
             next_due_in_seconds: None,
+            daily_limit_reached: false,
+            autoplay_audio: true,
         };
         assert_eq!(
             serde_json::to_value(next).unwrap(),
@@ -252,14 +280,17 @@ mod tests {
                 "card": {
                     "uuid": "u", "typeSlug": "vocabulary", "typeName": "Vocabulary", "state": "learning",
                     "fields": [{
-                        "key": "phrase", "label": "Phrase", "side": "FRONT", "isRich": true, "content": "<b>hi</b>",
+                        "key": "phrase", "label": "Phrase", "side": "FRONT", "isRich": true, "kind": "RICH", "sourceKey": null,
+                        "content": "<b>hi</b>",
                         "media": [{"sha256": "ab", "kind": "AUDIO", "mimeType": "audio/mpeg", "path": "/m/ab.mp3", "fileName": "ab.mp3"}]
                     }]
                 },
                 "counts": {"new": 0, "learning": 1, "review": 0},
                 "languageTag": "fr-FR",
                 "intervals": {"again": 600, "hard": 86400, "good": 86400, "easy": 112320},
-                "nextDueInSeconds": null
+                "nextDueInSeconds": null,
+                "dailyLimitReached": false,
+                "autoplayAudio": true
             })
         );
     }
@@ -272,12 +303,15 @@ mod tests {
             language_tag: "en-US".into(),
             intervals: None,
             next_due_in_seconds: Some(600),
+            daily_limit_reached: true,
+            autoplay_audio: false,
         };
         assert_eq!(
             serde_json::to_value(none).unwrap(),
             json!({
                 "card": null, "counts": {"new": 0, "learning": 0, "review": 0},
-                "languageTag": "en-US", "intervals": null, "nextDueInSeconds": 600
+                "languageTag": "en-US", "intervals": null, "nextDueInSeconds": 600,
+                "dailyLimitReached": true, "autoplayAudio": false
             })
         );
     }

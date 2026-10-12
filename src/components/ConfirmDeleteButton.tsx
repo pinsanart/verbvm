@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { IconButton } from "./IconButton";
+import { keyboard } from "../lib/keyboard";
 import { TRANSITION_FAST } from "../lib/motion";
 
 /** How long the confirmation waits before it goes back to the trash button. */
@@ -50,19 +51,16 @@ export function ConfirmDeleteButton({ deleteLabel, confirmLabel, onConfirm, icon
             restoreFocus.current = keepFocus && (active === document.body || container.current?.contains(active) === true);
             setConfirming(false);
         };
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") cancel(true);
-        };
         const onPointerDown = (e: PointerEvent) => {
             if (!container.current?.contains(e.target as Node)) cancel(false);
         };
         const timer = setTimeout(() => cancel(true), CONFIRM_TIMEOUT_MS);
 
-        document.addEventListener("keydown", onKeyDown);
+        const stopKeys = keyboard().subscribe({ keys: ["Escape"], notify: () => cancel(true) });
         document.addEventListener("pointerdown", onPointerDown);
         return () => {
             clearTimeout(timer);
-            document.removeEventListener("keydown", onKeyDown);
+            stopKeys();
             document.removeEventListener("pointerdown", onPointerDown);
         };
     }, [confirming]);

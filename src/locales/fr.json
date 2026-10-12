@@ -57,7 +57,13 @@
     "language": "Langue",
     "accent": "Accent",
     "createDeck": "Créer le paquet",
-    "fixedNote": "{{language}} · {{accent}} reste inchangé, car les cartes de ce paquet en dépendent."
+    "fixedNote": "{{language}} · {{accent}} reste inchangé, car les cartes de ce paquet en dépendent.",
+    "studyOptions": "Options d'étude",
+    "newCardsPerDay": "Nouvelles cartes par jour",
+    "newCardsPerDayHint": "Cartes vues pour la première fois. 0 n'en ajoute aucune.",
+    "maxReviewsPerDay": "Maximum de révisions par jour",
+    "maxReviewsPerDayHint": "Réponses aux cartes déjà retenues. Les cartes en cours d'apprentissage ne sont pas limitées.",
+    "noAutoplay": "Ne pas lire l'audio automatiquement"
   },
   "deckEditor": {
     "loading": "Chargement des cartes",
@@ -99,8 +105,13 @@
     "attach": "Joindre un média",
     "videoFailed": "La vidéo n'a pas pu être chargée",
     "audioFailed": "L'audio n'a pas pu être chargé",
-    "replayHint": "Appuyez sur <kbd>R</kbd> pour le réécouter",
-    "pickerFilter": "Images, audio et vidéo"
+    "pickerFilter": "Images, audio et vidéo",
+    "generate": "Générer l'audio à partir du texte",
+    "generating": "Génération de l'audio",
+    "generateHint": "Écrivez la phrase, puis générez son audio ou joignez un fichier.",
+    "replay": "Rejouer",
+    "loadingAudio": "Chargement de l'audio",
+    "autoplayBlocked": "L'audio n'a pas pu démarrer tout seul. Appuyez sur lecture pour l'entendre."
   },
   "rich": {
     "editHtml": "Modifier le HTML",
@@ -115,8 +126,7 @@
     "clearFormatting": "Effacer la mise en forme"
   },
   "review": {
-    "legend": "Les cartes <b>Nouvelles</b> n'ont pas encore été révisées. Les cartes <b>En cours</b> ont été ratées et reviennent. Les cartes <b>À réviser</b> sont dues pour révision.",
-    "legendShort": "Nouvelles : pas encore révisées. En cours : ratées et à revoir. À réviser : dues pour révision.",
+    "legend": "Les cartes <b>Nouvelles</b> n'ont pas encore été révisées. Les cartes en <b>Apprentissage</b> sont encore en cours d'apprentissage et reviennent jusqu'à être retenues. Les cartes à <b>Réviser</b> sont à revoir.",
     "loadingDecks": "Chargement des paquets",
     "loadingCard": "Chargement de la carte",
     "noDecksTitle": "Aucun paquet à réviser pour l'instant",
@@ -130,7 +140,6 @@
     "completed": "Terminé",
     "reviewAction": "Réviser",
     "reviewAria": "Réviser {{type}} dans {{deck}}",
-    "flashcardAria": "Carte",
     "showResponse": "Afficher la réponse",
     "space": "Espace",
     "again": "À revoir",
@@ -141,11 +150,36 @@
     "nothingToReview": "Rien à réviser dans {{type}}",
     "nextCard": "La prochaine carte revient dans {{interval}}.",
     "noneScheduled": "Aucune autre carte n'est planifiée. Les nouvelles apparaissent quand vous en ajoutez.",
-    "answered": "Répondues",
-    "remembered": "Retenues",
-    "missed": "Ratées",
+    "answered": "Réponses",
     "reviewType": "Réviser {{type}} ({{count}})",
-    "backToReview": "Retour à la révision"
+    "backToReview": "Retour à la révision",
+    "yourAnswer": "Votre réponse",
+    "expectedAnswer": "Réponse attendue",
+    "typeWhatYouHear": "Écrivez ce que vous entendez",
+    "nothingTyped": "Rien n'a été saisi",
+    "exactMatch": "Correspondance exacte",
+    "cardsReviewed": "Cartes",
+    "collapseDeck": "Réduire {{deck}}",
+    "expandDeck": "Développer {{deck}}",
+    "collapseAll": "Tout réduire",
+    "expandAll": "Tout développer",
+    "waitingCount": "{{count}} en attente",
+    "dailyLimitReached": "La limite quotidienne de ce paquet est atteinte. Le reste des cartes revient dans {{interval}}.",
+    "remembered": "Réponses justes",
+    "missed": "Réponses ratées",
+    "undoAria": "Annuler la dernière réponse (Z)",
+    "reloadFailed": "Votre réponse est enregistrée, mais la carte suivante n'a pas pu être chargée.",
+    "retry": "Réessayer",
+    "diffBoth": "{{extra}} lettres en trop et {{missing}} manquantes",
+    "diffExtra_one": "{{count}} lettre en trop",
+    "diffExtra_many": "{{count}} de lettres en trop",
+    "diffExtra_other": "{{count}} lettres en trop",
+    "diffMissing_one": "{{count}} lettre manquante",
+    "diffMissing_many": "{{count}} de lettres manquantes",
+    "diffMissing_other": "{{count}} lettres manquantes",
+    "dictationHint": "Alt+R rejoue l'audio",
+    "waitingLabel": "Cartes en attente",
+    "cardAria": "Carte {{type}}, {{state}}"
   },
   "interval": {
     "lessThanMinute": "<1 min",
@@ -184,6 +218,7 @@
     "phrase": "Phrase",
     "word_or_expression": "Mot ou expression",
     "meaning": "Signification",
-    "ipa_phonetics": "Phonétique API"
+    "ipa_phonetics": "Phonétique API",
+    "audio": "Audio"
   }
 }

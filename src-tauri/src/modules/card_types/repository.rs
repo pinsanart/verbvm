@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rusqlite::types::Type;
 use rusqlite::{params, OptionalExtension, Row};
 
-use super::model::{FieldDefinition, FlashcardType, Side};
+use super::model::{FieldDefinition, FieldKind, FlashcardType, Side};
 use crate::dependencies::db::{connection::SqliteHandle, error::DbError};
 
 /// Storage port for flashcard types.
@@ -36,7 +36,7 @@ pub trait FieldDefinitionRepository: Send + Sync {
 
 const TYPE_COLUMNS: &str = "id, slug, name, description";
 const DEFINITION_COLUMNS: &str =
-    "id, flashcard_type_id, language_id, side, key, label, position, is_required, is_rich, media_allowed";
+    "id, flashcard_type_id, language_id, side, key, label, position, is_required, kind, source_key, media_allowed";
 
 fn type_from_row(row: &Row) -> rusqlite::Result<FlashcardType> {
     Ok(FlashcardType::restore(row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
@@ -47,6 +47,10 @@ fn definition_from_row(row: &Row) -> rusqlite::Result<FieldDefinition> {
     let side = Side::parse(&side).map_err(|e| {
         rusqlite::Error::FromSqlConversionFailure(3, Type::Text, e.to_string().into())
     })?;
+    let kind: String = row.get(8)?;
+    let kind = FieldKind::parse(&kind).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(8, Type::Text, e.to_string().into())
+    })?;
     Ok(FieldDefinition::restore(
         row.get(0)?,
         row.get(1)?,
@@ -56,8 +60,9 @@ fn definition_from_row(row: &Row) -> rusqlite::Result<FieldDefinition> {
         row.get(5)?,
         row.get(6)?,
         row.get(7)?,
-        row.get(8)?,
+        kind,
         row.get(9)?,
+        row.get(10)?,
     ))
 }
 
@@ -149,8 +154,8 @@ impl FieldDefinitionRepository for SqliteFieldDefinitionRepository {
             conn.query_row(
                 &format!(
                     "INSERT INTO field_definitions
-                         (flashcard_type_id, language_id, side, key, label, position, is_required, is_rich, media_allowed)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) RETURNING {DEFINITION_COLUMNS}"
+                         (flashcard_type_id, language_id, side, key, label, position, is_required, kind, source_key, media_allowed)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) RETURNING {DEFINITION_COLUMNS}"
                 ),
                 params![
                     d.flashcard_type_id(),
@@ -160,7 +165,8 @@ impl FieldDefinitionRepository for SqliteFieldDefinitionRepository {
                     d.label(),
                     d.position(),
                     d.is_required(),
-                    d.is_rich(),
+                    d.kind().as_str(),
+                    d.source_key(),
                     d.media_allowed(),
                 ],
                 definition_from_row,
@@ -201,8 +207,8 @@ impl FieldDefinitionRepository for SqliteFieldDefinitionRepository {
             let rows = conn.execute(
                 "UPDATE field_definitions
                  SET language_id = ?1, side = ?2, key = ?3, label = ?4, position = ?5,
-                     is_required = ?6, is_rich = ?7, media_allowed = ?8
-                 WHERE id = ?9",
+                     is_required = ?6, kind = ?7, source_key = ?8, media_allowed = ?9
+                 WHERE id = ?10",
                 params![
                     d.language_id(),
                     d.side().as_str(),
@@ -210,7 +216,8 @@ impl FieldDefinitionRepository for SqliteFieldDefinitionRepository {
                     d.label(),
                     d.position(),
                     d.is_required(),
-                    d.is_rich(),
+                    d.kind().as_str(),
+                    d.source_key(),
                     d.media_allowed(),
                     id
                 ],

@@ -28,6 +28,15 @@ export const nextReviewCard = async (deckName: string, typeSlug: string): Promis
     return { ...next, card: next.card ? toCard(next.card) : null };
 };
 
+/**
+ * Takes back the latest answer given to a flashcard and returns that flashcard again, as it was
+ * before the answer. Each call goes one answer further back for that card.
+ */
+export const undoReviewAnswer = async (deckName: string, typeSlug: string, cardUuid: string): Promise<NextReviewCard> => {
+    const next = await invoke<NextReviewCardDto>("undo_review_answer", { deckName, typeSlug, cardUuid });
+    return { ...next, card: next.card ? toCard(next.card) : null };
+};
+
 /** Records the answer to a flashcard. `durationMs` is how long the answer took. */
 export const answerReviewCard = (cardUuid: string, rating: Rating, durationMs: number) =>
     invoke<void>("answer_review_card", { cardUuid, rating, durationMs });

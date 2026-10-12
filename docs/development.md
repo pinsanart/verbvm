@@ -20,11 +20,12 @@ The schema is still being edited directly in v1.0. After changing `migrations.rs
 
 ## Known limitations
 
-- **`http` does not compile.** `src-tauri/src/dependencies/http/` (a `reqwest` wrapper with `Auth::{None, Bearer}`) is switched off: `pub mod http;` is commented out in `dependencies.rs` because `reqwest` is not in `Cargo.toml`. To turn it on, add `reqwest` with the `json` feature and uncomment it.
-- **Only vocabulary can be added from the UI.** Phonetic and orthographic have their schema and seed fields, and the editor already renders them, but they are not offered: `ENABLED_TYPE_SLUGS` (`data/FlashcardTypeStyles.ts`) lists only the types that can be written, and the bar shows only those. Stack has no editor yet.
+- **Text to speech uses an unofficial endpoint.** `GoogleTranslateSynthesizer` calls the Google Translate TTS URL, which has no key, is undocumented and can rate limit or change without notice. It needs network, takes at most about 200 characters (longer text is refused) and sends a browser `User-Agent`. Generating audio fails with an `unavailable` error when offline, while reviewing never needs the network because the audio is stored locally. To use another provider, implement `SpeechSynthesizer` (`dependencies/speech.rs`) and build it in `lib.rs`.
+- **Phonetic and stack cannot be added from the UI.** Phonetic has its schema and seed fields, and the editor already renders them, but it is not offered; vocabulary and orthographic are: `ENABLED_TYPE_SLUGS` (`data/FlashcardTypeStyles.ts`) lists only the types that can be written, and the bar shows only those. Stack has no editor yet.
 - **Only four accents are seeded** (en-US, en-GB, fr-FR, pt-BR), and there is no screen to add more.
 - **A review cannot edit or delete the card.** Saved cards are edited and deleted from the deck's Saved cards tab, but the review still has no Actions menu to jump there.
-- **No daily limits for new cards.** The New count is every card never reviewed. A limit needs a Settings screen.
+- **Daily limits count per UTC day.** A deck's new-card and review limits reset at midnight UTC, which is the evening in the Americas, because the whole app works in UTC. A local day would need the time zone to be stored.
+- **`Couldn't get key from code: ...` in the terminal.** In `npm run tauri dev`, pressing a key `tao` cannot map (the volume keys, for example) prints this line from the native layer. It is an `eprintln!` in `tao` for debug builds only, emitted when the window gets the key and before the webview sees it, so the view cannot silence it and a release build never prints it. The view itself ignores such keys: see the keyboard section in [frontend.md](frontend.md).
 - **Orphan media files.** Detaching media from a draft, or deleting a draft, leaves the file in the `media/` folder. A cleanup that deletes files no row references is not written yet.
 - **No S3 sync yet.** `field_media.remote_key` is reserved for it.
 - **Japanese, Chinese and Korean** use the generic vocabulary fields until language-specific definitions (for example romaji or pinyin) are added.

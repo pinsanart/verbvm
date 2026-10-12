@@ -2,8 +2,10 @@ import { FormEvent, useId, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./Button";
+import { DeckSettingsFields } from "./DeckSettingsFields";
 import { Notice } from "./Notice";
 import { controlClass, labelClass } from "./formStyles";
+import { fromDraft, toDraft } from "../lib/deckSettings";
 import { TRANSITION_BASE } from "../lib/motion";
 import { useLanguageNames } from "../i18n/useLanguageNames";
 import type { Deck, UpdateDeck } from "../types/Deck";
@@ -18,8 +20,9 @@ export interface DeckEditFormProps {
 }
 
 /**
- * Edits a deck in the place where its card was. Only the name and the description can change:
- * the language and accent are fixed, because the fields of its flashcards depend on them.
+ * Edits a deck in the place where its card was. The name, the description and the study options
+ * can change: the language and accent are fixed, because the fields of its flashcards depend on
+ * them.
  */
 export function DeckEditForm({ deck, onSave, onCancel, busy, error }: DeckEditFormProps) {
     const { t } = useTranslation();
@@ -27,12 +30,14 @@ export function DeckEditForm({ deck, onSave, onCancel, busy, error }: DeckEditFo
     const id = useId();
     const [name, setName] = useState(deck.name);
     const [description, setDescription] = useState(deck.description ?? "");
+    const [settings, setSettings] = useState(toDraft(deck));
 
     const submit = async (e: FormEvent) => {
         e.preventDefault();
         const saved = await onSave({
             name,
             description: description.trim() === "" ? null : description,
+            ...fromDraft(settings),
         });
         if (saved) onCancel();
     };
@@ -87,6 +92,8 @@ export function DeckEditForm({ deck, onSave, onCancel, busy, error }: DeckEditFo
                     onChange={(e) => setDescription(e.target.value)}
                 />
             </div>
+
+            <DeckSettingsFields value={settings} onChange={setSettings} />
 
             <p className="text-meta text-muted">
                 {t("decks.fixedNote", { language: names.language(deck.variant.bcp47Code, deck.language.name), accent: names.variant(deck.variant) })}

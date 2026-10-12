@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::error::{OrchestratorError, OrchestratorResult};
 use crate::modules::card_types::{CardTypeApi, FlashcardType};
-use crate::modules::decks::{Deck, DeckApi};
+use crate::modules::decks::{Deck, DeckApi, DeckSettings};
 use crate::modules::flashcards::FlashcardApi;
 use crate::modules::languages::{Language, LanguageApi, LanguageVariant};
 
@@ -63,6 +63,7 @@ impl DeckOverviewOrchestrator {
         language_iso_639_3: &str,
         variant_bcp47: Option<&str>,
         description: Option<String>,
+        settings: DeckSettings,
     ) -> OrchestratorResult<DeckOverview> {
         let language = self.languages.get_language_by_iso(language_iso_639_3)?;
         let variant = match variant_bcp47 {
@@ -82,19 +83,20 @@ impl DeckOverviewOrchestrator {
             )));
         }
         let variant_id = variant.id().ok_or_else(|| OrchestratorError::Internal("variant was not saved".into()))?;
-        let deck = self.decks.create_deck(name, variant_id, description)?;
+        let deck = self.decks.create_deck(name, variant_id, description, settings)?;
         self.overview(deck, &self.card_types.list_types()?)
     }
 
-    /// Renames a deck and replaces its description. The language and accent do not change, since
+    /// Renames a deck and replaces its description and settings. The language and accent do not change, since
     /// the fields of its flashcards depend on the language. Conflicts when the new name is taken.
     pub fn update(
         &self,
         deck_name: &str,
         new_name: String,
         description: Option<String>,
+        settings: DeckSettings,
     ) -> OrchestratorResult<DeckOverview> {
-        let deck = self.decks.update_deck(deck_name, new_name, description)?;
+        let deck = self.decks.update_deck(deck_name, new_name, description, settings)?;
         self.overview(deck, &self.card_types.list_types()?)
     }
 

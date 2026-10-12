@@ -11,6 +11,7 @@ use dependencies::clock::{Clock, SystemClock};
 use dependencies::db::connection::SqliteHandle;
 use dependencies::media_store::{LocalMediaStore, MediaStorage};
 use dependencies::sanitizer::{AmmoniaSanitizer, HtmlSanitizer};
+use dependencies::speech::{GoogleTranslateSynthesizer, SpeechSynthesizer};
 use modules::card_types::{CardTypeApi, CardTypeService};
 use modules::decks::{DeckApi, DeckService};
 use modules::flashcards::{FlashcardApi, FlashcardService};
@@ -36,6 +37,9 @@ pub fn run() {
             let clock: Arc<dyn Clock> = Arc::new(SystemClock);
             let reviews: Arc<dyn ReviewApi> = Arc::new(ReviewService::sqlite(db, clock.clone()));
             let sanitizer: Arc<dyn HtmlSanitizer> = Arc::new(AmmoniaSanitizer::new());
+            // Google Translate is the only provider for now. Another one only needs to implement
+            // `SpeechSynthesizer` and be built here.
+            let speech: Arc<dyn SpeechSynthesizer> = Arc::new(GoogleTranslateSynthesizer::new());
 
             app.manage(languages.clone());
             app.manage(Arc::new(DeckOverviewOrchestrator::new(
@@ -51,6 +55,7 @@ pub fn run() {
                 flashcards.clone(),
                 sanitizer,
                 media.clone(),
+                speech,
             )));
             app.manage(Arc::new(ReviewSessionOrchestrator::new(
                 decks, languages, card_types, flashcards, reviews, clock, media,
@@ -73,17 +78,20 @@ pub fn run() {
             commands::flashcards::move_draft,
             commands::flashcards::delete_draft,
             commands::flashcards::attach_media,
+            commands::flashcards::generate_media,
             commands::flashcards::remove_media,
             commands::flashcards::publish_drafts,
             commands::media::read_media,
             commands::flashcards::list_saved_cards,
             commands::flashcards::update_saved_card,
             commands::flashcards::attach_saved_card_media,
+            commands::flashcards::generate_saved_card_media,
             commands::flashcards::remove_saved_card_media,
             commands::flashcards::delete_saved_card,
             commands::review::list_review_overview,
             commands::review::next_review_card,
             commands::review::answer_review_card,
+            commands::review::undo_review_answer,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

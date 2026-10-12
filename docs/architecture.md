@@ -69,7 +69,7 @@ Orchestrators:
 |---|---|---|
 | `DeckOverviewOrchestrator` | decks, languages, card types, flashcards | List decks with language, accent and card counts by type. Create a deck from a language and an optional accent. Rename a deck and change its description (its language and accent are fixed). Delete a deck |
 | `ReviewSessionOrchestrator` | decks, languages, card types, flashcards, reviews, clock, media store | The review overview (each deck with the types it has cards of and their New, Learning and Review counts), the next card of a session in queue order, and recording an answer |
-| `FlashcardEditorOrchestrator` | decks, languages, card types, flashcards, sanitizer, media store | The form of every type in a deck. Add a draft of a type, edit, move, duplicate and delete drafts in the deck's single mixed list. Attach and remove media. Publish all the drafts, each against the fields of its own type |
+| `FlashcardEditorOrchestrator` | decks, languages, card types, flashcards, sanitizer, media store, speech synthesizer | The form of every type in a deck. Add a draft of a type, edit, move, duplicate and delete drafts in the deck's single mixed list. Attach and remove media, and generate the audio of an audio field with text to speech. Publish all the drafts, each against the fields of its own type |
 
 ## How the view logic is organized
 

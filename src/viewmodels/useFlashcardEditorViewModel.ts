@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAsyncRunner } from "./useAsyncRunner";
 import { pickMediaFiles } from "../api/files";
+import { playAudio } from "../api/media";
 import {
     attachMedia,
     createDraft,
     deleteDraft,
     duplicateDraft,
+    generateMedia,
     getFlashcardForm,
     listDrafts,
     moveDraft,
@@ -13,6 +15,7 @@ import {
     removeMedia,
     updateDraft,
 } from "../api/flashcards";
+import { generatedAudio } from "../lib/media";
 import type { Draft, FieldDefinition, FlashcardForm, MoveDirection } from "../types/FlashcardForm";
 import type { LoadStatus } from "./useDecksViewModel";
 
@@ -156,6 +159,20 @@ export function useFlashcardEditorViewModel(deckName: string) {
             }
         });
 
+    /**
+     * Generates the audio of an audio field from the text of its source field. The backend reads
+     * the saved text, so what was typed is saved first. The new audio plays at once.
+     */
+    const generateAudio = (uuid: string, key: string) =>
+        run(async () => {
+            await flush();
+            const before = draftsRef.current.find((d) => d.uuid === uuid)?.media[key];
+            const updated = await generateMedia(uuid, key);
+            applyMedia(updated);
+            const created = generatedAudio(before, updated.media[key]);
+            if (created) playAudio(created).catch(() => undefined);
+        });
+
     const detachFile = (uuid: string, key: string, sha256: string) =>
         run(async () => applyMedia(await removeMedia(uuid, key, sha256)));
 
@@ -186,6 +203,7 @@ export function useFlashcardEditorViewModel(deckName: string) {
         move,
         remove,
         attachFiles,
+        generateAudio,
         detachFile,
         saveAll,
     };

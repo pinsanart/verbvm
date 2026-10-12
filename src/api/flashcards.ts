@@ -54,6 +54,10 @@ export const deleteDraft = async (draftUuid: string) =>
 export const attachMedia = async (draftUuid: string, fieldKey: string, sourcePath: string) =>
     toDraft(await invoke<DraftDto>("attach_media", { draftUuid, fieldKey, sourcePath }));
 
+/** Speaks the text of the field an audio field comes from and attaches the audio to it. */
+export const generateMedia = async (draftUuid: string, fieldKey: string) =>
+    toDraft(await invoke<DraftDto>("generate_media", { draftUuid, fieldKey }));
+
 export const removeMedia = async (draftUuid: string, fieldKey: string, sha256: string) =>
     toDraft(await invoke<DraftDto>("remove_media", { draftUuid, fieldKey, sha256 }));
 
@@ -70,6 +74,9 @@ export const updateSavedCard = async (cardUuid: string, values: Record<string, s
 
 export const attachSavedCardMedia = async (cardUuid: string, fieldKey: string, sourcePath: string) =>
     toSavedCard(await invoke<SavedCardDto>("attach_saved_card_media", { cardUuid, fieldKey, sourcePath }));
+
+export const generateSavedCardMedia = async (cardUuid: string, fieldKey: string) =>
+    toSavedCard(await invoke<SavedCardDto>("generate_saved_card_media", { cardUuid, fieldKey }));
 
 export const removeSavedCardMedia = async (cardUuid: string, fieldKey: string, sha256: string) =>
     toSavedCard(await invoke<SavedCardDto>("remove_saved_card_media", { cardUuid, fieldKey, sha256 }));

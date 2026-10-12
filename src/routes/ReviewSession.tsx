@@ -1,28 +1,27 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "motion/react";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
+import { Undo2 } from "lucide-react";
+import { Button } from "../components/Button";
+import { IconButton } from "../components/IconButton";
+import { DictationReview } from "../components/DictationReview";
 import { Notice } from "../components/Notice";
 import { Page } from "../components/Page";
+import { ReviewCountsInline } from "../components/ReviewCountsInline";
 import { RatingBar } from "../components/RatingBar";
 import { ReviewCardFace } from "../components/ReviewCardFace";
 import { ReviewSummary } from "../components/ReviewSummary";
+import { replayAudio } from "../lib/audio";
+import { hasModifier, isTyping, isTypingOrPressing } from "../lib/keyboard";
 import { TRANSITION_BASE, TRANSITION_FAST } from "../lib/motion";
+import { useKeys } from "../lib/useKeys";
 import { useTypeLabel } from "../i18n/useTypeLabel";
 import type { Rating } from "../types/Review";
 import { useReviewSessionViewModel } from "../viewmodels/useReviewSessionViewModel";
 
-/** Keys that press the focused control themselves, so the shortcuts must leave them alone. */
-const isTypingOrPressing = (target: EventTarget | null) =>
-  target instanceof HTMLElement && target.closest("input, textarea, select, button, a") !== null;
-
-/** Plays the first audio of the card from the start. */
-const replayAudio = () => {
-  const audio = document.querySelector<HTMLAudioElement>("audio[data-review-audio]");
-  if (!audio) return;
-  audio.currentTime = 0;
-  audio.play().catch(() => undefined);
-};
+/** The only keys a review listens to. Any other key is ignored before it reaches this screen. */
+const REVIEW_KEYS = ["r", " ", "Enter", "1", "2", "3", "4", "z", "Escape"] as const;
 
 /** Reviews the flashcards of one type in a deck, one card at a time. */
 export default function ReviewSession() {
@@ -30,40 +29,75 @@ export default function ReviewSession() {
   const { t } = useTranslation();
   const typeLabel = useTypeLabel();
   const vm = useReviewSessionViewModel(deckName, typeSlug);
+  const navigate = useNavigate();
   const title = typeLabel(typeSlug, vm.card?.typeName);
   const front = vm.card?.fields.filter((field) => field.side === "FRONT") ?? [];
   const back = vm.card?.fields.filter((field) => field.side === "BACK") ?? [];
   const cardRef = useRef<HTMLElement>(null);
+  // An orthographic card is answered by typing what the audio says.
+  const dictation = vm.card?.typeSlug === "orthographic";
+  // The audio is what the learner is shown. The text it was spoken from is the answer, kept
+  // hidden until the response is shown.
+  const audioFields = vm.card?.fields.filter((field) => field.kind === "AUDIO") ?? [];
+  const expectedKey = audioFields.find((field) => field.sourceKey !== null)?.sourceKey;
+  const expected = vm.card?.fields.find((field) => field.key === expectedKey)?.content ?? "";
 
-  // Space or Enter shows the response, 1 to 4 answer and R plays the audio again, so a review can
-  // run without the mouse.
-  const { showResponse, answer, revealed, card } = vm;
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (!card || e.metaKey || e.ctrlKey || e.altKey || isTypingOrPressing(e.target)) return;
-      if (e.key.toLowerCase() === "r") {
-        e.preventDefault();
-        replayAudio();
-      } else if (!revealed && (e.key === " " || e.key === "Enter")) {
-        e.preventDefault();
-        showResponse();
-      } else if (revealed && ["1", "2", "3", "4"].includes(e.key)) {
-        e.preventDefault();
-        answer(Number(e.key) as Rating);
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [card, revealed, showResponse, answer]);
+  // Space or Enter shows the response, 1 to 4 answer, R plays the audio again, Z (or Ctrl+Z)
+  // takes the last answer back and Escape leaves the session, so a review can run without the
+  // mouse. Answers are saved as they are given, so leaving loses nothing.
+  const { showResponse, answer, undo, revealed, card } = vm;
+  // Only Space and Enter press a focused button or link themselves, so only they step aside for
+  // one. The other keys keep working after a Tab onto the answers.
+  useKeys(REVIEW_KEYS, (e) => {
+    if (e.altKey || isTyping(e.target)) return;
+    if (e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      undo();
+      return;
+    }
+    if (!card || hasModifier(e)) return;
+    if (e.key === "Escape") {
+      navigate("/review");
+    } else if (e.key.toLowerCase() === "r") {
+      e.preventDefault();
+      replayAudio();
+    } else if (e.key === " " || e.key === "Enter") {
+      if (revealed || isTypingOrPressing(e.target)) return;
+      e.preventDefault();
+      showResponse();
+    } else if (revealed && ["1", "2", "3", "4"].includes(e.key)) {
+      e.preventDefault();
+      answer(Number(e.key) as Rating);
+    }
+  });
 
   // The button that was pressed goes away when the answers replace it, which would drop the focus
   // to the page. The card takes it instead, so the next Tab goes to the first answer.
   useEffect(() => {
-    if (card) cardRef.current?.focus({ preventScroll: true });
-  }, [card?.uuid, revealed]);
+    // While a dictation waits for the answer the text box keeps the focus.
+    if (card && !(dictation && !revealed)) cardRef.current?.focus({ preventScroll: true });
+  }, [card?.uuid, vm.presentation, revealed, dictation]);
 
   return (
-    <Page title={title} parents={[{ to: "/review", label: t("nav.review") }]} meta={deckName}>
+    <Page
+      title={title}
+      parents={[{ to: "/review", label: t("nav.review") }]}
+      meta={deckName}
+      actions={
+        vm.status === "ready" ? (
+          <div className="flex items-center gap-3">
+            {vm.card && <ReviewCountsInline counts={vm.counts} current={vm.card?.state ?? null} />}
+            <IconButton
+              label={t("review.undoAria")}
+              icon={Undo2}
+              iconSize={18}
+              onClick={() => undo()}
+              disabled={!vm.canUndo}
+            />
+          </div>
+        ) : undefined
+      }
+    >
       <AnimatePresence initial={false}>
         {vm.error && (
           <Notice key="error" tone="error">
@@ -73,16 +107,23 @@ export default function ReviewSession() {
       </AnimatePresence>
 
       {vm.status === "loading" && (
-        <div className="h-64 animate-pulse rounded-2xl border border-line bg-panel" aria-busy="true" aria-label={t("review.loadingCard")} />
+        <div
+          className="mx-auto min-h-[18rem] w-full max-w-3xl animate-pulse rounded-2xl border border-line bg-panel"
+          aria-busy="true"
+          aria-label={t("review.loadingCard")}
+        />
       )}
 
       {vm.done && (
         <ReviewSummary
           typeName={title}
+          typeSlug={typeSlug}
           deckName={deckName}
           answered={vm.answered}
           again={vm.again}
+          cardsReviewed={vm.cardsReviewed}
           nextDueInSeconds={vm.nextDueInSeconds}
+          dailyLimitReached={vm.dailyLimitReached}
           siblings={vm.siblings}
         />
       )}
@@ -91,21 +132,36 @@ export default function ReviewSession() {
         <>
           <AnimatePresence mode="wait" initial={false}>
             <motion.article
-              key={vm.card.uuid}
+              key={`${vm.card.uuid}:${vm.presentation}`}
               ref={cardRef}
               tabIndex={-1}
               lang={vm.languageTag || undefined}
-              aria-label={t("review.flashcardAria")}
+              aria-label={t("review.cardAria", {
+                type: title,
+                state: t(vm.card.state === "new" ? "review.new" : vm.card.state === "learning" ? "review.learning" : "review.reviewCount"),
+              })}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={TRANSITION_FAST}
               className="mx-auto flex min-h-[18rem] w-full max-w-3xl flex-col justify-center gap-8 rounded-2xl border border-line bg-panel p-8 outline-none md:p-14"
             >
-              <ReviewCardFace fields={front} size="front" />
+              {dictation ? (
+                <DictationReview
+                  front={audioFields}
+                  expected={expected}
+                  typed={vm.typed}
+                  revealed={vm.revealed}
+                  onTypedChange={vm.setTyped}
+                  onSubmit={vm.showResponse}
+                  autoPlay={vm.autoplayAudio}
+                />
+              ) : (
+                <ReviewCardFace fields={front} size="front" autoPlay={vm.autoplayAudio} />
+              )}
 
               <AnimatePresence initial={false}>
-                {vm.revealed && back.length > 0 && (
+                {vm.revealed && back.length > 0 && !dictation && (
                   <motion.div
                     key="back"
                     aria-live="polite"
@@ -115,21 +171,29 @@ export default function ReviewSession() {
                     transition={TRANSITION_BASE}
                     className="border-t border-line-strong pt-8"
                   >
-                    <ReviewCardFace fields={back} size="back" />
+                    <ReviewCardFace fields={back} size="back" autoPlay={vm.autoplayAudio} />
                   </motion.div>
                 )}
               </AnimatePresence>
             </motion.article>
           </AnimatePresence>
 
-          <RatingBar
-            counts={vm.counts}
-            intervals={vm.intervals}
-            revealed={vm.revealed}
-            busy={vm.busy}
-            onShowResponse={vm.showResponse}
-            onAnswer={vm.answer}
-          />
+          {vm.needsReload ? (
+            <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center justify-center gap-3 border-t border-line bg-canvas px-4 py-3 md:-mx-8 md:px-8">
+              <p className="text-ui text-muted">{t("review.reloadFailed")}</p>
+              <Button onClick={() => vm.reload()} loading={vm.busy}>
+                {t("review.retry")}
+              </Button>
+            </div>
+          ) : (
+            <RatingBar
+              intervals={vm.intervals}
+              revealed={vm.revealed}
+              busy={vm.busy}
+              onShowResponse={vm.showResponse}
+              onAnswer={vm.answer}
+            />
+          )}
         </>
       )}
     </Page>

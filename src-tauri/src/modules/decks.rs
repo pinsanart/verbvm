@@ -10,6 +10,6 @@ mod repository;
 mod service;
 
 pub use error::{DecksError, DecksResult};
-pub use model::Deck;
+pub use model::{Deck, DeckSettings};
 pub use repository::{DeckRepository, SqliteDeckRepository};
 pub use service::{DeckApi, DeckService};

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::error::{DecksError, DecksResult};
-use super::model::Deck;
+use super::model::{Deck, DeckSettings};
 use super::repository::{DeckRepository, SqliteDeckRepository};
 use crate::dependencies::db::connection::SqliteHandle;
 
@@ -16,17 +16,20 @@ pub trait DeckApi: Send + Sync {
         name: String,
         language_variant_id: i64,
         description: Option<String>,
+        settings: DeckSettings,
     ) -> DecksResult<Deck>;
     fn get_deck(&self, id: i64) -> DecksResult<Deck>;
     fn get_deck_by_name(&self, name: &str) -> DecksResult<Deck>;
     /// All decks, ordered by name.
     fn list_decks(&self) -> DecksResult<Vec<Deck>>;
-    /// Renames the deck and replaces its description. Conflicts when the new name is taken.
+    /// Renames the deck and replaces its description and settings. Conflicts when the new name
+    /// is taken.
     fn update_deck(
         &self,
         name: &str,
         new_name: String,
         description: Option<String>,
+        settings: DeckSettings,
     ) -> DecksResult<Deck>;
     /// Deletes the deck with its flashcards and drafts.
     fn delete_deck(&self, name: &str) -> DecksResult<()>;
@@ -53,8 +56,9 @@ impl DeckApi for DeckService {
         name: String,
         language_variant_id: i64,
         description: Option<String>,
+        settings: DeckSettings,
     ) -> DecksResult<Deck> {
-        let deck = Deck::new(name, language_variant_id, description)?;
+        let deck = Deck::new(name, language_variant_id, description, settings)?;
         Ok(self.decks.insert(&deck)?)
     }
 
@@ -75,9 +79,10 @@ impl DeckApi for DeckService {
         name: &str,
         new_name: String,
         description: Option<String>,
+        settings: DeckSettings,
     ) -> DecksResult<Deck> {
         let mut deck = self.get_deck_by_name(name)?;
-        deck.revise(new_name, description)?;
+        deck.revise(new_name, description, settings)?;
         if !self.decks.update(&deck)? {
             return Err(DecksError::NotFound("deck"));
         }
@@ -109,7 +114,7 @@ mod tests {
 
     // Variant id 1 (en-US) comes from the migration seed.
     fn deck(svc: &DeckService, name: &str) -> DecksResult<Deck> {
-        svc.create_deck(name.into(), 1, Some("About travel".into()))
+        svc.create_deck(name.into(), 1, Some("About travel".into()), DeckSettings::default())
     }
 
     #[test]
@@ -141,11 +146,11 @@ mod tests {
         let names: Vec<_> = svc.list_decks().unwrap().iter().map(|d| d.name().to_owned()).collect();
         assert_eq!(names, vec!["Animals", "Zoo"]);
 
-        let renamed = svc.update_deck("Zoo", "Wildlife".into(), None).unwrap();
+        let renamed = svc.update_deck("Zoo", "Wildlife".into(), None, DeckSettings::default()).unwrap();
         assert_eq!((renamed.name(), renamed.description()), ("Wildlife", None));
         assert!(matches!(svc.get_deck_by_name("Zoo"), Err(DecksError::NotFound(_))));
         assert!(matches!(
-            svc.update_deck("Wildlife", "Animals".into(), None),
+            svc.update_deck("Wildlife", "Animals".into(), None, DeckSettings::default()),
             Err(DecksError::Conflict(_))
         ));
         let _ = std::fs::remove_file(path);

@@ -30,6 +30,12 @@ pub fn migrations() -> Migrations<'static> {
                 name                TEXT NOT NULL UNIQUE,
                 language_variant_id INTEGER NOT NULL REFERENCES language_variants(id) ON DELETE RESTRICT,
                 description         TEXT,
+                -- Daily limits, counted per UTC day. A new card is one seen for the first time. A
+                -- review is an answer to a card that had been recalled before.
+                new_cards_per_day   INTEGER NOT NULL DEFAULT 20  CHECK (new_cards_per_day BETWEEN 0 AND 9999),
+                max_reviews_per_day INTEGER NOT NULL DEFAULT 200 CHECK (max_reviews_per_day BETWEEN 0 AND 9999),
+                -- Whether the audio of a card plays by itself in a review.
+                autoplay_audio      INTEGER NOT NULL DEFAULT 1 CHECK (autoplay_audio IN (0, 1)),
                 created_at          TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_decks_language_variant_id ON decks(language_variant_id);
@@ -53,8 +59,12 @@ pub fn migrations() -> Migrations<'static> {
                 position         INTEGER NOT NULL DEFAULT 0,
                 is_required      INTEGER NOT NULL DEFAULT 0 CHECK (is_required IN (0, 1)),
                 media_allowed    INTEGER NOT NULL DEFAULT 0 CHECK (media_allowed IN (0, 1)),
-                -- Rich fields hold HTML, editable in the rich editor. Plain fields hold text.
-                is_rich          INTEGER NOT NULL DEFAULT 0 CHECK (is_rich IN (0, 1))
+                -- PLAIN fields hold text, RICH fields hold HTML (rich editor) and AUDIO fields hold only
+                -- audio, uploaded or spoken from the text of the field named by `source_key`.
+                kind             TEXT NOT NULL DEFAULT 'PLAIN' CHECK (kind IN ('PLAIN', 'RICH', 'AUDIO')),
+                source_key       TEXT,
+                CHECK ((kind = 'AUDIO') = (source_key IS NOT NULL)),
+                CHECK (kind <> 'AUDIO' OR media_allowed = 1)
             );
             CREATE UNIQUE INDEX idx_field_definitions_unique
                 ON field_definitions(flashcard_type_id, COALESCE(language_id, 0), key);
@@ -148,7 +158,10 @@ pub fn migrations() -> Migrations<'static> {
                 interval_days    REAL NOT NULL,
                 ease_factor      REAL NOT NULL,
                 repetitions      INTEGER NOT NULL,
-                last_reviewed_at TEXT
+                last_reviewed_at TEXT,
+                -- Reviews passed in the first wave of a new card (it needs two unless it is answered
+                -- Easy). NULL once the card has graduated.
+                learning_step    INTEGER CHECK (learning_step IS NULL OR learning_step >= 0)
             );
             CREATE INDEX idx_sm2_states_due_at ON sm2_states(due_at);
 
@@ -160,7 +173,13 @@ pub fn migrations() -> Migrations<'static> {
                 rating         INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 4),
                 elapsed_days   REAL,
                 scheduled_days REAL NOT NULL,
-                duration_ms    INTEGER
+                duration_ms    INTEGER,
+                -- What the card was when it was answered, for the deck's daily limits: NEW is the
+                -- first review ever, LEARNING a card not yet recalled, REVIEW a recalled card.
+                phase          TEXT NOT NULL CHECK (phase IN ('NEW', 'LEARNING', 'REVIEW')),
+                -- The card's sm2_states and card_stats rows as they were before this review, as
+                -- JSON (null for a row that did not exist). Undoing the review puts them back.
+                previous       TEXT NOT NULL DEFAULT '{"state":null,"stats":null}'
             );
             CREATE INDEX idx_review_logs_flashcard_reviewed_at ON review_logs(flashcard_id, reviewed_at);
 
@@ -200,18 +219,19 @@ pub fn migrations() -> Migrations<'static> {
             INSERT INTO flashcard_types (slug, name, description) VALUES
                 ('vocabulary',   'Vocabulary',   'A phrase on the front, the word or expression and its meaning on the back'),
                 ('phonetic',     'Phonetic',     'A phrase on the front, its IPA phonetics on the back'),
-                ('orthographic', 'Orthographic', 'A phrase to practice spelling, with optional dictation audio');
+                ('orthographic', 'Orthographic', 'Dictation: the audio of a phrase and the phrase itself, both on the front, with no back');
 
             INSERT INTO field_definitions
-                (flashcard_type_id, language_id, side, key, label, position, is_required, media_allowed, is_rich)
-            SELECT t.id, NULL, d.side, d.key, d.label, d.position, d.is_required, d.media_allowed, d.is_rich
+                (flashcard_type_id, language_id, side, key, label, position, is_required, media_allowed, kind, source_key)
+            SELECT t.id, NULL, d.side, d.key, d.label, d.position, d.is_required, d.media_allowed, d.kind, d.source_key
             FROM (
-                SELECT 'vocabulary' AS slug, 'FRONT' AS side, 'phrase' AS key, 'Phrase' AS label, 0 AS position, 1 AS is_required, 1 AS media_allowed, 1 AS is_rich
-                UNION ALL SELECT 'vocabulary', 'BACK', 'word_or_expression', 'Word or expression', 0, 1, 0, 0
-                UNION ALL SELECT 'vocabulary', 'BACK', 'meaning', 'Meaning', 1, 1, 1, 0
-                UNION ALL SELECT 'phonetic', 'FRONT', 'phrase', 'Phrase', 0, 1, 0, 0
-                UNION ALL SELECT 'phonetic', 'BACK', 'ipa_phonetics', 'IPA phonetics', 0, 1, 0, 1
-                UNION ALL SELECT 'orthographic', 'FRONT', 'phrase', 'Phrase', 0, 1, 1, 0
+                SELECT 'vocabulary' AS slug, 'FRONT' AS side, 'phrase' AS key, 'Phrase' AS label, 0 AS position, 1 AS is_required, 1 AS media_allowed, 'RICH' AS kind, NULL AS source_key
+                UNION ALL SELECT 'vocabulary', 'BACK', 'word_or_expression', 'Word or expression', 0, 1, 0, 'PLAIN', NULL
+                UNION ALL SELECT 'vocabulary', 'BACK', 'meaning', 'Meaning', 1, 1, 1, 'PLAIN', NULL
+                UNION ALL SELECT 'phonetic', 'FRONT', 'phrase', 'Phrase', 0, 1, 0, 'PLAIN', NULL
+                UNION ALL SELECT 'phonetic', 'BACK', 'ipa_phonetics', 'IPA phonetics', 0, 1, 0, 'RICH', NULL
+                UNION ALL SELECT 'orthographic', 'FRONT', 'audio', 'Audio', 0, 1, 1, 'AUDIO', 'phrase'
+                UNION ALL SELECT 'orthographic', 'FRONT', 'phrase', 'Phrase', 1, 1, 0, 'PLAIN', NULL
             ) AS d
             JOIN flashcard_types t ON t.slug = d.slug;
             "#,

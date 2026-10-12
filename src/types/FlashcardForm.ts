@@ -4,6 +4,9 @@ import type { Media } from "./Media";
 
 export type FieldSide = "FRONT" | "BACK";
 
+/** How a field is filled in. An audio field holds only audio, uploaded or generated. */
+export type FieldKind = "PLAIN" | "RICH" | "AUDIO";
+
 /** One field of a flashcard type, as defined by the backend for the deck's language. */
 export interface FieldDefinition {
     key: string;
@@ -13,6 +16,9 @@ export interface FieldDefinition {
     isRequired: boolean;
     /** The content is HTML and is edited in the rich editor. */
     isRich: boolean;
+    kind: FieldKind;
+    /** For an audio field, the key of the field its audio is spoken from. */
+    sourceKey: string | null;
     mediaAllowed: boolean;
 }
 

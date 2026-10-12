@@ -1,5 +1,5 @@
 import type { LanguageSummary } from "./Deck";
-import type { FieldSide } from "./FlashcardForm";
+import type { FieldKind, FieldSide } from "./FlashcardForm";
 import type { LanguageVariant } from "./Language";
 import type { Media } from "./Media";
 
@@ -35,6 +35,9 @@ export interface ReviewField {
     side: FieldSide;
     /** The content is sanitized HTML. */
     isRich: boolean;
+    kind: FieldKind;
+    /** For an audio field, the key of the field its audio is spoken from. */
+    sourceKey: string | null;
     content: string;
     media: Media[];
 }
@@ -66,6 +69,10 @@ export interface NextReviewCard {
     intervals: Intervals | null;
     /** When there is no card: seconds until the next one is due, if any is scheduled. */
     nextDueInSeconds: number | null;
+    /** When there is no card: cards are waiting, but the deck's daily limit has been reached. */
+    dailyLimitReached: boolean;
+    /** The deck's setting: the audio of a card plays by itself. */
+    autoplayAudio: boolean;
 }
 
 /** 1 is Again, 2 Hard, 3 Good and 4 Easy. */

@@ -5,13 +5,16 @@ export interface ReviewCardFaceProps {
     fields: ReviewField[];
     /** The front is the word being studied and is set large. The back is set at reading size. */
     size: "front" | "back";
+    /** The first audio of the side plays by itself. */
+    autoPlay?: boolean;
 }
 
 /**
  * The fields of one side of a flashcard, one after the other. Rich fields are sanitized HTML (the
  * backend cleans it before it is stored), plain fields are text. Media shows under its field.
  */
-export function ReviewCardFace({ fields, size }: ReviewCardFaceProps) {
+export function ReviewCardFace({ fields, size, autoPlay }: ReviewCardFaceProps) {
+    const firstWithAudio = fields.find((field) => field.media.some((item) => item.kind === "AUDIO"));
     const text = size === "front" ? "text-card font-semibold" : "text-heading md:text-title";
 
     return (
@@ -28,7 +31,7 @@ export function ReviewCardFace({ fields, size }: ReviewCardFaceProps) {
                         ) : (
                             <p className={`max-w-prose whitespace-pre-wrap text-balance ${text}`}>{field.content}</p>
                         ))}
-                    <ReviewMedia media={field.media} />
+                    <ReviewMedia media={field.media} autoPlay={autoPlay && field === firstWithAudio} />
                 </section>
             ))}
         </div>

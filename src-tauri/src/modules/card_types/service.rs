@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::error::{CardTypesError, CardTypesResult};
-use super::model::{FieldDefinition, FlashcardType, Side};
+use super::model::{FieldDefinition, FieldKind, FlashcardType, Side};
 use super::repository::{
     FieldDefinitionRepository, FlashcardTypeRepository, SqliteFieldDefinitionRepository,
     SqliteFlashcardTypeRepository,
@@ -45,7 +45,8 @@ pub trait CardTypeApi: Send + Sync {
         label: String,
         position: i64,
         is_required: bool,
-        is_rich: bool,
+        kind: FieldKind,
+        source_key: Option<String>,
         media_allowed: bool,
     ) -> CardTypesResult<FieldDefinition>;
 }
@@ -126,7 +127,8 @@ impl CardTypeApi for CardTypeService {
         label: String,
         position: i64,
         is_required: bool,
-        is_rich: bool,
+        kind: FieldKind,
+        source_key: Option<String>,
         media_allowed: bool,
     ) -> CardTypesResult<FieldDefinition> {
         let flashcard_type = self.get_type_by_slug(type_slug)?;
@@ -139,7 +141,8 @@ impl CardTypeApi for CardTypeService {
             label,
             position,
             is_required,
-            is_rich,
+            kind,
+            source_key,
             media_allowed,
         )?;
         Ok(self.definitions.insert(&definition)?)
@@ -193,7 +196,7 @@ mod tests {
         let (svc, path) = service();
         // The seeded languages are English (id 1), French (id 2) and Portuguese (id 3).
         let french = 2;
-        svc.add_field_definition("vocabulary", Some(french), Side::Back, "gender".into(), "Gender".into(), 2, false, false, false)
+        svc.add_field_definition("vocabulary", Some(french), Side::Back, "gender".into(), "Gender".into(), 2, false, FieldKind::Plain, None, false)
             .unwrap();
 
         let french_fields = svc.fields_for("vocabulary", Some(french)).unwrap();
@@ -207,7 +210,7 @@ mod tests {
     #[test]
     fn a_language_field_replaces_the_agnostic_one_with_the_same_key() {
         let (svc, path) = service();
-        svc.add_field_definition("vocabulary", Some(2), Side::Back, "meaning".into(), "Meaning (English)".into(), 1, true, true, false)
+        svc.add_field_definition("vocabulary", Some(2), Side::Back, "meaning".into(), "Meaning (English)".into(), 1, true, FieldKind::Rich, None, false)
             .unwrap();
         let fields = svc.fields_for("vocabulary", Some(2)).unwrap();
         assert_eq!(fields.len(), 3);
@@ -224,7 +227,7 @@ mod tests {
     fn duplicate_keys_and_slugs_conflict() {
         let (svc, path) = service();
         assert!(matches!(
-            svc.add_field_definition("vocabulary", None, Side::Back, "meaning".into(), "Again".into(), 5, false, false, false),
+            svc.add_field_definition("vocabulary", None, Side::Back, "meaning".into(), "Again".into(), 5, false, FieldKind::Plain, None, false),
             Err(CardTypesError::Conflict(_))
         ));
         assert!(matches!(

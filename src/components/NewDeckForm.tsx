@@ -3,8 +3,10 @@ import { AnimatePresence, motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./Button";
 import { Notice } from "./Notice";
+import { DeckSettingsFields } from "./DeckSettingsFields";
 import { Select } from "./Select";
 import { controlClass, labelClass } from "./formStyles";
+import { DEFAULT_DECK_SETTINGS, fromDraft, toDraft } from "../lib/deckSettings";
 import { TRANSITION_BASE } from "../lib/motion";
 import { useLanguageNames } from "../i18n/useLanguageNames";
 import type { NewDeck } from "../types/Deck";
@@ -33,6 +35,7 @@ export function NewDeckForm({ languages, loadVariants, onCreate, onCancel, busy,
     const [languageIso, setLanguageIso] = useState(languages[0]?.iso6393 ?? "");
     const [variants, setVariants] = useState<LanguageVariant[]>([]);
     const [variantCode, setVariantCode] = useState("");
+    const [settings, setSettings] = useState(toDraft(DEFAULT_DECK_SETTINGS));
 
     useEffect(() => {
         if (!languageIso) return;
@@ -55,6 +58,7 @@ export function NewDeckForm({ languages, loadVariants, onCreate, onCancel, busy,
             languageIso6393: languageIso,
             variantBcp47Code: variantCode || null,
             description: description.trim() === "" ? null : description,
+            ...fromDraft(settings),
         });
         if (created) onCancel();
     };
@@ -137,6 +141,8 @@ export function NewDeckForm({ languages, loadVariants, onCreate, onCancel, busy,
                     onChange={(e) => setDescription(e.target.value)}
                 />
             </div>
+
+            <DeckSettingsFields value={settings} onChange={setSettings} />
 
             <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={onCancel}>

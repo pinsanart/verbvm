@@ -15,6 +15,6 @@ mod repository;
 mod service;
 
 pub use error::{ReviewsError, ReviewsResult};
-pub use model::{CardStats, Rating, ReviewLog, Sm2State};
+pub use model::{CardStats, Rating, ReviewActivity, ReviewLog, ReviewPhase, Sm2State};
 pub use repository::{ReviewRepository, SqliteReviewRepository};
 pub use service::{ReviewApi, ReviewService};

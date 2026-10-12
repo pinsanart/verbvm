@@ -56,7 +56,13 @@
     "language": "Language",
     "accent": "Accent",
     "createDeck": "Create deck",
-    "fixedNote": "{{language}} · {{accent}} stays as it is, because the cards in this deck depend on it."
+    "fixedNote": "{{language}} · {{accent}} stays as it is, because the cards in this deck depend on it.",
+    "studyOptions": "Study options",
+    "newCardsPerDay": "New cards per day",
+    "newCardsPerDayHint": "Cards seen for the first time. 0 adds none.",
+    "maxReviewsPerDay": "Maximum reviews per day",
+    "maxReviewsPerDayHint": "Answers to cards you have recalled before. Cards you are still learning are not limited.",
+    "noAutoplay": "Don't play audio automatically"
   },
   "deckEditor": {
     "loading": "Loading flashcards",
@@ -96,8 +102,13 @@
     "attach": "Attach media",
     "videoFailed": "The video could not be loaded",
     "audioFailed": "The audio could not be loaded",
-    "replayHint": "Press <kbd>R</kbd> to play it again",
-    "pickerFilter": "Images, audio and video"
+    "pickerFilter": "Images, audio and video",
+    "generate": "Generate audio from the text",
+    "generating": "Generating audio",
+    "generateHint": "Write the phrase, then generate its audio or attach a file.",
+    "replay": "Replay",
+    "loadingAudio": "Loading audio",
+    "autoplayBlocked": "The audio could not start by itself. Press play to hear it."
   },
   "rich": {
     "editHtml": "Edit HTML",
@@ -112,8 +123,7 @@
     "clearFormatting": "Clear formatting"
   },
   "review": {
-    "legend": "<b>New</b> cards have not been reviewed yet. <b>Learning</b> cards were missed and are due again. <b>Review</b> cards are due to be reviewed.",
-    "legendShort": "New: not reviewed yet. Learning: missed and due again. Review: due to review.",
+    "legend": "<b>New</b> cards have not been reviewed yet. <b>Learning</b> cards are still being learned and come back until they are recalled. <b>Review</b> cards are due to be reviewed.",
     "loadingDecks": "Loading decks",
     "loadingCard": "Loading the card",
     "noDecksTitle": "No decks to review yet",
@@ -127,7 +137,6 @@
     "completed": "Completed",
     "reviewAction": "Review",
     "reviewAria": "Review {{type}} in {{deck}}",
-    "flashcardAria": "Flashcard",
     "showResponse": "Show response",
     "space": "Space",
     "again": "Again",
@@ -138,11 +147,34 @@
     "nothingToReview": "Nothing to review in {{type}}",
     "nextCard": "The next card comes back in {{interval}}.",
     "noneScheduled": "No more cards are scheduled. New ones appear when you add them.",
-    "answered": "Answered",
-    "remembered": "Remembered",
-    "missed": "Missed",
+    "answered": "Answers",
     "reviewType": "Review {{type}} ({{count}})",
-    "backToReview": "Back to Review"
+    "backToReview": "Back to Review",
+    "yourAnswer": "Your answer",
+    "expectedAnswer": "Expected answer",
+    "typeWhatYouHear": "Type what you hear",
+    "nothingTyped": "Nothing typed",
+    "exactMatch": "Exact match",
+    "cardsReviewed": "Cards",
+    "collapseDeck": "Collapse {{deck}}",
+    "expandDeck": "Expand {{deck}}",
+    "collapseAll": "Collapse all",
+    "expandAll": "Expand all",
+    "waitingCount": "{{count}} waiting",
+    "dailyLimitReached": "This deck's daily limit has been reached. The rest of its cards come back in {{interval}}.",
+    "remembered": "Right answers",
+    "missed": "Missed answers",
+    "undoAria": "Undo the last answer (Z)",
+    "reloadFailed": "Your answer was saved, but the next card could not be loaded.",
+    "retry": "Try again",
+    "diffBoth": "{{extra}} extra and {{missing}} missing letters",
+    "diffExtra_one": "{{count}} extra letter",
+    "diffExtra_other": "{{count}} extra letters",
+    "diffMissing_one": "{{count}} letter missing",
+    "diffMissing_other": "{{count}} letters missing",
+    "dictationHint": "Alt+R plays the audio again",
+    "waitingLabel": "Cards waiting",
+    "cardAria": "{{type}} card, {{state}}"
   },
   "interval": {
     "lessThanMinute": "<1 min",
@@ -178,6 +210,7 @@
     "phrase": "Phrase",
     "word_or_expression": "Word or expression",
     "meaning": "Meaning",
-    "ipa_phonetics": "IPA phonetics"
+    "ipa_phonetics": "IPA phonetics",
+    "audio": "Audio"
   }
 }

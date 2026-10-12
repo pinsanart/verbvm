@@ -4,19 +4,19 @@ import { Button } from "./Button";
 import { TRANSITION_FAST } from "../lib/motion";
 import { formatInterval } from "../lib/format";
 import type { ParseKeys } from "i18next";
-import type { Intervals, Rating, ReviewCounts } from "../types/Review";
+import type { Intervals, Rating } from "../types/Review";
 
-// Quiet until hovered: the word on the card leads, the buttons wait. Each class is written out
-// in full so Tailwind can find it.
+// Solid fills in the color of each answer, with full white text (white at 80% falls under 4.5:1 on
+// Again, Hard and Good). Each class is written out in full so
+// Tailwind can find it.
 const RATINGS: { rating: Rating; labelKey: ParseKeys; key: keyof Intervals; tone: string }[] = [
-    { rating: 1, labelKey: "review.again", key: "again", tone: "border-rating-again/60 bg-rating-again/10 hover:bg-rating-again" },
-    { rating: 2, labelKey: "review.hard", key: "hard", tone: "border-rating-hard/60 bg-rating-hard/10 hover:bg-rating-hard" },
-    { rating: 3, labelKey: "review.good", key: "good", tone: "border-rating-good/60 bg-rating-good/10 hover:bg-rating-good" },
-    { rating: 4, labelKey: "review.easy", key: "easy", tone: "border-rating-easy/60 bg-rating-easy/10 hover:bg-rating-easy" },
+    { rating: 1, labelKey: "review.again", key: "again", tone: "bg-rating-again" },
+    { rating: 2, labelKey: "review.hard", key: "hard", tone: "bg-rating-hard" },
+    { rating: 3, labelKey: "review.good", key: "good", tone: "bg-rating-good" },
+    { rating: 4, labelKey: "review.easy", key: "easy", tone: "bg-rating-easy" },
 ];
 
 export interface RatingBarProps {
-    counts: ReviewCounts;
     /** What each answer would schedule, shown under its label. */
     intervals: Intervals | null;
     revealed: boolean;
@@ -28,28 +28,13 @@ export interface RatingBarProps {
 /**
  * The bar at the bottom of a review. Before the response is shown it has one button for it. After,
  * it has the four answers, each with its shortcut and how long the card would wait. The counts of
- * what is still waiting are on the left and stay neutral, so the colors belong to the answers.
+ * what is still waiting are in the top bar of the screen.
  */
-export function RatingBar({ counts, intervals, revealed, busy, onShowResponse, onAnswer }: RatingBarProps) {
+export function RatingBar({ intervals, revealed, busy, onShowResponse, onAnswer }: RatingBarProps) {
     const { t } = useTranslation();
     return (
         <div className="sticky bottom-0 z-10 -mx-4 border-t border-line bg-canvas/90 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
-            <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
-                <p
-                    className="text-center text-meta tabular-nums text-muted md:text-left"
-                    title={t("review.legendShort")}
-                >
-                    {t("review.new")} <b className="font-semibold text-ink">{counts.new}</b>
-                    <span className="mx-2 text-subtle" aria-hidden>
-                        ·
-                    </span>
-                    {t("review.learning")} <b className="font-semibold text-ink">{counts.learning}</b>
-                    <span className="mx-2 text-subtle" aria-hidden>
-                        ·
-                    </span>
-                    {t("review.reviewCount")} <b className="font-semibold text-ink">{counts.review}</b>
-                </p>
-
+            <div className="flex justify-center">
                 <AnimatePresence mode="wait" initial={false}>
                     {revealed ? (
                         <motion.div
@@ -67,16 +52,16 @@ export function RatingBar({ counts, intervals, revealed, busy, onShowResponse, o
                                     onClick={() => onAnswer(rating)}
                                     disabled={busy}
                                     aria-keyshortcuts={String(rating)}
-                                    className={`group min-h-14 flex-col gap-0.5 border px-2 text-ink hover:text-white md:min-w-24 ${tone}`}
+                                    className={`min-h-14 flex-col gap-0.5 px-2 text-white hover:brightness-110 md:min-w-28 ${tone}`}
                                 >
                                     <span>
-                                        <span className="mr-1.5 font-normal text-muted group-hover:text-white/80" aria-hidden>
+                                        <span className="mr-1.5 font-normal text-white" aria-hidden>
                                             {rating}
                                         </span>
                                         {t(labelKey)}
                                     </span>
                                     {intervals && (
-                                        <span className="text-label font-normal text-muted group-hover:text-white/80">
+                                        <span className="text-label font-normal text-white">
                                             {formatInterval(intervals[key])}
                                         </span>
                                     )}

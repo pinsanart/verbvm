@@ -10,6 +10,7 @@ import { Notice } from "./Notice";
 import { styleForType } from "../data/FlashcardTypeStyles";
 import { useTypeLabel } from "../i18n/useTypeLabel";
 import { EASE_OUT } from "../lib/motion";
+import { useKeys } from "../lib/useKeys";
 import type { FieldDefinition, SavedCard } from "../types/FlashcardForm";
 
 export interface SavedCardPanelProps {
@@ -24,6 +25,7 @@ export interface SavedCardPanelProps {
     busy: boolean;
     onChange: (key: string, value: string) => void;
     onAttachMedia: (key: string) => void;
+    onGenerateMedia: (key: string) => Promise<unknown>;
     onRemoveMedia: (key: string, sha256: string) => void;
     onSave: () => void;
     onDelete: () => void;
@@ -38,7 +40,7 @@ export function SavedCardPanel(props: SavedCardPanelProps) {
     const { t } = useTranslation();
     const typeLabel = useTypeLabel();
     const { card, frontFields, backFields, values, dirty, justSaved, error, busy } = props;
-    const { onChange, onAttachMedia, onRemoveMedia, onSave, onDelete, onClose } = props;
+    const { onChange, onAttachMedia, onGenerateMedia, onRemoveMedia, onSave, onDelete, onClose } = props;
     const [confirmingDiscard, setConfirmingDiscard] = useState(false);
     const panel = useRef<HTMLDivElement>(null);
     const opener = useRef<Element | null>(null);
@@ -60,14 +62,7 @@ export function SavedCardPanel(props: SavedCardPanelProps) {
         else onClose();
     };
 
-    useEffect(() => {
-        if (!uuid) return;
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") requestClose();
-        };
-        document.addEventListener("keydown", onKeyDown);
-        return () => document.removeEventListener("keydown", onKeyDown);
-    });
+    useKeys(["Escape"], requestClose, uuid !== null);
 
     const style = card ? styleForType(card.typeSlug) : null;
 
@@ -137,6 +132,7 @@ export function SavedCardPanel(props: SavedCardPanelProps) {
                                 media={card.media}
                                 onChange={onChange}
                                 onAttachMedia={onAttachMedia}
+                                onGenerateMedia={onGenerateMedia}
                                 onRemoveMedia={onRemoveMedia}
                             />
                         </div>

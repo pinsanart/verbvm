@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
+
 use super::error::ReviewsResult;
-use super::model::{CardStats, Rating, ReviewLog, Sm2State};
+use super::model::{CardStats, Rating, ReviewActivity, ReviewLog, ReviewPhase, Sm2State};
 use super::repository::{ReviewRepository, SqliteReviewRepository};
 use crate::dependencies::clock::Clock;
 use crate::dependencies::db::connection::SqliteHandle;
@@ -30,6 +32,20 @@ pub trait ReviewApi: Send + Sync {
 
     /// The flashcard's review history, oldest first.
     fn history(&self, flashcard_id: i64) -> ReviewsResult<Vec<ReviewLog>>;
+
+    /// Takes back the flashcard's latest review: its state and statistics go back to what they
+    /// were and its log entry is deleted, all or nothing. Returns `false` when it has no review
+    /// to take back. Each call goes one review further back.
+    fn undo_last_review(&self, flashcard_id: i64) -> ReviewsResult<bool>;
+
+    /// How many reviews of the given flashcards were made at or after `since`: cards seen for
+    /// the first time, and answers to cards that had been recalled before. Reviews of cards
+    /// still being learned are not counted. The daily limits of a deck are measured with it.
+    fn activity_since(
+        &self,
+        flashcard_ids: &[i64],
+        since: DateTime<Utc>,
+    ) -> ReviewsResult<ReviewActivity>;
 }
 
 pub struct ReviewService {
@@ -56,10 +72,13 @@ impl ReviewApi for ReviewService {
         duration_ms: Option<i64>,
     ) -> ReviewsResult<Sm2State> {
         let now = self.clock.now();
-        let mut state = self
-            .repository
-            .find_state(flashcard_id)?
-            .unwrap_or_else(|| Sm2State::initial(flashcard_id, now));
+        let found = self.repository.find_state(flashcard_id)?;
+        let phase = match &found {
+            None => ReviewPhase::New,
+            Some(state) if state.repetitions() == 0 => ReviewPhase::Learning,
+            Some(_) => ReviewPhase::Review,
+        };
+        let mut state = found.unwrap_or_else(|| Sm2State::initial(flashcard_id, now));
         let mut stats = self
             .repository
             .find_stats(flashcard_id)?
@@ -76,6 +95,7 @@ impl ReviewApi for ReviewService {
             elapsed_days,
             state.interval_days(),
             duration_ms,
+            phase,
         )?;
         stats.record(rating, duration_ms, had_successful_repetition);
 
@@ -96,6 +116,18 @@ impl ReviewApi for ReviewService {
             .repository
             .find_stats(flashcard_id)?
             .unwrap_or_else(|| CardStats::empty(flashcard_id)))
+    }
+
+    fn undo_last_review(&self, flashcard_id: i64) -> ReviewsResult<bool> {
+        Ok(self.repository.undo_last(flashcard_id)?)
+    }
+
+    fn activity_since(
+        &self,
+        flashcard_ids: &[i64],
+        since: DateTime<Utc>,
+    ) -> ReviewsResult<ReviewActivity> {
+        Ok(self.repository.activity_since(flashcard_ids, since)?)
     }
 
     fn history(&self, flashcard_id: i64) -> ReviewsResult<Vec<ReviewLog>> {
@@ -157,13 +189,13 @@ mod tests {
     fn first_review_creates_state_log_and_stats() {
         let f = fixture();
         let state = f.service.record_review(1, Rating::Good, Some(1_500)).unwrap();
-        assert_eq!(state.interval_days(), 1.0);
-        assert_eq!(state.due_at(), parse_utc("2026-10-13 08:00:00").unwrap());
+        assert_eq!(state.learning_step(), Some(1), "a new card needs a second review");
+        assert_eq!(state.due_at(), parse_utc("2026-10-12 08:10:00").unwrap());
 
         let history = f.service.history(1).unwrap();
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].elapsed_days(), None);
-        assert_eq!(history[0].scheduled_days(), 1.0);
+        assert_eq!(history[0].scheduled_days(), 10.0 / 1_440.0);
         assert_eq!(history[0].duration_ms(), Some(1_500));
 
         let stats = f.service.stats(1).unwrap();
@@ -175,13 +207,13 @@ mod tests {
     fn second_review_uses_elapsed_days_and_updates_the_same_rows() {
         let f = fixture();
         f.service.record_review(1, Rating::Good, None).unwrap();
-        f.clock.set("2026-10-14 20:00:00");
+        f.clock.set("2026-10-12 20:00:00");
         let state = f.service.record_review(1, Rating::Good, None).unwrap();
-        assert_eq!(state.interval_days(), 6.0);
+        assert_eq!(state.interval_days(), 1.0, "the second review graduates the card");
 
         let history = f.service.history(1).unwrap();
         assert_eq!(history.len(), 2);
-        assert_eq!(history[1].elapsed_days(), Some(2.5));
+        assert_eq!(history[1].elapsed_days(), Some(0.5));
         assert_eq!(f.service.stats(1).unwrap().review_count(), 2);
     }
 
@@ -191,20 +223,55 @@ mod tests {
         f.service.record_review(1, Rating::Again, None).unwrap();
         assert_eq!(f.service.stats(1).unwrap().lapses(), 0);
         f.service.record_review(1, Rating::Good, None).unwrap();
+        f.service.record_review(1, Rating::Good, None).unwrap();
+        assert_eq!(f.service.stats(1).unwrap().lapses(), 0);
         f.service.record_review(1, Rating::Again, None).unwrap();
         assert_eq!(f.service.stats(1).unwrap().lapses(), 1);
     }
 
     #[test]
+    fn undo_puts_the_state_the_stats_and_the_history_back() {
+        let f = fixture();
+        f.service.record_review(1, Rating::Good, Some(1_000)).unwrap();
+        f.clock.set("2026-10-12 20:00:00");
+        let before = f.service.states_for(&[1]).unwrap().remove(0);
+        let stats_before = f.service.stats(1).unwrap();
+        f.service.record_review(1, Rating::Again, Some(2_000)).unwrap();
+        assert_eq!(f.service.stats(1).unwrap().lapses(), 0);
+
+        assert!(f.service.undo_last_review(1).unwrap());
+        assert_eq!(f.service.states_for(&[1]).unwrap().remove(0), before);
+        assert_eq!(f.service.stats(1).unwrap(), stats_before);
+        assert_eq!(f.service.history(1).unwrap().len(), 1);
+
+        // The first review leaves no trace once it is taken back: the card was never reviewed.
+        assert!(f.service.undo_last_review(1).unwrap());
+        assert!(f.service.states_for(&[1]).unwrap().is_empty());
+        assert_eq!(f.service.stats(1).unwrap().review_count(), 0);
+        assert!(f.service.history(1).unwrap().is_empty());
+        assert!(!f.service.undo_last_review(1).unwrap(), "nothing left to take back");
+    }
+
+    #[test]
+    fn undo_only_touches_the_given_flashcard() {
+        let f = fixture();
+        f.service.record_review(1, Rating::Good, None).unwrap();
+        f.service.record_review(2, Rating::Easy, None).unwrap();
+        assert!(f.service.undo_last_review(1).unwrap());
+        assert_eq!(f.service.history(2).unwrap().len(), 1);
+        assert_eq!(f.service.states_for(&[2]).unwrap().len(), 1);
+    }
+
+    #[test]
     fn due_lists_reviewed_cards_oldest_first_and_honours_the_limit() {
         let f = fixture();
-        f.service.record_review(1, Rating::Good, None).unwrap(); // due 2026-10-13 08:00
+        f.service.record_review(1, Rating::Easy, None).unwrap(); // due 2026-10-13 15:12
         f.clock.set("2026-10-12 09:00:00");
         f.service.record_review(2, Rating::Again, None).unwrap(); // due 2026-10-12 09:10
 
         assert!(f.service.due(10).unwrap().is_empty());
 
-        f.clock.set("2026-10-13 12:00:00");
+        f.clock.set("2026-10-14 12:00:00");
         let due = f.service.due(10).unwrap();
         assert_eq!(due.iter().map(|s| s.flashcard_id()).collect::<Vec<_>>(), vec![2, 1]);
         assert_eq!(f.service.due(1).unwrap().len(), 1);
@@ -237,7 +304,7 @@ mod tests {
         let now = crate::dependencies::clock::Clock::now(f.clock.as_ref());
         let state = Sm2State::initial(1, now);
         let stats = CardStats::empty(1);
-        let log_for_missing_card = ReviewLog::new(99, now, Rating::Good, None, 1.0, None).unwrap();
+        let log_for_missing_card = ReviewLog::new(99, now, Rating::Good, None, 1.0, None, ReviewPhase::New).unwrap();
 
         assert!(f.repository.save_review(&state, &log_for_missing_card, &stats).is_err());
         assert!(f.repository.find_state(1).unwrap().is_none());

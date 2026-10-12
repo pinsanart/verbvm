@@ -31,6 +31,47 @@ impl TryFrom<i64> for Rating {
     }
 }
 
+/// What kind of card a review was made on, for the daily limits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReviewPhase {
+    /// The first review of a card that had never been reviewed.
+    New,
+    /// A card still being learned: in its first wave, or relearning after Again.
+    Learning,
+    /// A card that had been recalled and came back to be reviewed.
+    Review,
+}
+
+impl ReviewPhase {
+    /// The value stored in the database.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ReviewPhase::New => "NEW",
+            ReviewPhase::Learning => "LEARNING",
+            ReviewPhase::Review => "REVIEW",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "NEW" => Some(ReviewPhase::New),
+            "LEARNING" => Some(ReviewPhase::Learning),
+            "REVIEW" => Some(ReviewPhase::Review),
+            _ => None,
+        }
+    }
+}
+
+/// How much reviewing was done in a stretch of time, by phase. The daily limits are measured
+/// against it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ReviewActivity {
+    /// Cards seen for the first time.
+    pub new_started: i64,
+    /// Answers given to cards that had been recalled before.
+    pub reviews_done: i64,
+}
+
 const SECONDS_PER_DAY: f64 = 86_400.0;
 
 /// SM-2 scheduling state of one flashcard.
@@ -46,6 +87,13 @@ const SECONDS_PER_DAY: f64 = 86_400.0;
 ///
 /// The ease factor starts at 2.5 and never drops below 1.3. The interval uses the ease factor
 /// from before the rating is applied.
+///
+/// **First wave.** A card that has never been recalled (new) must be reviewed twice before it
+/// leaves the learning queue, unless it is answered Easy. Hard and Good on the first review only
+/// move it to the second step and bring it back in 10 minutes, with no repetition counted. Again
+/// starts the wave over. The second Hard or Good graduates it by the table above, and Easy
+/// graduates it at once from either step. A card that lapses later (Again after it graduated)
+/// does not go through the first wave again.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sm2State {
     flashcard_id: i64,
@@ -54,12 +102,18 @@ pub struct Sm2State {
     ease_factor: f64,
     repetitions: i64,
     last_reviewed_at: Option<DateTime<Utc>>,
+    /// Reviews already passed in the first wave, or `None` once the card has graduated.
+    learning_step: Option<i64>,
 }
 
 impl Sm2State {
     pub const INITIAL_EASE: f64 = 2.5;
     pub const MIN_EASE: f64 = 1.3;
     const AGAIN_INTERVAL_DAYS: f64 = 10.0 / 1_440.0;
+    /// How long a card waits between the reviews of its first wave.
+    const FIRST_WAVE_INTERVAL_DAYS: f64 = 10.0 / 1_440.0;
+    /// How many reviews a new card needs, if it is not answered Easy.
+    const FIRST_WAVE_REVIEWS: i64 = 2;
 
     /// State of a flashcard that has never been reviewed: due right away.
     pub fn initial(flashcard_id: i64, now: DateTime<Utc>) -> Self {
@@ -70,6 +124,7 @@ impl Sm2State {
             ease_factor: Self::INITIAL_EASE,
             repetitions: 0,
             last_reviewed_at: None,
+            learning_step: Some(0),
         }
     }
 
@@ -81,8 +136,9 @@ impl Sm2State {
         ease_factor: f64,
         repetitions: i64,
         last_reviewed_at: Option<DateTime<Utc>>,
+        learning_step: Option<i64>,
     ) -> Self {
-        Self { flashcard_id, due_at, interval_days, ease_factor, repetitions, last_reviewed_at }
+        Self { flashcard_id, due_at, interval_days, ease_factor, repetitions, last_reviewed_at, learning_step }
     }
 
     pub fn flashcard_id(&self) -> i64 {
@@ -109,6 +165,11 @@ impl Sm2State {
         self.last_reviewed_at
     }
 
+    /// Reviews passed in the first wave, or `None` once the card has graduated.
+    pub fn learning_step(&self) -> Option<i64> {
+        self.learning_step
+    }
+
     /// Days since the previous review, or `None` if there was none.
     pub fn elapsed_days(&self, now: DateTime<Utc>) -> Option<f64> {
         self.last_reviewed_at
@@ -118,6 +179,26 @@ impl Sm2State {
     /// Applies a review made at `now` and schedules the next one.
     pub fn review(&mut self, rating: Rating, now: DateTime<Utc>) {
         let ease_before = self.ease_factor;
+
+        if let Some(step) = self.learning_step {
+            match rating {
+                Rating::Again => self.learning_step = Some(0),
+                Rating::Hard | Rating::Good if step + 1 < Self::FIRST_WAVE_REVIEWS => {
+                    // Passed, but a new card needs one more review before it graduates.
+                    self.learning_step = Some(step + 1);
+                    self.interval_days = Self::FIRST_WAVE_INTERVAL_DAYS;
+                    if rating == Rating::Hard {
+                        self.ease_factor = (ease_before - 0.15).max(Self::MIN_EASE);
+                    }
+                    self.last_reviewed_at = Some(now);
+                    self.due_at = now + Duration::seconds((self.interval_days * SECONDS_PER_DAY).round() as i64);
+                    return;
+                }
+                // The last step, or Easy: the card graduates by the normal rule below.
+                _ => self.learning_step = None,
+            }
+        }
+
         let good_interval = match self.repetitions {
             0 => 1.0,
             1 => 6.0,
@@ -161,6 +242,7 @@ pub struct ReviewLog {
     elapsed_days: Option<f64>,
     scheduled_days: f64,
     duration_ms: Option<i64>,
+    phase: ReviewPhase,
 }
 
 impl ReviewLog {
@@ -172,6 +254,7 @@ impl ReviewLog {
         elapsed_days: Option<f64>,
         scheduled_days: f64,
         duration_ms: Option<i64>,
+        phase: ReviewPhase,
     ) -> ReviewsResult<Self> {
         if duration_ms.is_some_and(|d| d < 0) {
             return Err(ReviewsError::Invalid { field: "duration_ms", reason: "must not be negative" });
@@ -184,6 +267,7 @@ impl ReviewLog {
             elapsed_days,
             scheduled_days,
             duration_ms,
+            phase,
         })
     }
 
@@ -195,6 +279,7 @@ impl ReviewLog {
         elapsed_days: Option<f64>,
         scheduled_days: f64,
         duration_ms: Option<i64>,
+        phase: ReviewPhase,
     ) -> Self {
         Self {
             id: Some(id),
@@ -204,6 +289,7 @@ impl ReviewLog {
             elapsed_days,
             scheduled_days,
             duration_ms,
+            phase,
         }
     }
 
@@ -233,6 +319,10 @@ impl ReviewLog {
 
     pub fn duration_ms(&self) -> Option<i64> {
         self.duration_ms
+    }
+
+    pub fn phase(&self) -> ReviewPhase {
+        self.phase
     }
 }
 
@@ -338,6 +428,7 @@ mod tests {
         let mut s = fresh();
         let now = at("2026-10-12 08:00:00");
         s.review(Rating::Good, now);
+        s.review(Rating::Good, now);
         assert_eq!(s.interval_days(), 1.0);
         assert_eq!(s.due_at(), at("2026-10-13 08:00:00"));
         s.review(Rating::Good, now);
@@ -354,12 +445,14 @@ mod tests {
         let now = at("2026-10-12 08:00:00");
         s.review(Rating::Good, now);
         s.review(Rating::Good, now);
+        s.review(Rating::Good, now);
         s.review(Rating::Again, now);
         assert_eq!(s.repetitions(), 0);
         assert!((s.ease_factor() - 2.3).abs() < 1e-9);
         assert_eq!(s.due_at(), at("2026-10-12 08:10:00"));
         s.review(Rating::Good, now);
         assert_eq!(s.interval_days(), 1.0, "recovery restarts the 1, 6, ... sequence");
+        assert_eq!(s.learning_step(), None, "a lapsed card does not go through the first wave again");
     }
 
     #[test]
@@ -378,8 +471,9 @@ mod tests {
 
         let mut hard = fresh();
         hard.review(Rating::Hard, now);
+        hard.review(Rating::Hard, now);
         assert_eq!(hard.interval_days(), 1.0, "at least one day");
-        assert!((hard.ease_factor() - 2.35).abs() < 1e-9);
+        assert!((hard.ease_factor() - 2.2).abs() < 1e-9);
         hard.review(Rating::Good, now);
         hard.review(Rating::Good, now);
         let before = hard.interval_days();
@@ -393,11 +487,55 @@ mod tests {
     }
 
     #[test]
+    fn a_new_card_needs_two_reviews_unless_it_is_answered_easy() {
+        let now = at("2026-10-12 08:00:00");
+
+        for first in [Rating::Hard, Rating::Good] {
+            let mut s = fresh();
+            s.review(first, now);
+            assert_eq!(s.repetitions(), 0, "{first:?}: not graduated yet");
+            assert_eq!(s.learning_step(), Some(1));
+            assert_eq!(s.due_at(), at("2026-10-12 08:10:00"), "{first:?}: it comes back in 10 minutes");
+
+            s.review(Rating::Good, now);
+            assert_eq!(s.learning_step(), None);
+            assert_eq!(s.repetitions(), 1);
+            assert_eq!(s.interval_days(), 1.0, "{first:?}: graduates to one day");
+            assert_eq!(s.due_at(), at("2026-10-13 08:00:00"));
+        }
+
+        let mut easy = fresh();
+        easy.review(Rating::Easy, now);
+        assert_eq!(easy.learning_step(), None);
+        assert!((easy.interval_days() - 1.3).abs() < 1e-9, "Easy graduates on the first review");
+
+        let mut easy_second = fresh();
+        easy_second.review(Rating::Good, now);
+        easy_second.review(Rating::Easy, now);
+        assert_eq!((easy_second.learning_step(), easy_second.repetitions()), (None, 1));
+        assert!((easy_second.interval_days() - 1.3).abs() < 1e-9);
+    }
+
+    #[test]
+    fn again_starts_the_first_wave_over() {
+        let now = at("2026-10-12 08:00:00");
+        let mut s = fresh();
+        s.review(Rating::Good, now);
+        s.review(Rating::Again, now);
+        assert_eq!(s.learning_step(), Some(0));
+        assert_eq!(s.due_at(), at("2026-10-12 08:10:00"));
+        s.review(Rating::Good, now);
+        assert_eq!(s.learning_step(), Some(1), "two reviews are needed again");
+        s.review(Rating::Good, now);
+        assert_eq!(s.learning_step(), None);
+    }
+
+    #[test]
     fn elapsed_days_counts_from_the_last_review() {
         let mut s = fresh();
         assert_eq!(s.elapsed_days(at("2026-10-12 08:00:00")), None);
         s.review(Rating::Good, at("2026-10-12 08:00:00"));
-        assert_eq!(s.elapsed_days(at("2026-10-14 20:00:00")), Some(2.5));
+        assert_eq!(s.elapsed_days(at("2026-10-12 20:00:00")), Some(0.5));
     }
 
     #[test]
@@ -413,9 +551,17 @@ mod tests {
     }
 
     #[test]
+    fn phase_round_trips_through_its_stored_value() {
+        for phase in [ReviewPhase::New, ReviewPhase::Learning, ReviewPhase::Review] {
+            assert_eq!(ReviewPhase::parse(phase.as_str()), Some(phase));
+        }
+        assert_eq!(ReviewPhase::parse("OLD"), None);
+    }
+
+    #[test]
     fn review_log_rejects_negative_duration() {
         let now = at("2026-10-12 08:00:00");
-        assert!(ReviewLog::new(1, now, Rating::Good, None, 1.0, Some(-1)).is_err());
-        assert!(ReviewLog::new(1, now, Rating::Good, None, 1.0, Some(0)).is_ok());
+        assert!(ReviewLog::new(1, now, Rating::Good, None, 1.0, Some(-1), ReviewPhase::New).is_err());
+        assert!(ReviewLog::new(1, now, Rating::Good, None, 1.0, Some(0), ReviewPhase::New).is_ok());
     }
 }

@@ -24,3 +24,22 @@ export const toMedia = (dto: MediaDto): Media => ({
 
 /** The bytes of a stored media file, read by the backend. */
 export const readMedia = (fileName: string) => invoke<ArrayBuffer>("read_media", { fileName });
+
+/**
+ * Plays an audio file once, right away, without any player on the screen. Used when audio has
+ * just been generated. The promise resolves when playback starts and rejects when it cannot.
+ */
+export const playAudio = async (media: Media) => {
+    const bytes = await readMedia(media.fileName);
+    const url = URL.createObjectURL(new Blob([bytes], { type: media.mimeType }));
+    const audio = new Audio(url);
+    const release = () => URL.revokeObjectURL(url);
+    audio.addEventListener("ended", release, { once: true });
+    audio.addEventListener("error", release, { once: true });
+    try {
+        await audio.play();
+    } catch (error) {
+        release();
+        throw error;
+    }
+};

@@ -12,7 +12,8 @@ src-tauri/src/
 │   ├── db/                 # SqliteHandle, DbError, migrations, sql_time (UTC column readers)
 │   ├── media_store.rs      # MediaStorage: copies picked files into the local media folder
 │   ├── sanitizer.rs        # HtmlSanitizer (ammonia)
-│   └── http/               # HttpClient (NOT compiled, see development.md)
+│   ├── http.rs, http/      # HttpClient (reqwest wrapper), Auth, HttpError
+│   └── speech.rs, speech/  # SpeechSynthesizer (text to speech) and GoogleTranslateSynthesizer
 ├── modules/                # one directory per module
 │   ├── languages/  decks/  card_types/  flashcards/  reviews/    # model, repository, service, error
 ├── orchestrators/          # use cases across modules
@@ -38,8 +39,17 @@ The database stores in the file itself which migration version has been applied.
 
 ## Media store and sanitizer
 
-- **`MediaStorage`** (`LocalMediaStore`): `import(path)` validates a file **by its content**, not its extension (JPEG, PNG, GIF, WebP, MP3, OGG, WAV, FLAC, M4A, AAC, MP4, WebM and MOV, at most 50 MB, or 100 MB for video, and no SVG because it can carry scripts) and copies it to `media/<sha256>.<ext>`. Importing the same content again returns the same entry. `path_of(file_name)` gives the absolute path and refuses anything that is not a plain file name.
+- **`MediaStorage`** (`LocalMediaStore`): `import(path)` validates a file **by its content**, not its extension (JPEG, PNG, GIF, WebP, MP3, OGG, WAV, FLAC, M4A, AAC, MP4, WebM and MOV, at most 50 MB, or 100 MB for video, and no SVG because it can carry scripts) and copies it to `media/<sha256>.<ext>`. Importing the same content again returns the same entry. `import_bytes(bytes)` does the same for content already in memory (generated audio), and `import` reads the file and delegates to it. `path_of(file_name)` gives the absolute path and refuses anything that is not a plain file name.
 - **`HtmlSanitizer`** (`AmmoniaSanitizer`): `sanitize_html` keeps a small allow-list of formatting tags (b, i, u, br, p, ul, li and a few more) and removes scripts, event handlers and links. `strip_tags` reduces HTML to text, which the editor uses to tell whether a rich field is empty.
+
+## Deck settings and daily limits
+
+`DeckSettings` (`modules/decks/model.rs`) groups the options of a deck: `new_cards_per_day`, `max_reviews_per_day` (both 0 to 9999, validated in the constructor) and `autoplay_audio`. `Deck::new` and `revise` take it as a whole, so adding an option changes one struct and not every signature. `ReviewSessionOrchestrator::queues` applies the limits: `ReviewApi::activity_since(ids, start of the UTC day)` counts the reviews of the deck's cards by `review_logs.phase`, the new queue is cut to `new_cards_per_day` minus the cards started today, and the review queue to `max_reviews_per_day` minus the `REVIEW` answers given today. Cards being learned are never limited, so a new card already started finishes its first wave. The cards that were cut are counted, and when nothing can be shown `ReviewNext.daily_limit_reached` is true. `ReviewNext.autoplay_audio` carries the deck's audio setting to the view. Days are UTC because the whole app is.
+
+## HTTP and text to speech
+
+- **`HttpClient`** (`dependencies/http/http.rs`) wraps `reqwest` with a 30 s timeout. `get`, `post`, `put` and `delete` exchange JSON, `get_bytes(url, query, auth)` returns the raw body and `with_user_agent` sets the `User-Agent`. TLS is rustls, so the build needs no OpenSSL. It is async and runs on Tauri's tokio runtime.
+- **`SpeechSynthesizer`** (`dependencies/speech.rs`) is an async trait: `synthesize(text, bcp47) -> SynthesizedAudio { bytes }`, with `SpeechError` (`EmptyText`, `TextTooLong`, `Unavailable`). `GoogleTranslateSynthesizer` implements it with `HttpClient` against `translate.google.com/translate_tts` (`client=tw-ob`), mapping the BCP 47 code to the `tl` parameter (`pt-BR` stays as it is, `en-US` becomes `en`). Text over 200 characters is refused, not cut. The endpoint is unofficial, see [development.md](development.md). The orchestrator tests use `FakeSpeech` (`orchestrators/fake_speech.rs`), which needs no network.
 
 ## Startup (`lib.rs`)
 
@@ -71,17 +81,17 @@ The other modules follow the same layout. `flashcards` has one repository trait 
 
 ## Orchestrators (`src-tauri/src/orchestrators/`)
 
-An orchestrator holds the `*Api` traits of the modules it needs and nothing else. See [architecture.md](architecture.md) for what each one does. `OrchestratorError` (`NotFound`, `Invalid`, `Conflict`, `Internal`) is built from each module's error and from `MediaError`.
+An orchestrator holds the `*Api` traits of the modules it needs and nothing else. See [architecture.md](architecture.md) for what each one does. `OrchestratorError` (`NotFound`, `Invalid`, `Conflict`, `Unavailable`, `Internal`) is built from each module's error, from `MediaError` and from `SpeechError` (a network failure is `Unavailable`).
 
-The editor orchestrator works on a deck's single list of drafts, which mixes flashcard types. It enforces the rules that need the card type, the language and the deck together: a draft can only hold the fields of its own type for the deck's language, rich values are sanitized when they are saved, media can only be attached to fields that allow it (at most 10 files per field), and a required field must have text or media for the drafts to be published. Publishing checks every draft first, each against its own type. If any has a problem, nothing is saved and the problems are returned per draft and field.
+The editor orchestrator works on a deck's single list of drafts, which mixes flashcard types. It enforces the rules that need the card type, the language and the deck together: a draft can only hold the fields of its own type for the deck's language, rich values are sanitized when they are saved, media can only be attached to fields that allow it (at most 10 files per field), and a required field must have text or media for the drafts to be published. Audio fields (`kind` `AUDIO`) can also be **generated**: `generate_media` (drafts) and `generate_saved_media` (saved cards) read the text of the field named by the audio field's `source_key` (HTML is stripped first, and empty text is refused), speak it in the deck variant's BCP 47 code, store the bytes with `import_bytes` and attach them like an uploaded file, with the same limits. All database reads happen before the request and the attach after it, so nothing is held while waiting for the network. The text is the one stored, so the view saves pending edits first. Publishing checks every draft first, each against its own type. If any has a problem, nothing is saved and the problems are returned per draft and field.
 
 ## Commands (`src-tauri/src/commands/`)
 
 Thin adapters over an orchestrator (or a service):
 
 - The DTOs have `serde` and camelCase names. Entities have no serde. Nothing carries a database id.
-- Errors become `CommandError { kind, message }`, where `kind` is `not_found`, `invalid`, `conflict` or `internal`.
-- Commands: `list_languages`, `list_language_variants`, `list_decks`, `create_deck`, `update_deck`, `delete_deck`, `get_flashcard_form(deckName)` (the form of every type), `list_drafts(deckName)`, `create_draft(deckName, typeSlug)`, `update_draft`, `duplicate_draft`, `move_draft`, `delete_draft`, `attach_media`, `remove_media`, `publish_drafts(deckName)`, for saved cards `list_saved_cards(deckName)`, `update_saved_card(cardUuid, values)`, `attach_saved_card_media`, `remove_saved_card_media` and `delete_saved_card(cardUuid)` (a saved card has the shape of a draft, keyed by field key, and obeys the same rules: known keys, sanitized rich text, required fields), and for the review `list_review_overview`, `next_review_card(deckName, typeSlug)` and `answer_review_card(cardUuid, rating, durationMs)`.
+- Errors become `CommandError { kind, message }`, where `kind` is `not_found`, `invalid`, `conflict`, `unavailable` or `internal`.
+- Commands: `list_languages`, `list_language_variants`, `list_decks`, `create_deck`, `update_deck` (both carry the deck settings; `create_deck` uses the defaults for what is absent), `delete_deck`, `get_flashcard_form(deckName)` (the form of every type), `list_drafts(deckName)`, `create_draft(deckName, typeSlug)`, `update_draft`, `duplicate_draft`, `move_draft`, `delete_draft`, `attach_media`, `generate_media(draftUuid, fieldKey)`, `remove_media`, `publish_drafts(deckName)`, for saved cards `list_saved_cards(deckName)`, `update_saved_card(cardUuid, values)`, `attach_saved_card_media`, `generate_saved_card_media(cardUuid, fieldKey)`, `remove_saved_card_media` and `delete_saved_card(cardUuid)` (a saved card has the shape of a draft, keyed by field key, and obeys the same rules: known keys, sanitized rich text, required fields), and for the review `list_review_overview`, `next_review_card(deckName, typeSlug)` and `answer_review_card(cardUuid, rating, durationMs)` and `undo_review_answer(deckName, typeSlug, cardUuid)`, which takes back the latest answer given to that card and returns the same card again (each call goes one answer further back).
 - Commands are `async` and receive their state as `State<'_, Arc<...>>`.
 - A draft's DTO includes, for each attached file, its absolute `path`, which the view previews through the asset protocol.
 - Each file has tests that pin the JSON shape the TypeScript types rely on (`iso6393`, `bcp47Code`, `fieldKey`...).

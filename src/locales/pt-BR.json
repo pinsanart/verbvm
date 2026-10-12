@@ -57,7 +57,13 @@
     "language": "Idioma",
     "accent": "Sotaque",
     "createDeck": "Criar baralho",
-    "fixedNote": "{{language}} · {{accent}} não muda, porque os cartões deste baralho dependem dele."
+    "fixedNote": "{{language}} · {{accent}} não muda, porque os cartões deste baralho dependem dele.",
+    "studyOptions": "Opções de estudo",
+    "newCardsPerDay": "Novos cards por dia",
+    "newCardsPerDayHint": "Cards vistos pela primeira vez. 0 não adiciona nenhum.",
+    "maxReviewsPerDay": "Máximo de revisões por dia",
+    "maxReviewsPerDayHint": "Respostas a cards que você já lembrou antes. Cards que ainda está aprendendo não têm limite.",
+    "noAutoplay": "Não tocar o áudio automaticamente"
   },
   "deckEditor": {
     "loading": "Carregando cartões",
@@ -99,8 +105,13 @@
     "attach": "Anexar mídia",
     "videoFailed": "Não foi possível carregar o vídeo",
     "audioFailed": "Não foi possível carregar o áudio",
-    "replayHint": "Pressione <kbd>R</kbd> para ouvir de novo",
-    "pickerFilter": "Imagens, áudio e vídeo"
+    "pickerFilter": "Imagens, áudio e vídeo",
+    "generate": "Gerar áudio a partir do texto",
+    "generating": "Gerando áudio",
+    "generateHint": "Escreva a frase e gere o áudio dela ou anexe um arquivo.",
+    "replay": "Repetir",
+    "loadingAudio": "Carregando o áudio",
+    "autoplayBlocked": "O áudio não conseguiu começar sozinho. Aperte play para ouvir."
   },
   "rich": {
     "editHtml": "Editar HTML",
@@ -115,8 +126,7 @@
     "clearFormatting": "Limpar formatação"
   },
   "review": {
-    "legend": "Cartões <b>Novos</b> ainda não foram revisados. Cartões em <b>Aprendizado</b> foram errados e voltam a vencer. Cartões para <b>Revisar</b> estão vencidos para revisão.",
-    "legendShort": "Novos: ainda não revisados. Aprendizado: errados e vencidos de novo. Revisar: vencidos para revisão.",
+    "legend": "Cards <b>Novos</b> ainda não foram revisados. Cards em <b>Aprendizado</b> ainda estão sendo aprendidos e voltam até serem lembrados. Cards em <b>Revisão</b> estão prontos para revisar.",
     "loadingDecks": "Carregando baralhos",
     "loadingCard": "Carregando o cartão",
     "noDecksTitle": "Nenhum baralho para revisar ainda",
@@ -130,7 +140,6 @@
     "completed": "Concluído",
     "reviewAction": "Revisar",
     "reviewAria": "Revisar {{type}} em {{deck}}",
-    "flashcardAria": "Cartão",
     "showResponse": "Mostrar resposta",
     "space": "Espaço",
     "again": "De novo",
@@ -141,11 +150,36 @@
     "nothingToReview": "Nada para revisar em {{type}}",
     "nextCard": "O próximo cartão volta em {{interval}}.",
     "noneScheduled": "Não há mais cartões agendados. Os novos aparecem quando você os adiciona.",
-    "answered": "Respondidos",
-    "remembered": "Lembrados",
-    "missed": "Errados",
+    "answered": "Respostas",
     "reviewType": "Revisar {{type}} ({{count}})",
-    "backToReview": "Voltar para Revisão"
+    "backToReview": "Voltar para Revisão",
+    "yourAnswer": "Sua resposta",
+    "expectedAnswer": "Resposta esperada",
+    "typeWhatYouHear": "Digite o que você ouve",
+    "nothingTyped": "Nada digitado",
+    "exactMatch": "Acerto exato",
+    "cardsReviewed": "Cards",
+    "collapseDeck": "Recolher {{deck}}",
+    "expandDeck": "Expandir {{deck}}",
+    "collapseAll": "Recolher todos",
+    "expandAll": "Expandir todos",
+    "waitingCount": "{{count}} pendentes",
+    "dailyLimitReached": "O limite diário deste deck foi atingido. O restante dos cards volta em {{interval}}.",
+    "remembered": "Respostas certas",
+    "missed": "Respostas erradas",
+    "undoAria": "Desfazer a última resposta (Z)",
+    "reloadFailed": "Sua resposta foi salva, mas não foi possível carregar o próximo card.",
+    "retry": "Tentar de novo",
+    "diffBoth": "{{extra}} letras a mais e {{missing}} faltando",
+    "diffExtra_one": "{{count}} letra a mais",
+    "diffExtra_many": "{{count}} de letras a mais",
+    "diffExtra_other": "{{count}} letras a mais",
+    "diffMissing_one": "{{count}} letra faltando",
+    "diffMissing_many": "{{count}} de letras faltando",
+    "diffMissing_other": "{{count}} letras faltando",
+    "dictationHint": "Alt+R toca o áudio de novo",
+    "waitingLabel": "Cards pendentes",
+    "cardAria": "Card de {{type}}, {{state}}"
   },
   "interval": {
     "lessThanMinute": "<1 min",
@@ -184,6 +218,7 @@
     "phrase": "Frase",
     "word_or_expression": "Palavra ou expressão",
     "meaning": "Significado",
-    "ipa_phonetics": "Fonética IPA"
+    "ipa_phonetics": "Fonética IPA",
+    "audio": "Áudio"
   }
 }

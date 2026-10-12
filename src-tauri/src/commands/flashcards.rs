@@ -26,6 +26,10 @@ pub struct FieldDefinitionDto {
     pub is_required: bool,
     /// The field holds HTML and is edited in the rich editor.
     pub is_rich: bool,
+    /// `PLAIN`, `RICH` or `AUDIO`. An audio field holds only audio, uploaded or generated.
+    pub kind: String,
+    /// For an audio field, the key of the field its audio is spoken from.
+    pub source_key: Option<String>,
     pub media_allowed: bool,
 }
 
@@ -37,6 +41,8 @@ fn field_dto(field: &FieldDefinition) -> FieldDefinitionDto {
         position: field.position(),
         is_required: field.is_required(),
         is_rich: field.is_rich(),
+        kind: field.kind().as_str().to_owned(),
+        source_key: field.source_key().map(str::to_owned),
         media_allowed: field.media_allowed(),
     }
 }
@@ -257,6 +263,18 @@ pub async fn attach_media(
     single_draft_dto(&api, &draft)
 }
 
+/// Speaks the text of the field an audio field is generated from and attaches the audio to it.
+/// The text is the one saved with the draft.
+#[tauri::command]
+pub async fn generate_media(
+    api: Api<'_>,
+    draft_uuid: String,
+    field_key: String,
+) -> CommandResult<DraftDto> {
+    let draft = api.generate_media(&draft_uuid, &field_key).await?;
+    single_draft_dto(&api, &draft)
+}
+
 #[tauri::command]
 pub async fn remove_media(
     api: Api<'_>,
@@ -294,6 +312,16 @@ pub async fn attach_saved_card_media(
 }
 
 #[tauri::command]
+pub async fn generate_saved_card_media(
+    api: Api<'_>,
+    card_uuid: String,
+    field_key: String,
+) -> CommandResult<SavedCardDto> {
+    let card = api.generate_saved_media(&card_uuid, &field_key).await?;
+    Ok(saved_card_dto(&api, &card))
+}
+
+#[tauri::command]
 pub async fn remove_saved_card_media(
     api: Api<'_>,
     card_uuid: String,
@@ -327,12 +355,15 @@ mod tests {
             position: 0,
             is_required: true,
             is_rich: true,
+            kind: "RICH".into(),
+            source_key: None,
             media_allowed: true,
         };
         assert_eq!(
             serde_json::to_value(field).unwrap(),
             json!({"key": "phrase", "label": "Phrase", "side": "FRONT", "position": 0,
-                   "isRequired": true, "isRich": true, "mediaAllowed": true})
+                   "isRequired": true, "isRich": true, "kind": "RICH", "sourceKey": null,
+                   "mediaAllowed": true})
         );
 
         let mut values = BTreeMap::new();

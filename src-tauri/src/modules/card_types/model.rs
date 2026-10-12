@@ -27,6 +27,38 @@ impl Side {
     }
 }
 
+/// How a field is filled in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldKind {
+    /// Plain text.
+    Plain,
+    /// HTML, edited in the rich editor.
+    Rich,
+    /// Audio only, with no text of its own. It is uploaded or generated from the text of another
+    /// field (its source key).
+    Audio,
+}
+
+impl FieldKind {
+    /// The value stored in the database.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            FieldKind::Plain => "PLAIN",
+            FieldKind::Rich => "RICH",
+            FieldKind::Audio => "AUDIO",
+        }
+    }
+
+    pub fn parse(value: &str) -> CardTypesResult<Self> {
+        match value {
+            "PLAIN" => Ok(FieldKind::Plain),
+            "RICH" => Ok(FieldKind::Rich),
+            "AUDIO" => Ok(FieldKind::Audio),
+            _ => Err(CardTypesError::Invalid { field: "kind", reason: "must be PLAIN, RICH or AUDIO" }),
+        }
+    }
+}
+
 /// A kind of flashcard, such as vocabulary. Identified by its slug.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FlashcardType {
@@ -70,7 +102,8 @@ impl FlashcardType {
 
 /// One field of a flashcard type. `language_id` is `None` for fields that every language uses.
 ///
-/// A rich field holds HTML, a plain field holds text. A field that allows media can have images
+/// A rich field holds HTML, a plain field holds text and an audio field holds only audio, spoken
+/// from the text of the field named by `source_key`. A field that allows media can have images
 /// or audio attached.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldDefinition {
@@ -82,7 +115,8 @@ pub struct FieldDefinition {
     label: String,
     position: i64,
     is_required: bool,
-    is_rich: bool,
+    kind: FieldKind,
+    source_key: Option<String>,
     media_allowed: bool,
 }
 
@@ -97,9 +131,32 @@ impl FieldDefinition {
         label: String,
         position: i64,
         is_required: bool,
-        is_rich: bool,
+        kind: FieldKind,
+        source_key: Option<String>,
         media_allowed: bool,
     ) -> CardTypesResult<Self> {
+        let source_key = source_key.map(|k| validate_identifier("source_key", k)).transpose()?;
+        match (kind, &source_key) {
+            (FieldKind::Audio, None) => {
+                return Err(CardTypesError::Invalid {
+                    field: "source_key",
+                    reason: "an audio field needs the key of the field it is spoken from",
+                })
+            }
+            (FieldKind::Audio, Some(_)) if !media_allowed => {
+                return Err(CardTypesError::Invalid {
+                    field: "media_allowed",
+                    reason: "an audio field must allow media",
+                })
+            }
+            (FieldKind::Plain | FieldKind::Rich, Some(_)) => {
+                return Err(CardTypesError::Invalid {
+                    field: "source_key",
+                    reason: "only an audio field has a source key",
+                })
+            }
+            _ => {}
+        }
         Ok(Self {
             id: None,
             flashcard_type_id,
@@ -109,7 +166,8 @@ impl FieldDefinition {
             label: validate_text("label", label)?,
             position,
             is_required,
-            is_rich,
+            kind,
+            source_key,
             media_allowed,
         })
     }
@@ -124,7 +182,8 @@ impl FieldDefinition {
         label: String,
         position: i64,
         is_required: bool,
-        is_rich: bool,
+        kind: FieldKind,
+        source_key: Option<String>,
         media_allowed: bool,
     ) -> Self {
         Self {
@@ -136,7 +195,8 @@ impl FieldDefinition {
             label,
             position,
             is_required,
-            is_rich,
+            kind,
+            source_key,
             media_allowed,
         }
     }
@@ -173,8 +233,23 @@ impl FieldDefinition {
         self.is_required
     }
 
+    pub fn kind(&self) -> FieldKind {
+        self.kind
+    }
+
+    /// The field holds HTML.
     pub fn is_rich(&self) -> bool {
-        self.is_rich
+        self.kind == FieldKind::Rich
+    }
+
+    /// The field holds audio only.
+    pub fn is_audio(&self) -> bool {
+        self.kind == FieldKind::Audio
+    }
+
+    /// For an audio field, the key of the field its audio is spoken from.
+    pub fn source_key(&self) -> Option<&str> {
+        self.source_key.as_deref()
     }
 
     pub fn media_allowed(&self) -> bool {
@@ -221,10 +296,24 @@ mod tests {
         assert!(FlashcardType::new("Vocab".into(), "Vocabulary".into(), None).is_err());
         assert!(FlashcardType::new("a b".into(), "Vocabulary".into(), None).is_err());
         let field = |key: &str| {
-            FieldDefinition::new(1, None, Side::Front, key.into(), "Label".into(), 0, true, false, false)
+            FieldDefinition::new(1, None, Side::Front, key.into(), "Label".into(), 0, true, FieldKind::Plain, None, false)
         };
         assert!(field("word_or_expression").is_ok());
         assert!(field("Word").is_err());
         assert!(field("").is_err());
+    }
+
+    #[test]
+    fn an_audio_field_needs_a_source_and_media_and_others_have_no_source() {
+        let build = |kind, source: Option<&str>, media| {
+            FieldDefinition::new(1, None, Side::Front, "audio".into(), "Audio".into(), 0, true, kind, source.map(String::from), media)
+        };
+        let audio = build(FieldKind::Audio, Some("phrase"), true).unwrap();
+        assert!(audio.is_audio() && !audio.is_rich());
+        assert_eq!(audio.source_key(), Some("phrase"));
+        assert!(build(FieldKind::Audio, None, true).is_err());
+        assert!(build(FieldKind::Audio, Some("phrase"), false).is_err());
+        assert!(build(FieldKind::Plain, Some("phrase"), true).is_err());
+        assert!(build(FieldKind::Rich, None, true).is_ok());
     }
 }

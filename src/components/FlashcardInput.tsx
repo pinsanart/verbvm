@@ -26,6 +26,7 @@ export interface FlashcardInputProps {
     isLast: boolean;
     onChange: (key: string, value: string) => void;
     onAttachMedia: (key: string) => void;
+    onGenerateMedia: (key: string) => Promise<unknown>;
     onRemoveMedia: (key: string, sha256: string) => void;
     onMoveUp: () => void;
     onMoveDown: () => void;
@@ -100,6 +101,7 @@ function Face({
     media,
     onChange,
     onAttachMedia,
+    onGenerateMedia,
     onRemoveMedia,
     columns,
 }: {
@@ -110,6 +112,7 @@ function Face({
     media: Record<string, Media[]>;
     onChange: (key: string, value: string) => void;
     onAttachMedia: (key: string) => void;
+    onGenerateMedia: (key: string) => Promise<unknown>;
     onRemoveMedia: (key: string, sha256: string) => void;
     columns?: boolean;
 }) {
@@ -137,6 +140,10 @@ function Face({
                         media={media[field.key]}
                         onChange={(value) => onChange(field.key, value)}
                         onAttachMedia={() => onAttachMedia(field.key)}
+                        onGenerateMedia={() => onGenerateMedia(field.key)}
+                        canGenerate={
+                            field.sourceKey !== null && (values[field.sourceKey] ?? "").trim() !== ""
+                        }
                         onRemoveMedia={(sha256) => onRemoveMedia(field.key, sha256)}
                     />
                 ))}
@@ -153,6 +160,7 @@ export interface FlashcardFacesProps {
     media: Record<string, Media[]>;
     onChange: (key: string, value: string) => void;
     onAttachMedia: (key: string) => void;
+    onGenerateMedia: (key: string) => Promise<unknown>;
     onRemoveMedia: (key: string, sha256: string) => void;
 }
 
@@ -186,6 +194,7 @@ export function FlashcardInput({
     isLast,
     onChange,
     onAttachMedia,
+    onGenerateMedia,
     onRemoveMedia,
     onMoveUp,
     onMoveDown,
@@ -209,7 +218,7 @@ export function FlashcardInput({
                 <FlashcardFaces
                     frontFields={frontFields}
                     backFields={backFields}
-                    {...{ values, errors, media, onChange, onAttachMedia, onRemoveMedia }}
+                    {...{ values, errors, media, onChange, onAttachMedia, onGenerateMedia, onRemoveMedia }}
                 />
             </div>
         </article>

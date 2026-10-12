@@ -1,12 +1,13 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use super::fake_speech::{FakeSpeech, FAKE_MP3};
 use super::*;
 use crate::dependencies::db::connection::SqliteHandle;
 use crate::dependencies::media_store::LocalMediaStore;
 use crate::dependencies::sanitizer::AmmoniaSanitizer;
-use crate::modules::card_types::{CardTypeApi, CardTypeService, Side};
-use crate::modules::decks::{DeckApi, DeckService};
+use crate::modules::card_types::{CardTypeApi, CardTypeService, FieldKind, Side};
+use crate::modules::decks::{DeckApi, DeckService, DeckSettings};
 use crate::modules::flashcards::{Direction, FlashcardApi, FlashcardService};
 use crate::modules::languages::{LanguageApi, LanguageService};
 
@@ -16,6 +17,7 @@ struct Fixture {
     flashcards: Arc<dyn FlashcardApi>,
     overview: DeckOverviewOrchestrator,
     editor: FlashcardEditorOrchestrator,
+    speech: Arc<FakeSpeech>,
     path: std::path::PathBuf,
 }
 
@@ -30,6 +32,12 @@ impl Drop for Fixture {
 }
 
 fn fixture() -> Fixture {
+    fixture_with_speech(false)
+}
+
+/// `fail` makes the fake speech service report that it is offline.
+fn fixture_with_speech(fail: bool) -> Fixture {
+    let fail = fail;
     let path = std::env::temp_dir().join(format!(
         "verbvm-orchestrators-{}-{:?}.db",
         std::process::id(),
@@ -41,6 +49,7 @@ fn fixture() -> Fixture {
     let languages: Arc<dyn LanguageApi> = Arc::new(LanguageService::sqlite(db.clone()));
     let card_types: Arc<dyn CardTypeApi> = Arc::new(CardTypeService::sqlite(db.clone()));
     let flashcards: Arc<dyn FlashcardApi> = Arc::new(FlashcardService::sqlite(db));
+    let speech = Arc::new(FakeSpeech { fail, ..Default::default() });
     Fixture {
         overview: DeckOverviewOrchestrator::new(
             decks.clone(),
@@ -55,10 +64,12 @@ fn fixture() -> Fixture {
             flashcards.clone(),
             Arc::new(AmmoniaSanitizer::new()),
             Arc::new(LocalMediaStore::new(path.with_extension("media"))),
+            speech.clone(),
         ),
         languages,
         card_types,
         flashcards,
+        speech,
         path,
     }
 }
@@ -77,7 +88,7 @@ fn keys<'a>(form: &'a EditorForm, type_slug: &str) -> Vec<&'a str> {
 #[test]
 fn creating_a_deck_uses_the_language_default_variant() {
     let f = fixture();
-    let created = f.overview.create("Travel".into(), "por", None, Some("Trip words".into())).unwrap();
+    let created = f.overview.create("Travel".into(), "por", None, Some("Trip words".into()), DeckSettings::default()).unwrap();
     assert_eq!(created.variant.bcp47_code(), "pt-BR");
     assert_eq!(created.language.iso_639_3(), "por");
     assert_eq!(created.deck.description(), Some("Trip words"));
@@ -86,16 +97,36 @@ fn creating_a_deck_uses_the_language_default_variant() {
 }
 
 #[test]
+fn a_deck_keeps_its_settings_and_they_can_be_updated() {
+    let f = fixture();
+    let created = f.overview.create("Travel".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    assert_eq!(created.deck.settings(), DeckSettings::default());
+    assert_eq!(
+        (created.deck.settings().new_cards_per_day(), created.deck.settings().max_reviews_per_day()),
+        (20, 200)
+    );
+
+    let custom = DeckSettings::new(5, 50, false).unwrap();
+    let other = f.overview.create("Other".into(), "eng", None, None, custom).unwrap();
+    assert_eq!(other.deck.settings(), custom);
+
+    let updated = f.overview.update("Travel", "Travel".into(), None, custom).unwrap();
+    assert_eq!(updated.deck.settings(), custom);
+    let listed = f.overview.list().unwrap();
+    assert!(listed.iter().all(|d| d.deck.settings() == custom), "stored, not just returned");
+}
+
+#[test]
 fn creating_a_deck_with_an_accent_checks_it_belongs_to_the_language() {
     let f = fixture();
-    let deck = f.overview.create("London".into(), "eng", Some("en-GB"), None).unwrap();
+    let deck = f.overview.create("London".into(), "eng", Some("en-GB"), None, DeckSettings::default()).unwrap();
     assert_eq!(deck.variant.bcp47_code(), "en-GB");
     assert!(matches!(
-        f.overview.create("Wrong".into(), "por", Some("en-US"), None),
+        f.overview.create("Wrong".into(), "por", Some("en-US"), None, DeckSettings::default()),
         Err(OrchestratorError::Invalid(_))
     ));
     assert!(matches!(
-        f.overview.create("Unknown".into(), "xxx", None, None),
+        f.overview.create("Unknown".into(), "xxx", None, None, DeckSettings::default()),
         Err(OrchestratorError::NotFound(_))
     ));
 }
@@ -103,9 +134,9 @@ fn creating_a_deck_with_an_accent_checks_it_belongs_to_the_language() {
 #[test]
 fn duplicate_deck_names_conflict() {
     let f = fixture();
-    f.overview.create("Travel".into(), "eng", None, None).unwrap();
+    f.overview.create("Travel".into(), "eng", None, None, DeckSettings::default()).unwrap();
     assert!(matches!(
-        f.overview.create("Travel".into(), "fra", None, None),
+        f.overview.create("Travel".into(), "fra", None, None, DeckSettings::default()),
         Err(OrchestratorError::Conflict(_))
     ));
 }
@@ -113,27 +144,27 @@ fn duplicate_deck_names_conflict() {
 #[test]
 fn updating_a_deck_renames_it_and_keeps_its_language_and_cards() {
     let f = fixture();
-    f.overview.create("Trips".into(), "fra", None, Some("Old".into())).unwrap();
-    f.overview.create("Other".into(), "eng", None, None).unwrap();
+    f.overview.create("Trips".into(), "fra", None, Some("Old".into()), DeckSettings::default()).unwrap();
+    f.overview.create("Other".into(), "eng", None, None, DeckSettings::default()).unwrap();
     f.editor.add_draft("Trips", "vocabulary").unwrap();
 
-    let updated = f.overview.update("Trips", " Travel ".into(), None).unwrap();
+    let updated = f.overview.update("Trips", " Travel ".into(), None, DeckSettings::default()).unwrap();
     assert_eq!(updated.deck.name(), "Travel");
     assert_eq!(updated.deck.description(), None, "the description is replaced");
     assert_eq!(updated.variant.bcp47_code(), "fr-FR");
     assert_eq!(f.editor.drafts("Travel").unwrap().len(), 1, "the deck keeps what it had");
     assert!(matches!(f.overview.get("Trips"), Err(OrchestratorError::NotFound(_))));
 
-    assert!(matches!(f.overview.update("Travel", "Other".into(), None), Err(OrchestratorError::Conflict(_))));
-    assert!(matches!(f.overview.update("Travel", "  ".into(), None), Err(OrchestratorError::Invalid(_))));
-    assert!(matches!(f.overview.update("Nope", "X".into(), None), Err(OrchestratorError::NotFound(_))));
+    assert!(matches!(f.overview.update("Travel", "Other".into(), None, DeckSettings::default()), Err(OrchestratorError::Conflict(_))));
+    assert!(matches!(f.overview.update("Travel", "  ".into(), None, DeckSettings::default()), Err(OrchestratorError::Invalid(_))));
+    assert!(matches!(f.overview.update("Nope", "X".into(), None, DeckSettings::default()), Err(OrchestratorError::NotFound(_))));
 }
 
 #[test]
 fn the_list_has_counts_by_type_and_delete_removes_the_deck() {
     let f = fixture();
-    f.overview.create("B deck".into(), "eng", None, None).unwrap();
-    f.overview.create("A deck".into(), "fra", None, None).unwrap();
+    f.overview.create("B deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("A deck".into(), "fra", None, None, DeckSettings::default()).unwrap();
     f.editor.add_draft("A deck", "vocabulary").unwrap();
     let draft = f.editor.drafts("A deck").unwrap().remove(0);
     f.editor
@@ -158,11 +189,11 @@ fn the_list_has_counts_by_type_and_delete_removes_the_deck() {
 #[test]
 fn the_form_has_every_type_and_follows_the_deck_language() {
     let f = fixture();
-    f.overview.create("English".into(), "eng", None, None).unwrap();
-    f.overview.create("French".into(), "fra", None, None).unwrap();
+    f.overview.create("English".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("French".into(), "fra", None, None, DeckSettings::default()).unwrap();
     let french = f.languages.get_language_by_iso("fra").unwrap();
     f.card_types
-        .add_field_definition("vocabulary", french.id(), Side::Back, "gender".into(), "Gender".into(), 2, false, false, false)
+        .add_field_definition("vocabulary", french.id(), Side::Back, "gender".into(), "Gender".into(), 2, false, FieldKind::Plain, None, false)
         .unwrap();
 
     let english = f.editor.form("English").unwrap();
@@ -181,7 +212,7 @@ fn the_form_has_every_type_and_follows_the_deck_language() {
 #[test]
 fn unknown_decks_and_types_are_not_found() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     assert!(matches!(f.editor.form("Nope"), Err(OrchestratorError::NotFound(_))));
     assert!(matches!(f.editor.drafts("Nope"), Err(OrchestratorError::NotFound(_))));
     assert!(matches!(f.editor.add_draft("Nope", "vocabulary"), Err(OrchestratorError::NotFound(_))));
@@ -191,7 +222,7 @@ fn unknown_decks_and_types_are_not_found() {
 #[test]
 fn updating_a_draft_sanitizes_rich_fields_and_rejects_unknown_keys() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
 
     let saved = f
@@ -217,7 +248,7 @@ fn updating_a_draft_sanitizes_rich_fields_and_rejects_unknown_keys() {
 #[test]
 fn structural_actions_return_the_updated_list() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     f.editor.add_draft("Deck", "vocabulary").unwrap();
     let list = f.editor.add_draft("Deck", "vocabulary").unwrap();
     let (a, b) = (list[0].uuid().to_owned(), list[1].uuid().to_owned());
@@ -234,7 +265,7 @@ fn structural_actions_return_the_updated_list() {
 #[test]
 fn publishing_reports_missing_required_fields_and_saves_nothing() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     f.editor.add_draft("Deck", "vocabulary").unwrap();
     let list = f.editor.add_draft("Deck", "vocabulary").unwrap();
     f.editor
@@ -256,7 +287,7 @@ fn publishing_reports_missing_required_fields_and_saves_nothing() {
 #[test]
 fn publishing_valid_drafts_creates_flashcards_and_clears_the_list() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     f.editor.add_draft("Deck", "vocabulary").unwrap();
     let list = f.editor.add_draft("Deck", "vocabulary").unwrap();
     for (draft, phrase) in list.iter().zip(["It's <b>raining</b>", "Good morning"]) {
@@ -279,7 +310,7 @@ fn publishing_valid_drafts_creates_flashcards_and_clears_the_list() {
 #[test]
 fn publishing_with_no_drafts_does_nothing() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     let outcome = f.editor.publish_drafts("Deck").unwrap();
     assert_eq!((outcome.published, outcome.issues.len()), (0, 0));
 }
@@ -299,7 +330,7 @@ fn source_file(f: &Fixture, name: &str, bytes: &[u8]) -> std::path::PathBuf {
 #[test]
 fn attaching_media_stores_the_file_and_adds_it_to_the_draft() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
 
     let updated = f.editor.attach_media(draft.uuid(), "phrase", &source_file(&f, "a.png", PNG)).unwrap();
@@ -320,7 +351,7 @@ fn attaching_media_stores_the_file_and_adds_it_to_the_draft() {
 #[test]
 fn media_is_only_accepted_for_fields_that_allow_it_and_for_real_images_and_audio() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
     let png = source_file(&f, "a.png", PNG);
 
@@ -337,7 +368,7 @@ fn media_is_only_accepted_for_fields_that_allow_it_and_for_real_images_and_audio
 #[test]
 fn a_required_field_with_only_media_can_be_published() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
     f.editor.update_draft(draft.uuid(), values(&[("word_or_expression", "cat"), ("meaning", "an animal")])).unwrap();
 
@@ -359,7 +390,7 @@ fn a_required_field_with_only_media_can_be_published() {
 #[test]
 fn a_deck_mixes_types_in_one_list_and_each_draft_uses_its_own_fields() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     f.editor.add_draft("Deck", "vocabulary").unwrap();
     let list = f.editor.add_draft("Deck", "phonetic").unwrap();
     let kinds = |l: &[crate::modules::flashcards::FlashcardDraft]| -> Vec<i64> {
@@ -388,7 +419,7 @@ fn a_deck_mixes_types_in_one_list_and_each_draft_uses_its_own_fields() {
 #[test]
 fn publishing_a_mixed_list_creates_cards_of_each_type_or_nothing() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     f.editor.add_draft("Deck", "vocabulary").unwrap();
     let list = f.editor.add_draft("Deck", "phonetic").unwrap();
     f.editor
@@ -428,7 +459,7 @@ fn publish_one(f: &Fixture, deck: &str, pairs: &[(&str, &str)]) -> String {
 #[test]
 fn saved_cards_are_listed_by_field_key_and_can_be_edited() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     let uuid = publish_one(&f, "Deck", &[("phrase", "It's raining"), ("word_or_expression", "rain"), ("meaning", "water")]);
 
     let saved = f.editor.saved_cards("Deck").unwrap();
@@ -453,7 +484,7 @@ fn saved_cards_are_listed_by_field_key_and_can_be_edited() {
 #[test]
 fn editing_a_saved_card_keeps_the_rules_of_its_type() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     let uuid = publish_one(&f, "Deck", &[("phrase", "hi"), ("word_or_expression", "w"), ("meaning", "m")]);
 
     assert!(matches!(
@@ -468,7 +499,7 @@ fn editing_a_saved_card_keeps_the_rules_of_its_type() {
 #[test]
 fn media_of_a_saved_card_can_be_added_removed_and_a_card_deleted() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
     let uuid = publish_one(&f, "Deck", &[("phrase", "cat"), ("word_or_expression", "cat"), ("meaning", "an animal")]);
 
     let with = f.editor.attach_saved_media(&uuid, "phrase", &source_file(&f, "a.png", PNG)).unwrap();
@@ -486,4 +517,75 @@ fn media_of_a_saved_card_can_be_added_removed_and_a_card_deleted() {
     f.editor.delete_saved(&uuid).unwrap();
     assert!(f.editor.saved_cards("Deck").unwrap().is_empty());
     assert!(matches!(f.editor.delete_saved(&uuid), Err(OrchestratorError::NotFound(_))));
+}
+
+fn orthographic_draft(f: &Fixture, phrase: &str) -> String {
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    let draft = f.editor.add_draft("Deck", "orthographic").unwrap().remove(0);
+    let values = BTreeMap::from([("phrase".to_string(), phrase.to_string())]);
+    f.editor.update_draft(draft.uuid(), values).unwrap();
+    draft.uuid().to_owned()
+}
+
+#[test]
+fn the_orthographic_type_has_an_audio_field_spoken_from_the_phrase() {
+    let f = fixture();
+    let fields = f.card_types.fields_for("orthographic", None).unwrap();
+    let summary: Vec<_> = fields.iter().map(|d| (d.side().as_str(), d.key(), d.kind(), d.source_key())).collect();
+    assert_eq!(
+        summary,
+        vec![("FRONT", "audio", FieldKind::Audio, Some("phrase")), ("FRONT", "phrase", FieldKind::Plain, None)]
+    );
+}
+
+#[tokio::test]
+async fn generating_audio_speaks_the_phrase_in_the_decks_language_and_attaches_it() {
+    let f = fixture();
+    let uuid = orthographic_draft(&f, "  hello there ");
+
+    let draft = f.editor.generate_media(&uuid, "audio").await.unwrap();
+    let attached = &draft.media()["audio"];
+    assert_eq!(attached.len(), 1);
+    assert_eq!(attached[0].mime_type(), "audio/mpeg");
+    let stored = f.editor.media_path(attached[0].file_name()).unwrap();
+    assert_eq!(std::fs::read(stored).unwrap(), FAKE_MP3);
+    assert_eq!(*f.speech.requests.lock().unwrap(), vec![("hello there".to_string(), "en-US".to_string())]);
+
+    let again = f.editor.generate_media(&uuid, "audio").await.unwrap();
+    assert_eq!(again.media()["audio"].len(), 1, "the same audio counts once");
+}
+
+#[tokio::test]
+async fn generating_audio_needs_text_and_an_audio_field() {
+    let f = fixture();
+    let uuid = orthographic_draft(&f, "   ");
+    assert!(matches!(f.editor.generate_media(&uuid, "audio").await, Err(OrchestratorError::Invalid(_))));
+    assert!(matches!(f.editor.generate_media(&uuid, "phrase").await, Err(OrchestratorError::Invalid(_))));
+    assert!(matches!(f.editor.generate_media(&uuid, "nope").await, Err(OrchestratorError::Invalid(_))));
+    assert!(f.speech.requests.lock().unwrap().is_empty(), "no request when the input is refused");
+}
+
+#[tokio::test]
+async fn an_unreachable_speech_service_is_reported_and_attaches_nothing() {
+    let f = fixture_with_speech(true);
+    let uuid = orthographic_draft(&f, "hello");
+    assert!(matches!(f.editor.generate_media(&uuid, "audio").await, Err(OrchestratorError::Unavailable(_))));
+    let drafts = f.editor.drafts("Deck").unwrap();
+    assert!(drafts[0].media().get("audio").map_or(true, Vec::is_empty));
+}
+
+#[tokio::test]
+async fn generating_audio_for_a_saved_card_uses_its_saved_phrase() {
+    let f = fixture();
+    let uuid = orthographic_draft(&f, "good morning");
+    f.editor.generate_media(&uuid, "audio").await.unwrap();
+    assert!(f.editor.publish_drafts("Deck").unwrap().issues.is_empty());
+
+    let card = f.editor.saved_cards("Deck").unwrap().remove(0);
+    let values = BTreeMap::from([("phrase".to_string(), "good evening".to_string())]);
+    f.editor.update_saved(&card.uuid, values).unwrap();
+    let updated = f.editor.generate_saved_media(&card.uuid, "audio").await.unwrap();
+    assert_eq!(updated.media["audio"].len(), 1);
+    let requests = f.speech.requests.lock().unwrap();
+    assert_eq!(requests.last().unwrap().0, "good evening");
 }

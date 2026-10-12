@@ -43,14 +43,14 @@ erDiagram
 
 ## Decks
 
-`decks`: a unique `name`, `language_variant_id` (`ON DELETE RESTRICT`, so a variant in use by a deck cannot be deleted), `description` and `created_at`.
+`decks`: a unique `name`, `language_variant_id` (`ON DELETE RESTRICT`, so a variant in use by a deck cannot be deleted), `description`, the study settings and `created_at`. The settings are `new_cards_per_day` (default 20, 0 to 9999), `max_reviews_per_day` (default 200, 0 to 9999) and `autoplay_audio` (default 1, whether the audio of a card plays by itself in a review). Both limits are counted per **UTC day**.
 
 ## Flashcards
 
 A card's layout is **data, not code**:
 
 - `flashcard_types` (unique `slug`, `name`, `description`). **Seed:** `vocabulary`, `phonetic` and `orthographic`.
-- `field_definitions`: one row per field a type can have. Columns: `flashcard_type_id`, `language_id`, `side` (`FRONT` or `BACK`), `key`, `label`, `position`, `is_required`, `media_allowed` and `is_rich` (the content is HTML, edited in the rich editor, as opposed to plain text). Unique per type, language and key.
+- `field_definitions`: one row per field a type can have. Columns: `flashcard_type_id`, `language_id`, `side` (`FRONT` or `BACK`), `key`, `label`, `position`, `is_required`, `media_allowed`, `kind` and `source_key`. `kind` is `PLAIN` (text), `RICH` (HTML, edited in the rich editor) or `AUDIO` (only audio, uploaded or generated). `source_key` is set exactly for `AUDIO` fields: the key of the field whose text the audio is spoken from, and an audio field must allow media (both are `CHECK`s). Unique per type, language and key.
 - `flashcards`: `uuid`, `deck_id` (`ON DELETE CASCADE`), `flashcard_type_id`, `stack_id`, `created_at` and `updated_at`.
 - `flashcard_fields`: one value per field with content (`field_definition_id`, `content`). Unique per card and definition. A field whose only content is media has an empty `content`.
 - `field_media`: media attached to a saved field (see below).
@@ -64,7 +64,10 @@ A card's layout is **data, not code**:
 | vocabulary | BACK | `meaning` | yes | yes | no |
 | phonetic | FRONT | `phrase` | yes | no | no |
 | phonetic | BACK | `ipa_phonetics` | yes | yes | no |
-| orthographic | FRONT | `phrase` | yes | no | yes |
+| orthographic | FRONT | `audio` (kind `AUDIO`, spoken from `phrase`) | yes | no | yes |
+| orthographic | FRONT | `phrase` (position 1, after the audio) | yes | no | no |
+
+Orthographic has no back: both of its fields are on the front.
 
 ### How the fields of a deck are resolved
 
@@ -87,7 +90,7 @@ Images, audio and video live in S3 and are read offline from a local folder (`me
 - `flashcard_draft_media`: files attached to a draft by field key (`kind` `IMAGE`, `AUDIO` or `VIDEO`, `mime_type`, `sha256`, `file_name`, `size_bytes`, `position`). Unique per draft, field and hash.
 - `field_media`: the same for a saved field (`flashcard_field_id`), plus `remote_key`, the S3 object key, NULL until the file is uploaded.
 
-Publishing copies the draft rows into `field_media`. A future sync compares the rows with the files on disk, downloads the missing ones and uploads the rows without a `remote_key`.
+Audio can also be generated from a field's text with text to speech. The result is stored exactly like an uploaded file (the media folder and the same rows), so reviewing never needs the network. Publishing copies the draft rows into `field_media`. A future sync compares the rows with the files on disk, downloads the missing ones and uploads the rows without a `remote_key`.
 
 ## Stacks
 
@@ -97,6 +100,6 @@ Publishing copies the draft rows into `field_media`. A future sync compares the 
 
 See [review.md](review.md). All three tables hang off `flashcards` with `ON DELETE CASCADE`:
 
-- `sm2_states`: one SM-2 state per card (`due_at`, `interval_days`, `ease_factor`, `repetitions`, `last_reviewed_at`). A card with no row has never been reviewed.
-- `review_logs`: one append-only row per review (`reviewed_at`, `rating` 1 to 4, `elapsed_days`, `scheduled_days`, `duration_ms`).
+- `sm2_states`: one SM-2 state per card (`due_at`, `interval_days`, `ease_factor`, `repetitions`, `last_reviewed_at`, `learning_step`). A card with no row has never been reviewed.
+- `review_logs`: one append-only row per review (`reviewed_at`, `rating` 1 to 4, `elapsed_days`, `scheduled_days`, `duration_ms`, `phase`). `phase` is what the card was when answered: `NEW` (its first review ever), `LEARNING` (not recalled yet: the first wave, or relearning after Again) or `REVIEW` (recalled before). The deck's daily limits are measured with it. `previous` holds the card's `sm2_states` and `card_stats` rows as they were before the review, as JSON (a missing row is `null`), so that undoing the review can put them back.
 - `card_stats`: per-card counters (`review_count`, `correct_count`, `lapses`, `total_duration_ms`, `last_rating`), independent of the algorithm.

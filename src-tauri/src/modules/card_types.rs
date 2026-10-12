@@ -11,7 +11,7 @@ mod repository;
 mod service;
 
 pub use error::{CardTypesError, CardTypesResult};
-pub use model::{FieldDefinition, FlashcardType, Side};
+pub use model::{FieldDefinition, FieldKind, FlashcardType, Side};
 pub use repository::{
     FieldDefinitionRepository, FlashcardTypeRepository, SqliteFieldDefinitionRepository,
     SqliteFlashcardTypeRepository,

@@ -92,6 +92,10 @@ pub trait MediaStorage: Send + Sync {
     /// Importing the same content again returns the same entry.
     fn import(&self, source: &Path) -> Result<StoredMedia, MediaError>;
 
+    /// Same as [`import`](Self::import) for content that is already in memory, such as
+    /// generated audio.
+    fn import_bytes(&self, bytes: &[u8]) -> Result<StoredMedia, MediaError>;
+
     /// The absolute path of a stored file, or `None` when the name is not a plain file name.
     fn path_of(&self, file_name: &str) -> Option<PathBuf>;
 }
@@ -128,8 +132,15 @@ impl MediaStorage for LocalMediaStore {
             return Err(MediaError::TooLarge);
         }
 
-        let bytes = fs::read(source)?;
-        let kind = infer::get(&bytes).ok_or(MediaError::UnsupportedType)?;
+        self.import_bytes(&fs::read(source)?)
+    }
+
+    fn import_bytes(&self, bytes: &[u8]) -> Result<StoredMedia, MediaError> {
+        // Video is the only kind allowed past the base limit, so anything above that is too large.
+        if bytes.len() as u64 > self.max_bytes * 2 {
+            return Err(MediaError::TooLarge);
+        }
+        let kind = infer::get(bytes).ok_or(MediaError::UnsupportedType)?;
         let mime_type = kind.mime_type();
         if !ALLOWED_MIME_TYPES.contains(&mime_type) {
             return Err(MediaError::UnsupportedType);
@@ -145,7 +156,7 @@ impl MediaStorage for LocalMediaStore {
             return Err(MediaError::TooLarge);
         }
 
-        let sha256 = hex(&Sha256::digest(&bytes));
+        let sha256 = hex(&Sha256::digest(bytes));
         let file_name = format!("{sha256}.{}", kind.extension());
         let target = self.dir.join(&file_name);
         if !target.exists() {
@@ -153,7 +164,7 @@ impl MediaStorage for LocalMediaStore {
             // Write to a temporary name and rename, so a half-written file is never seen.
             let temporary = self.dir.join(format!("{file_name}.part"));
             let mut file = fs::File::create(&temporary)?;
-            file.write_all(&bytes)?;
+            file.write_all(bytes)?;
             file.sync_all()?;
             fs::rename(&temporary, &target)?;
         }
@@ -225,6 +236,18 @@ mod tests {
 
         let audio = store.import(&tmp.write("song", MP3)).unwrap();
         assert_eq!((audio.kind, audio.mime_type.as_str()), (MediaKind::Audio, "audio/mpeg"));
+    }
+
+    #[test]
+    fn imports_bytes_like_a_file() {
+        let tmp = TempDir::new("bytes");
+        let store = LocalMediaStore::new(tmp.0.join("media"));
+        let from_bytes = store.import_bytes(MP3).unwrap();
+        let from_file = store.import(&tmp.write("song.mp3", MP3)).unwrap();
+        assert_eq!(from_bytes, from_file);
+        assert_eq!(from_bytes.kind, MediaKind::Audio);
+        assert!(matches!(store.import_bytes(b"not media"), Err(MediaError::UnsupportedType)));
+        assert!(matches!(store.import_bytes(&[]), Err(MediaError::UnsupportedType)));
     }
 
     #[test]

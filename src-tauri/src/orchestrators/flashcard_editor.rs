@@ -3,8 +3,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use super::error::{OrchestratorError, OrchestratorResult};
-use crate::dependencies::media_store::MediaStorage;
+use crate::dependencies::media_store::{MediaStorage, StoredMedia};
 use crate::dependencies::sanitizer::HtmlSanitizer;
+use crate::dependencies::speech::SpeechSynthesizer;
 use crate::modules::card_types::{CardTypeApi, FieldDefinition, FlashcardType};
 use crate::modules::decks::{Deck, DeckApi};
 use crate::modules::flashcards::{
@@ -73,6 +74,7 @@ pub struct FlashcardEditorOrchestrator {
     flashcards: Arc<dyn FlashcardApi>,
     sanitizer: Arc<dyn HtmlSanitizer>,
     media: Arc<dyn MediaStorage>,
+    speech: Arc<dyn SpeechSynthesizer>,
 }
 
 /// The most media files one field can hold.
@@ -120,8 +122,9 @@ impl FlashcardEditorOrchestrator {
         flashcards: Arc<dyn FlashcardApi>,
         sanitizer: Arc<dyn HtmlSanitizer>,
         media: Arc<dyn MediaStorage>,
+        speech: Arc<dyn SpeechSynthesizer>,
     ) -> Self {
-        Self { decks, languages, card_types, flashcards, sanitizer, media }
+        Self { decks, languages, card_types, flashcards, sanitizer, media, speech }
     }
 
     pub fn form(&self, deck_name: &str) -> OrchestratorResult<EditorForm> {
@@ -199,14 +202,34 @@ impl FlashcardEditorOrchestrator {
             )));
         }
 
-        let stored = self.media.import(source)?;
-        let attachment = MediaAttachment::new(
-            stored.kind,
-            stored.mime_type,
-            stored.sha256,
-            stored.file_name,
-            i64::try_from(stored.size_bytes).unwrap_or(i64::MAX),
-        )?;
+        let attachment = Self::attachment_of(self.media.import(source)?)?;
+        Ok(self.flashcards.attach_draft_media(draft_uuid, field_key, attachment)?)
+    }
+
+    /// Speaks the text of the field an audio field is generated from, stores the audio and
+    /// attaches it to the audio field of a draft. The same limits as for an uploaded file apply.
+    /// The text is the one stored with the draft, so the caller saves pending edits first.
+    pub async fn generate_media(
+        &self,
+        draft_uuid: &str,
+        field_key: &str,
+    ) -> OrchestratorResult<FlashcardDraft> {
+        // Everything that reads the database happens before the request, so nothing is held
+        // while waiting for the network.
+        let (text, language_tag) = {
+            let draft = self.flashcards.get_draft(draft_uuid)?;
+            let ctx = self.context_of(&draft)?;
+            let fields = &ctx.type_by_id(draft.flashcard_type_id())?.fields;
+            let definition = Self::field_by_key(fields, field_key)?;
+            let source = Self::speech_source(fields, definition)?;
+            let attached = draft.media().get(field_key).map_or(0, Vec::len);
+            Self::check_media_room(definition, attached)?;
+            let raw = draft.values().get(source.key()).map(String::as_str).unwrap_or_default();
+            (self.spoken_text(source, raw)?, ctx.variant.bcp47_code().to_owned())
+        };
+
+        let audio = self.speech.synthesize(&text, &language_tag).await?;
+        let attachment = Self::attachment_of(self.media.import_bytes(&audio.bytes)?)?;
         Ok(self.flashcards.attach_draft_media(draft_uuid, field_key, attachment)?)
     }
 
@@ -312,18 +335,93 @@ impl FlashcardEditorOrchestrator {
             )));
         }
 
-        let stored = self.media.import(source)?;
-        let attachment = MediaAttachment::new(
+        let attachment = Self::attachment_of(self.media.import(source)?)?;
+        let updated = self
+            .flashcards
+            .attach_flashcard_media(card_uuid, FieldMedia { field_definition_id: definition_id, attachment })?;
+        Self::saved_card(&ctx, &updated)
+    }
+
+    /// Like [`generate_media`](Self::generate_media), for a saved flashcard: the text comes from
+    /// the saved value of the source field.
+    pub async fn generate_saved_media(
+        &self,
+        card_uuid: &str,
+        field_key: &str,
+    ) -> OrchestratorResult<SavedCard> {
+        let (text, language_tag, definition_id) = {
+            let card = self.flashcards.get_flashcard(card_uuid)?;
+            let ctx = self.context_of_deck(card.deck_id())?;
+            let fields = &ctx.type_by_id(card.flashcard_type_id())?.fields;
+            let definition = Self::field_by_key(fields, field_key)?;
+            let source = Self::speech_source(fields, definition)?;
+            let definition_id = saved_id(definition.id(), "field definition")?;
+            let source_id = saved_id(source.id(), "field definition")?;
+            let attached = card.media().iter().filter(|m| m.field_definition_id == definition_id).count();
+            Self::check_media_room(definition, attached)?;
+            let raw = card
+                .fields()
+                .iter()
+                .find(|f| f.field_definition_id() == source_id)
+                .map(|f| f.content())
+                .unwrap_or_default();
+            (self.spoken_text(source, raw)?, ctx.variant.bcp47_code().to_owned(), definition_id)
+        };
+
+        let audio = self.speech.synthesize(&text, &language_tag).await?;
+        let attachment = Self::attachment_of(self.media.import_bytes(&audio.bytes)?)?;
+        let updated = self
+            .flashcards
+            .attach_flashcard_media(card_uuid, FieldMedia { field_definition_id: definition_id, attachment })?;
+        let ctx = self.context_of_deck(updated.deck_id())?;
+        Self::saved_card(&ctx, &updated)
+    }
+
+    fn attachment_of(stored: StoredMedia) -> OrchestratorResult<MediaAttachment> {
+        Ok(MediaAttachment::new(
             stored.kind,
             stored.mime_type,
             stored.sha256,
             stored.file_name,
             i64::try_from(stored.size_bytes).unwrap_or(i64::MAX),
-        )?;
-        let updated = self
-            .flashcards
-            .attach_flashcard_media(card_uuid, FieldMedia { field_definition_id: definition_id, attachment })?;
-        Self::saved_card(&ctx, &updated)
+        )?)
+    }
+
+    fn field_by_key<'a>(fields: &'a [FieldDefinition], key: &str) -> OrchestratorResult<&'a FieldDefinition> {
+        fields.iter().find(|f| f.key() == key).ok_or_else(|| {
+            OrchestratorError::Invalid(format!("'{key}' is not a field of this flashcard type"))
+        })
+    }
+
+    fn check_media_room(definition: &FieldDefinition, attached: usize) -> OrchestratorResult<()> {
+        if attached >= MAX_MEDIA_PER_FIELD {
+            return Err(OrchestratorError::Invalid(format!(
+                "{} already has {MAX_MEDIA_PER_FIELD} files",
+                definition.label()
+            )));
+        }
+        Ok(())
+    }
+
+    /// The field an audio field is spoken from. Only audio fields can be generated.
+    fn speech_source<'a>(
+        fields: &'a [FieldDefinition],
+        definition: &FieldDefinition,
+    ) -> OrchestratorResult<&'a FieldDefinition> {
+        let source_key = definition.source_key().filter(|_| definition.is_audio()).ok_or_else(|| {
+            OrchestratorError::Invalid(format!("{} cannot be generated", definition.label()))
+        })?;
+        Self::field_by_key(fields, source_key)
+    }
+
+    /// The plain text of a source field's value, ready to be spoken.
+    fn spoken_text(&self, source: &FieldDefinition, raw: &str) -> OrchestratorResult<String> {
+        let text = if source.is_rich() { self.sanitizer.strip_tags(raw) } else { raw.to_owned() };
+        let text = text.trim();
+        if text.is_empty() {
+            return Err(OrchestratorError::Invalid(format!("{} is empty, so there is nothing to speak", source.label())));
+        }
+        Ok(text.to_owned())
     }
 
     /// Detaches a file (by its hash) from a field of a saved flashcard, unless the field would be

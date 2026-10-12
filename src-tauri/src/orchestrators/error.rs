@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 use crate::dependencies::media_store::MediaError;
+use crate::dependencies::speech::SpeechError;
 use crate::modules::card_types::CardTypesError;
 use crate::modules::decks::DecksError;
 use crate::modules::flashcards::FlashcardsError;
@@ -20,6 +21,10 @@ pub enum OrchestratorError {
 
     #[error("{0}")]
     Conflict(String),
+
+    /// A service outside the app, such as text to speech, could not be reached.
+    #[error("{0}")]
+    Unavailable(String),
 
     #[error("{0}")]
     Internal(String),
@@ -55,6 +60,16 @@ impl From<MediaError> for OrchestratorError {
                 OrchestratorError::Invalid(message)
             }
             MediaError::Io(_) => OrchestratorError::Internal(message),
+        }
+    }
+}
+
+impl From<SpeechError> for OrchestratorError {
+    fn from(err: SpeechError) -> Self {
+        let message = err.to_string();
+        match err {
+            SpeechError::EmptyText | SpeechError::TextTooLong { .. } => OrchestratorError::Invalid(message),
+            SpeechError::Unavailable(_) => OrchestratorError::Unavailable(message),
         }
     }
 }

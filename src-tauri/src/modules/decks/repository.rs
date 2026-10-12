@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rusqlite::{params, OptionalExtension, Row};
 
-use super::model::Deck;
+use super::model::{Deck, DeckSettings};
 use crate::dependencies::db::sql_time::utc_column;
 use crate::dependencies::db::{connection::SqliteHandle, error::DbError};
 
@@ -20,10 +20,14 @@ pub trait DeckRepository: Send + Sync {
     fn delete(&self, id: i64) -> Result<bool, DbError>;
 }
 
-const COLUMNS: &str = "id, name, language_variant_id, description, created_at";
+const COLUMNS: &str =
+    "id, name, language_variant_id, description, new_cards_per_day, max_reviews_per_day, autoplay_audio, created_at";
 
 fn from_row(row: &Row) -> rusqlite::Result<Deck> {
-    Ok(Deck::restore(row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, utc_column(row, 4)?))
+    let settings = DeckSettings::new(row.get(4)?, row.get(5)?, row.get(6)?).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Integer, e.to_string().into())
+    })?;
+    Ok(Deck::restore(row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, settings, utc_column(row, 7)?))
 }
 
 pub struct SqliteDeckRepository {
@@ -41,10 +45,18 @@ impl DeckRepository for SqliteDeckRepository {
         self.db.with_connection(|conn| {
             conn.query_row(
                 &format!(
-                    "INSERT INTO decks (name, language_variant_id, description)
-                     VALUES (?1, ?2, ?3) RETURNING {COLUMNS}"
+                    "INSERT INTO decks
+                         (name, language_variant_id, description, new_cards_per_day, max_reviews_per_day, autoplay_audio)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING {COLUMNS}"
                 ),
-                params![deck.name(), deck.language_variant_id(), deck.description()],
+                params![
+                    deck.name(),
+                    deck.language_variant_id(),
+                    deck.description(),
+                    deck.settings().new_cards_per_day(),
+                    deck.settings().max_reviews_per_day(),
+                    deck.settings().autoplay_audio(),
+                ],
                 from_row,
             )
         })
@@ -76,8 +88,19 @@ impl DeckRepository for SqliteDeckRepository {
         let Some(id) = deck.id() else { return Ok(false) };
         self.db.with_connection(|conn| {
             let rows = conn.execute(
-                "UPDATE decks SET name = ?1, language_variant_id = ?2, description = ?3 WHERE id = ?4",
-                params![deck.name(), deck.language_variant_id(), deck.description(), id],
+                "UPDATE decks
+                 SET name = ?1, language_variant_id = ?2, description = ?3,
+                     new_cards_per_day = ?4, max_reviews_per_day = ?5, autoplay_audio = ?6
+                 WHERE id = ?7",
+                params![
+                    deck.name(),
+                    deck.language_variant_id(),
+                    deck.description(),
+                    deck.settings().new_cards_per_day(),
+                    deck.settings().max_reviews_per_day(),
+                    deck.settings().autoplay_audio(),
+                    id
+                ],
             )?;
             Ok(rows > 0)
         })

@@ -20,6 +20,8 @@ pub use flashcard_editor::{
 };
 
 #[cfg(test)]
+mod fake_speech;
+#[cfg(test)]
 mod review_session_tests;
 #[cfg(test)]
 mod tests;

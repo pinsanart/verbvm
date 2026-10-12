@@ -168,6 +168,7 @@ export default function DeckEditor() {
                       isLast={index === vm.drafts.length - 1}
                       onChange={(key, value) => vm.setValue(draft.uuid, key, value)}
                       onAttachMedia={(key) => vm.attachFiles(draft.uuid, key)}
+                      onGenerateMedia={(key) => vm.generateAudio(draft.uuid, key)}
                       onRemoveMedia={(key, sha256) => vm.detachFile(draft.uuid, key, sha256)}
                       onMoveUp={() => vm.move(draft.uuid, "up")}
                       onMoveDown={() => vm.move(draft.uuid, "down")}
@@ -201,6 +202,7 @@ export default function DeckEditor() {
         busy={saved.busy}
         onChange={saved.setValue}
         onAttachMedia={saved.attachFiles}
+        onGenerateMedia={saved.generateAudio}
         onRemoveMedia={saved.detachFile}
         onSave={saved.save}
         onDelete={saved.remove}

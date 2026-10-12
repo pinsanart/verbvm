@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAsyncRunner } from "./useAsyncRunner";
 import { pickMediaFiles } from "../api/files";
+import { playAudio } from "../api/media";
 import {
     attachSavedCardMedia,
     deleteSavedCard,
+    generateSavedCardMedia,
     listSavedCards,
     removeSavedCardMedia,
     updateSavedCard,
 } from "../api/flashcards";
+import { generatedAudio } from "../lib/media";
 import { plainText } from "../lib/text";
 import type { SavedCard } from "../types/FlashcardForm";
 import type { LoadStatus } from "./useDecksViewModel";
@@ -89,6 +92,23 @@ export function useSavedCardsViewModel(deckName: string) {
             }
         });
 
+    /**
+     * Generates the audio of an audio field from the text of its source field. The backend reads
+     * the saved text, so the text in the panel is saved first. The new audio plays at once.
+     */
+    const generateAudio = (key: string) =>
+        run(async () => {
+            if (!selected) return;
+            replace(await updateSavedCard(selected.uuid, values));
+            const before = selected.media[key];
+            const generated = await generateSavedCardMedia(selected.uuid, key);
+            replace(generated);
+            setValues(generated.values);
+            setJustSaved(true);
+            const created = generatedAudio(before, generated.media[key]);
+            if (created) playAudio(created).catch(() => undefined);
+        });
+
     const detachFile = (key: string, sha256: string) =>
         run(async () => {
             if (!selected) return;
@@ -133,6 +153,7 @@ export function useSavedCardsViewModel(deckName: string) {
         setValue,
         save,
         attachFiles,
+        generateAudio,
         detachFile,
         remove,
     };

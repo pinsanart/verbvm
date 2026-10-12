@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, NaiveTime, Utc};
 
 use super::error::{OrchestratorError, OrchestratorResult};
 use crate::dependencies::clock::Clock;
 use crate::dependencies::media_store::MediaStorage;
-use crate::modules::card_types::{CardTypeApi, FlashcardType, Side};
-use crate::modules::decks::{Deck, DeckApi};
+use crate::modules::card_types::{CardTypeApi, FieldKind, FlashcardType, Side};
+use crate::modules::decks::{Deck, DeckApi, DeckSettings};
 use crate::modules::flashcards::{Flashcard, FlashcardApi, MediaAttachment};
 use crate::modules::languages::{Language, LanguageApi, LanguageVariant};
 use crate::modules::reviews::{Rating, ReviewApi, Sm2State};
@@ -64,6 +64,10 @@ pub struct ReviewField {
     pub side: Side,
     /// The content is sanitized HTML.
     pub is_rich: bool,
+    /// `PLAIN`, `RICH` or `AUDIO`.
+    pub kind: FieldKind,
+    /// For an audio field, the key of the field its audio is spoken from.
+    pub source_key: Option<String>,
     pub content: String,
     pub media: Vec<MediaAttachment>,
 }
@@ -97,6 +101,11 @@ pub struct ReviewNext {
     pub intervals: Option<Intervals>,
     /// When there is no card: seconds until the next one of the type is due, if any is scheduled.
     pub next_due_in_seconds: Option<i64>,
+    /// When there is no card: cards are waiting but the deck's daily limit of new cards or of
+    /// reviews has been reached, so they come back tomorrow.
+    pub daily_limit_reached: bool,
+    /// The deck's setting: whether the audio of a card plays by itself.
+    pub autoplay_audio: bool,
 }
 
 /// Reviews the flashcards of a deck, one type at a time.
@@ -114,12 +123,22 @@ pub struct ReviewSessionOrchestrator {
     media: Arc<dyn MediaStorage>,
 }
 
+/// How far ahead a card that is still being learned is brought forward when nothing else is
+/// waiting, so a card answered Again, or passed once, comes back in the same session instead of
+/// ending it. It covers the 10 minute steps.
+const LEARN_AHEAD: Duration = Duration::minutes(20);
+
 /// The flashcards of one type split by state, each queue already in the order they are shown.
 #[derive(Default)]
 struct Queues<'a> {
     learning: Vec<&'a Flashcard>,
     review: Vec<&'a Flashcard>,
     new: Vec<&'a Flashcard>,
+    /// How many cards a daily limit kept out of `new` and `review`.
+    held_back: usize,
+    /// Cards still being learned that come back soon (within [`LEARN_AHEAD`]) but are not due
+    /// yet. They are shown early only when nothing else is waiting.
+    learn_ahead: Vec<&'a Flashcard>,
     /// The soonest due time among the flashcards that are scheduled but not due yet.
     next_due: Option<DateTime<Utc>>,
 }
@@ -166,7 +185,7 @@ impl ReviewSessionOrchestrator {
                 if of_type.is_empty() {
                     continue;
                 }
-                let queues = self.queues(&of_type, now)?;
+                let queues = self.queues(&of_type, now, deck.settings())?;
                 deck_types.push(TypeReview { flashcard_type: flashcard_type.clone(), counts: queues.counts() });
             }
             overview.push(DeckReview { deck, language, variant, types: deck_types });
@@ -176,6 +195,22 @@ impl ReviewSessionOrchestrator {
 
     /// The next flashcard to review in a deck's type, or none when nothing is waiting.
     pub fn next_card(&self, deck_name: &str, type_slug: &str) -> OrchestratorResult<ReviewNext> {
+        self.present(deck_name, type_slug, None)
+    }
+
+    /// Takes back the latest answer given to a flashcard and returns that same flashcard, ready
+    /// to be answered again, with the counts as they are now. Each call goes one answer further
+    /// back for that flashcard. Invalid when the flashcard has no answer to take back.
+    pub fn undo_answer(&self, deck_name: &str, type_slug: &str, card_uuid: &str) -> OrchestratorResult<ReviewNext> {
+        let card = self.flashcards.get_flashcard(card_uuid)?;
+        if !self.reviews.undo_last_review(card_id(&card)?)? {
+            return Err(OrchestratorError::Invalid("there is no answer to undo for this card".into()));
+        }
+        self.present(deck_name, type_slug, Some(card_uuid))
+    }
+
+    /// Builds what a session shows: the next card in queue order, or `forced` when given.
+    fn present(&self, deck_name: &str, type_slug: &str, forced: Option<&str>) -> OrchestratorResult<ReviewNext> {
         let now = self.clock.now();
         let deck = self.decks.get_deck_by_name(deck_name)?;
         let deck_id = deck.id().ok_or_else(|| OrchestratorError::Internal("deck was not saved".into()))?;
@@ -186,15 +221,38 @@ impl ReviewSessionOrchestrator {
         let cards = self.flashcards.list_flashcards(deck_id)?;
         let of_type: Vec<&Flashcard> =
             cards.iter().filter(|c| Some(c.flashcard_type_id()) == flashcard_type.id()).collect();
-        let queues = self.queues(&of_type, now)?;
+        let queues = self.queues(&of_type, now, deck.settings())?;
         let counts = queues.counts();
+        let autoplay_audio = deck.settings().autoplay_audio();
 
-        let next = queues
+        let mut counts = counts;
+        let forced = match forced {
+            Some(uuid) => {
+                let card = of_type
+                    .iter()
+                    .find(|c| c.uuid() == uuid)
+                    .ok_or_else(|| OrchestratorError::NotFound("flashcard not found in this deck and type".into()))?;
+                let state = match self.reviews.states_for(&[card_id(card)?])?.first() {
+                    None => CardState::New,
+                    Some(state) if state.repetitions() == 0 => CardState::Learning,
+                    Some(_) => CardState::Review,
+                };
+                Some((*card, state))
+            }
+            None => None,
+        };
+        let next = forced.or_else(|| queues
             .learning
             .first()
             .map(|c| (*c, CardState::Learning))
             .or_else(|| queues.review.first().map(|c| (*c, CardState::Review)))
-            .or_else(|| queues.new.first().map(|c| (*c, CardState::New)));
+            .or_else(|| queues.new.first().map(|c| (*c, CardState::New)))
+            .or_else(|| {
+                // Nothing is due: bring the cards still being learned forward, so they are
+                // reviewed until they are recalled.
+                counts.learning = queues.learn_ahead.len();
+                queues.learn_ahead.first().map(|c| (*c, CardState::Learning))
+            }));
         let language_tag = variant.bcp47_code().to_owned();
         let Some((card, state)) = next else {
             return Ok(ReviewNext {
@@ -203,6 +261,8 @@ impl ReviewSessionOrchestrator {
                 language_tag,
                 intervals: None,
                 next_due_in_seconds: queues.next_due.map(|due| (due - now).num_seconds().max(0)),
+                daily_limit_reached: queues.held_back > 0,
+                autoplay_audio,
             });
         };
 
@@ -230,6 +290,8 @@ impl ReviewSessionOrchestrator {
                 label: definition.label().to_owned(),
                 side: definition.side(),
                 is_rich: definition.is_rich(),
+                kind: definition.kind(),
+                source_key: definition.source_key().map(str::to_owned),
                 content,
                 media,
             });
@@ -242,6 +304,8 @@ impl ReviewSessionOrchestrator {
             language_tag,
             intervals: Some(intervals),
             next_due_in_seconds: None,
+            daily_limit_reached: false,
+            autoplay_audio,
         })
     }
 
@@ -281,7 +345,15 @@ impl ReviewSessionOrchestrator {
     }
 
     /// Splits flashcards of one type by state. Flashcards that are not due are left out.
-    fn queues<'a>(&self, cards: &[&'a Flashcard], now: DateTime<Utc>) -> OrchestratorResult<Queues<'a>> {
+    ///
+    /// The deck's daily limits cut the new and review queues: a limit counts what was already
+    /// done since the start of the UTC day. Cards being learned are never limited.
+    fn queues<'a>(
+        &self,
+        cards: &[&'a Flashcard],
+        now: DateTime<Utc>,
+        settings: DeckSettings,
+    ) -> OrchestratorResult<Queues<'a>> {
         let ids = cards.iter().map(|c| card_id(c)).collect::<OrchestratorResult<Vec<_>>>()?;
         let states: HashMap<i64, Sm2State> =
             self.reviews.states_for(&ids)?.into_iter().map(|s| (s.flashcard_id(), s)).collect();
@@ -289,6 +361,7 @@ impl ReviewSessionOrchestrator {
         let mut queues = Queues::default();
         let mut learning = Vec::new();
         let mut review = Vec::new();
+        let mut learn_ahead = Vec::new();
         for (card, id) in cards.iter().zip(&ids) {
             match states.get(id) {
                 None => queues.new.push(*card),
@@ -301,14 +374,28 @@ impl ReviewSessionOrchestrator {
                     }
                 }
                 Some(state) => {
+                    if state.repetitions() == 0 && state.due_at() <= now + LEARN_AHEAD {
+                        learn_ahead.push((state.due_at(), *id, *card));
+                    }
                     queues.next_due = Some(queues.next_due.map_or(state.due_at(), |due| due.min(state.due_at())));
                 }
             }
         }
         learning.sort_by_key(|(due, id, _)| (*due, *id));
         review.sort_by_key(|(due, id, _)| (*due, *id));
+        learn_ahead.sort_by_key(|(due, id, _)| (*due, *id));
+        queues.learn_ahead = learn_ahead.into_iter().map(|(_, _, c)| c).collect();
         queues.learning = learning.into_iter().map(|(_, _, c)| c).collect();
         queues.review = review.into_iter().map(|(_, _, c)| c).collect();
+
+        let day_start = now.date_naive().and_time(NaiveTime::MIN).and_utc();
+        let done = self.reviews.activity_since(&ids, day_start)?;
+        let allowed = |limit: i64, done: i64| usize::try_from((limit - done).max(0)).unwrap_or(0);
+        let new_allowed = allowed(settings.new_cards_per_day(), done.new_started);
+        let review_allowed = allowed(settings.max_reviews_per_day(), done.reviews_done);
+        queues.held_back = queues.new.len().saturating_sub(new_allowed) + queues.review.len().saturating_sub(review_allowed);
+        queues.new.truncate(new_allowed);
+        queues.review.truncate(review_allowed);
         Ok(queues)
     }
 }
