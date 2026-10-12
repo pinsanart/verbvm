@@ -16,7 +16,7 @@ pub use review_session::{
     TypeReview,
 };
 pub use flashcard_editor::{
-    DraftIssue, EditorForm, FlashcardEditorOrchestrator, PublishOutcome, TypeForm,
+    DraftIssue, EditorForm, FlashcardEditorOrchestrator, PublishOutcome, SavedCard, TypeForm,
 };
 
 #[cfg(test)]

@@ -8,7 +8,7 @@ use crate::dependencies::sanitizer::HtmlSanitizer;
 use crate::modules::card_types::{CardTypeApi, FieldDefinition, FlashcardType};
 use crate::modules::decks::{Deck, DeckApi};
 use crate::modules::flashcards::{
-    Direction, FieldMedia, FieldValue, FlashcardApi, FlashcardDraft, MediaAttachment, PublishedDraft,
+    Direction, FieldMedia, FieldValue, Flashcard, FlashcardApi, FlashcardDraft, MediaAttachment, PublishedDraft,
 };
 use crate::modules::languages::{Language, LanguageApi, LanguageVariant};
 
@@ -28,6 +28,18 @@ pub struct EditorForm {
     pub language: Language,
     pub variant: LanguageVariant,
     pub types: Vec<TypeForm>,
+}
+
+/// A saved flashcard in the shape the editor works with: its values and media by field key, the
+/// same as a draft, so one form edits both.
+#[derive(Debug, Clone)]
+pub struct SavedCard {
+    pub uuid: String,
+    pub type_slug: String,
+    pub values: BTreeMap<String, String>,
+    pub media: BTreeMap<String, Vec<MediaAttachment>>,
+    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// A problem that stopped a draft from being published.
@@ -219,6 +231,156 @@ impl FlashcardEditorOrchestrator {
             .collect())
     }
 
+    /// The saved flashcards of a deck, newest first.
+    pub fn saved_cards(&self, deck_name: &str) -> OrchestratorResult<Vec<SavedCard>> {
+        let ctx = self.context(deck_name)?;
+        let mut cards = self.flashcards.list_flashcards(ctx.deck_id)?;
+        cards.sort_by(|a, b| b.created_at().cmp(&a.created_at()).then(b.id().cmp(&a.id())));
+        cards.iter().map(|card| Self::saved_card(&ctx, card)).collect()
+    }
+
+    /// Replaces the text of a saved flashcard. The same rules as a draft apply: keys must be
+    /// fields of its type for the deck's language, rich values are sanitized, and required fields
+    /// need text or media. Its review history is kept.
+    pub fn update_saved(
+        &self,
+        card_uuid: &str,
+        values: BTreeMap<String, String>,
+    ) -> OrchestratorResult<SavedCard> {
+        let card = self.flashcards.get_flashcard(card_uuid)?;
+        let ctx = self.context_of_deck(card.deck_id())?;
+        let type_context = ctx.type_by_id(card.flashcard_type_id())?;
+
+        let mut fields = Vec::new();
+        for (key, raw) in &values {
+            let definition = type_context.fields.iter().find(|f| f.key() == key).ok_or_else(|| {
+                OrchestratorError::Invalid(format!("'{key}' is not a field of this flashcard type"))
+            })?;
+            let content = if definition.is_rich() {
+                self.sanitizer.sanitize_html(raw)
+            } else {
+                raw.trim().to_owned()
+            };
+            let has_content = if definition.is_rich() {
+                !self.sanitizer.strip_tags(&content).trim().is_empty()
+            } else {
+                !content.is_empty()
+            };
+            if has_content {
+                fields.push(FieldValue::new(saved_id(definition.id(), "field definition")?, content)?);
+            }
+        }
+        for definition in type_context.fields.iter().filter(|f| f.is_required()) {
+            let id = saved_id(definition.id(), "field definition")?;
+            let has_text = fields.iter().any(|f| f.field_definition_id() == id);
+            let has_media = card.media().iter().any(|m| m.field_definition_id == id);
+            if !has_text && !has_media {
+                return Err(OrchestratorError::Invalid(format!("{} is required", definition.label())));
+            }
+        }
+        let updated = self.flashcards.update_flashcard_fields(card_uuid, fields)?;
+        Self::saved_card(&ctx, &updated)
+    }
+
+    /// Copies a file into the media store and attaches it to a field of a saved flashcard, under
+    /// the same rules as for a draft.
+    pub fn attach_saved_media(
+        &self,
+        card_uuid: &str,
+        field_key: &str,
+        source: &Path,
+    ) -> OrchestratorResult<SavedCard> {
+        let card = self.flashcards.get_flashcard(card_uuid)?;
+        let ctx = self.context_of_deck(card.deck_id())?;
+        let definition = ctx
+            .type_by_id(card.flashcard_type_id())?
+            .fields
+            .iter()
+            .find(|f| f.key() == field_key)
+            .ok_or_else(|| {
+                OrchestratorError::Invalid(format!("'{field_key}' is not a field of this flashcard type"))
+            })?;
+        if !definition.media_allowed() {
+            return Err(OrchestratorError::Invalid(format!("{} does not accept media", definition.label())));
+        }
+        let definition_id = saved_id(definition.id(), "field definition")?;
+        let attached = card.media().iter().filter(|m| m.field_definition_id == definition_id).count();
+        if attached >= MAX_MEDIA_PER_FIELD {
+            return Err(OrchestratorError::Invalid(format!(
+                "{} already has {MAX_MEDIA_PER_FIELD} files",
+                definition.label()
+            )));
+        }
+
+        let stored = self.media.import(source)?;
+        let attachment = MediaAttachment::new(
+            stored.kind,
+            stored.mime_type,
+            stored.sha256,
+            stored.file_name,
+            i64::try_from(stored.size_bytes).unwrap_or(i64::MAX),
+        )?;
+        let updated = self
+            .flashcards
+            .attach_flashcard_media(card_uuid, FieldMedia { field_definition_id: definition_id, attachment })?;
+        Self::saved_card(&ctx, &updated)
+    }
+
+    /// Detaches a file (by its hash) from a field of a saved flashcard, unless the field would be
+    /// left empty while required. The file stays in the media store.
+    pub fn remove_saved_media(
+        &self,
+        card_uuid: &str,
+        field_key: &str,
+        sha256: &str,
+    ) -> OrchestratorResult<SavedCard> {
+        let card = self.flashcards.get_flashcard(card_uuid)?;
+        let ctx = self.context_of_deck(card.deck_id())?;
+        let definition = ctx
+            .type_by_id(card.flashcard_type_id())?
+            .fields
+            .iter()
+            .find(|f| f.key() == field_key)
+            .ok_or_else(|| {
+                OrchestratorError::Invalid(format!("'{field_key}' is not a field of this flashcard type"))
+            })?;
+        let definition_id = saved_id(definition.id(), "field definition")?;
+        let updated = self.flashcards.remove_flashcard_media(card_uuid, definition_id, sha256)?;
+        Self::saved_card(&ctx, &updated)
+    }
+
+    /// Deletes a saved flashcard with its fields, media links and review history.
+    pub fn delete_saved(&self, card_uuid: &str) -> OrchestratorResult<()> {
+        Ok(self.flashcards.delete_flashcard(card_uuid)?)
+    }
+
+    fn saved_card(ctx: &Context, card: &Flashcard) -> OrchestratorResult<SavedCard> {
+        let type_context = ctx.type_by_id(card.flashcard_type_id())?;
+        let key_of = |definition_id: i64| {
+            type_context.fields.iter().find(|f| f.id() == Some(definition_id)).map(|f| f.key().to_owned())
+        };
+        let mut values = BTreeMap::new();
+        for value in card.fields() {
+            if let Some(key) = key_of(value.field_definition_id()) {
+                values.insert(key, value.content().to_owned());
+            }
+        }
+        let mut media: BTreeMap<String, Vec<MediaAttachment>> = BTreeMap::new();
+        for item in card.media() {
+            if let Some(key) = key_of(item.field_definition_id) {
+                media.entry(key).or_default().push(item.attachment.clone());
+            }
+        }
+        Ok(SavedCard {
+            uuid: card.uuid().to_owned(),
+            type_slug: type_context.flashcard_type.slug().to_owned(),
+            values,
+            media,
+            created_at: card.created_at(),
+            updated_at: card.updated_at(),
+        })
+    }
+
     /// Where a stored media file is on disk, for the view to preview.
     pub fn media_path(&self, file_name: &str) -> Option<PathBuf> {
         self.media.path_of(file_name)
@@ -322,7 +484,11 @@ impl FlashcardEditorOrchestrator {
     }
 
     fn context_of(&self, draft: &FlashcardDraft) -> OrchestratorResult<Context> {
-        let deck = self.decks.get_deck(draft.deck_id())?;
+        self.context_of_deck(draft.deck_id())
+    }
+
+    fn context_of_deck(&self, deck_id: i64) -> OrchestratorResult<Context> {
+        let deck = self.decks.get_deck(deck_id)?;
         self.build(deck)
     }
 

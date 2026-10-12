@@ -10,7 +10,7 @@ use super::media::{media_dto, MediaDto};
 use super::languages::{variant_dto, LanguageVariantDto};
 use crate::modules::card_types::FieldDefinition;
 use crate::modules::flashcards::{Direction, FlashcardDraft};
-use crate::orchestrators::{DraftIssue, EditorForm, FlashcardEditorOrchestrator, PublishOutcome};
+use crate::orchestrators::{DraftIssue, EditorForm, FlashcardEditorOrchestrator, PublishOutcome, SavedCard};
 
 type Api<'a> = State<'a, Arc<FlashcardEditorOrchestrator>>;
 type CommandResult<T> = Result<T, CommandError>;
@@ -119,6 +119,35 @@ fn draft_dtos(api: &FlashcardEditorOrchestrator, drafts: &[FlashcardDraft]) -> C
 
 fn single_draft_dto(api: &FlashcardEditorOrchestrator, draft: &FlashcardDraft) -> CommandResult<DraftDto> {
     Ok(draft_dto(api, &api.type_slugs()?, draft))
+}
+
+/// A saved flashcard, shaped like a draft so one form edits both.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedCardDto {
+    pub uuid: String,
+    pub type_slug: String,
+    pub values: BTreeMap<String, String>,
+    pub media: BTreeMap<String, Vec<MediaDto>>,
+    /// UTC, `YYYY-MM-DD HH:MM:SS`.
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+fn saved_card_dto(api: &FlashcardEditorOrchestrator, card: &SavedCard) -> SavedCardDto {
+    let time = |t: Option<chrono::DateTime<chrono::Utc>>| t.map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string());
+    SavedCardDto {
+        uuid: card.uuid.clone(),
+        type_slug: card.type_slug.clone(),
+        values: card.values.clone(),
+        media: card
+            .media
+            .iter()
+            .map(|(key, items)| (key.clone(), items.iter().map(|m| media_dto(m, api.media_path(m.file_name()))).collect()))
+            .collect(),
+        created_at: time(card.created_at),
+        updated_at: time(card.updated_at),
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -240,6 +269,46 @@ pub async fn remove_media(
 }
 
 #[tauri::command]
+pub async fn list_saved_cards(api: Api<'_>, deck_name: String) -> CommandResult<Vec<SavedCardDto>> {
+    Ok(api.saved_cards(&deck_name)?.iter().map(|c| saved_card_dto(&api, c)).collect())
+}
+
+#[tauri::command]
+pub async fn update_saved_card(
+    api: Api<'_>,
+    card_uuid: String,
+    values: BTreeMap<String, String>,
+) -> CommandResult<SavedCardDto> {
+    Ok(saved_card_dto(&api, &api.update_saved(&card_uuid, values)?))
+}
+
+#[tauri::command]
+pub async fn attach_saved_card_media(
+    api: Api<'_>,
+    card_uuid: String,
+    field_key: String,
+    source_path: String,
+) -> CommandResult<SavedCardDto> {
+    let card = api.attach_saved_media(&card_uuid, &field_key, std::path::Path::new(&source_path))?;
+    Ok(saved_card_dto(&api, &card))
+}
+
+#[tauri::command]
+pub async fn remove_saved_card_media(
+    api: Api<'_>,
+    card_uuid: String,
+    field_key: String,
+    sha256: String,
+) -> CommandResult<SavedCardDto> {
+    Ok(saved_card_dto(&api, &api.remove_saved_media(&card_uuid, &field_key, &sha256)?))
+}
+
+#[tauri::command]
+pub async fn delete_saved_card(api: Api<'_>, card_uuid: String) -> CommandResult<()> {
+    Ok(api.delete_saved(&card_uuid)?)
+}
+
+#[tauri::command]
 pub async fn publish_drafts(api: Api<'_>, deck_name: String) -> CommandResult<PublishResultDto> {
     Ok(publish_dto(&api.publish_drafts(&deck_name)?))
 }
@@ -285,6 +354,20 @@ mod tests {
                 "uuid": "u", "typeSlug": "vocabulary", "position": 1, "values": {"phrase": "hi"},
                 "media": {"phrase": [{"sha256": "ab", "kind": "IMAGE", "mimeType": "image/png", "path": "/data/media/ab.png"}]}
             })
+        );
+
+        let saved = SavedCardDto {
+            uuid: "c".into(),
+            type_slug: "vocabulary".into(),
+            values: BTreeMap::new(),
+            media: BTreeMap::new(),
+            created_at: Some("2026-10-12 08:00:00".into()),
+            updated_at: None,
+        };
+        assert_eq!(
+            serde_json::to_value(saved).unwrap(),
+            json!({"uuid": "c", "typeSlug": "vocabulary", "values": {}, "media": {},
+                   "createdAt": "2026-10-12 08:00:00", "updatedAt": null})
         );
 
         let result = PublishResultDto {

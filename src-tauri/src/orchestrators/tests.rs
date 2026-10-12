@@ -415,3 +415,75 @@ fn publishing_a_mixed_list_creates_cards_of_each_type_or_nothing() {
     );
     assert!(f.editor.drafts("Deck").unwrap().is_empty());
 }
+
+// ---- saved flashcards ----
+
+fn publish_one(f: &Fixture, deck: &str, pairs: &[(&str, &str)]) -> String {
+    let draft = f.editor.add_draft(deck, "vocabulary").unwrap().pop().unwrap();
+    f.editor.update_draft(draft.uuid(), values(pairs)).unwrap();
+    assert_eq!(f.editor.publish_drafts(deck).unwrap().published, 1);
+    f.editor.saved_cards(deck).unwrap()[0].uuid.clone()
+}
+
+#[test]
+fn saved_cards_are_listed_by_field_key_and_can_be_edited() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    let uuid = publish_one(&f, "Deck", &[("phrase", "It's raining"), ("word_or_expression", "rain"), ("meaning", "water")]);
+
+    let saved = f.editor.saved_cards("Deck").unwrap();
+    assert_eq!(saved.len(), 1);
+    assert_eq!(saved[0].type_slug, "vocabulary");
+    assert_eq!(saved[0].values["phrase"], "It's raining");
+
+    let updated = f
+        .editor
+        .update_saved(&uuid, values(&[
+            ("phrase", "It's <b>pouring</b><script>x</script>"),
+            ("word_or_expression", "rain"),
+            ("meaning", "a lot of water"),
+        ]))
+        .unwrap();
+    assert_eq!(updated.uuid, uuid);
+    assert_eq!(updated.values["phrase"], "It's <b>pouring</b>", "rich text is sanitized");
+    assert_eq!(updated.values["meaning"], "a lot of water");
+    assert!(updated.updated_at.is_some());
+}
+
+#[test]
+fn editing_a_saved_card_keeps_the_rules_of_its_type() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    let uuid = publish_one(&f, "Deck", &[("phrase", "hi"), ("word_or_expression", "w"), ("meaning", "m")]);
+
+    assert!(matches!(
+        f.editor.update_saved(&uuid, values(&[("word_or_expression", "w"), ("meaning", "only the back")])),
+        Err(OrchestratorError::Invalid(_))
+    ), "the phrase is required");
+    assert!(matches!(f.editor.update_saved(&uuid, values(&[("nope", "x"), ("phrase", "p"), ("word_or_expression", "w"), ("meaning", "m")])), Err(OrchestratorError::Invalid(_))));
+    assert!(matches!(f.editor.update_saved("nope", values(&[])), Err(OrchestratorError::NotFound(_))));
+    assert_eq!(f.editor.saved_cards("Deck").unwrap()[0].values["phrase"], "hi", "nothing changed");
+}
+
+#[test]
+fn media_of_a_saved_card_can_be_added_removed_and_a_card_deleted() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    let uuid = publish_one(&f, "Deck", &[("phrase", "cat"), ("word_or_expression", "cat"), ("meaning", "an animal")]);
+
+    let with = f.editor.attach_saved_media(&uuid, "phrase", &source_file(&f, "a.png", PNG)).unwrap();
+    assert_eq!(with.media["phrase"].len(), 1);
+    assert!(matches!(
+        f.editor.attach_saved_media(&uuid, "meaning", &source_file(&f, "b.png", PNG)),
+        Err(OrchestratorError::Invalid(_))
+    ));
+
+    let sha = with.media["phrase"][0].sha256().to_owned();
+    let without = f.editor.remove_saved_media(&uuid, "phrase", &sha).unwrap();
+    assert!(without.media.get("phrase").map_or(true, Vec::is_empty));
+    assert_eq!(without.values["phrase"], "cat", "the text stays");
+
+    f.editor.delete_saved(&uuid).unwrap();
+    assert!(f.editor.saved_cards("Deck").unwrap().is_empty());
+    assert!(matches!(f.editor.delete_saved(&uuid), Err(OrchestratorError::NotFound(_))));
+}
