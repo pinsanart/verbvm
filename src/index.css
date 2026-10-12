@@ -36,6 +36,12 @@
   --color-accent: #204af5;
   --color-accent-ink: #8fa8ff;
 
+  /* The four answers of a review. Each is dark enough to carry white text. */
+  --color-rating-again: #d4183f;
+  --color-rating-hard: #b45309;
+  --color-rating-good: #15803d;
+  --color-rating-easy: #204af5;
+
   /* A fixed type scale, about 1.125 to 1.2 between steps. */
   --text-label: 0.75rem;
   --text-label--line-height: 1rem;
@@ -94,6 +100,29 @@ html {
   }
 
   a {
+    text-underline-offset: 0.2em;
+  }
+
+  /* Rich flashcard content is sanitized HTML with a few formatting tags. Preflight removes their
+     default look, so lists and emphasis are restored here. */
+  .rich ul {
+    list-style: disc;
+    padding-left: 1.25rem;
+  }
+  .rich ol {
+    list-style: decimal;
+    padding-left: 1.25rem;
+  }
+  .rich b,
+  .rich strong {
+    font-weight: 700;
+  }
+  .rich i,
+  .rich em {
+    font-style: italic;
+  }
+  .rich u {
+    text-decoration: underline;
     text-underline-offset: 0.2em;
   }
 

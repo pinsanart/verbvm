@@ -2,13 +2,15 @@ import { HTMLMotionProps, motion } from "motion/react";
 import { Loader2 } from "lucide-react";
 import { TRANSITION_FAST } from "../lib/motion";
 
-type Variant = "primary" | "outline" | "ghost" | "danger";
+type Variant = "primary" | "outline" | "ghost" | "danger" | "plain";
 
 const VARIANTS: Record<Variant, string> = {
     primary: "bg-accent text-white hover:brightness-110",
     outline: "border border-line text-muted hover:bg-white/10 hover:text-white",
     ghost: "text-muted hover:bg-white/10 hover:text-white",
     danger: "bg-danger text-white hover:brightness-110",
+    /** No colors of its own, for a button that brings its own fill. */
+    plain: "",
 };
 
 const BASE =
