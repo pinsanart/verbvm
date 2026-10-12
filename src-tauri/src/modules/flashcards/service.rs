@@ -33,6 +33,7 @@ pub trait FlashcardApi: Send + Sync {
 
     /// Adds an empty draft at the end of the list of its deck and type.
     fn create_draft(&self, deck_id: i64, flashcard_type_id: i64) -> FlashcardsResult<FlashcardDraft>;
+    fn get_draft(&self, uuid: &str) -> FlashcardsResult<FlashcardDraft>;
     /// The drafts of a deck and type, in the order they are edited.
     fn list_drafts(&self, deck_id: i64, flashcard_type_id: i64) -> FlashcardsResult<Vec<FlashcardDraft>>;
     /// Replaces the typed values of a draft.
@@ -105,6 +106,10 @@ impl FlashcardApi for FlashcardService {
     fn create_draft(&self, deck_id: i64, flashcard_type_id: i64) -> FlashcardsResult<FlashcardDraft> {
         let draft = FlashcardDraft::new(deck_id, flashcard_type_id);
         Ok(self.repository.insert_draft(&draft)?)
+    }
+
+    fn get_draft(&self, uuid: &str) -> FlashcardsResult<FlashcardDraft> {
+        self.draft(uuid)
     }
 
     fn list_drafts(&self, deck_id: i64, flashcard_type_id: i64) -> FlashcardsResult<Vec<FlashcardDraft>> {
