@@ -88,8 +88,8 @@ fn creating_a_deck_uses_the_language_default_variant() {
 #[test]
 fn creating_a_deck_with_an_accent_checks_it_belongs_to_the_language() {
     let f = fixture();
-    let deck = f.overview.create("Lisbon".into(), "por", Some("pt-PT"), None).unwrap();
-    assert_eq!(deck.variant.bcp47_code(), "pt-PT");
+    let deck = f.overview.create("London".into(), "eng", Some("en-GB"), None).unwrap();
+    assert_eq!(deck.variant.bcp47_code(), "en-GB");
     assert!(matches!(
         f.overview.create("Wrong".into(), "por", Some("en-US"), None),
         Err(OrchestratorError::Invalid(_))
@@ -105,7 +105,7 @@ fn duplicate_deck_names_conflict() {
     let f = fixture();
     f.overview.create("Travel".into(), "eng", None, None).unwrap();
     assert!(matches!(
-        f.overview.create("Travel".into(), "spa", None, None),
+        f.overview.create("Travel".into(), "fra", None, None),
         Err(OrchestratorError::Conflict(_))
     ));
 }
@@ -114,7 +114,7 @@ fn duplicate_deck_names_conflict() {
 fn the_list_has_counts_by_type_and_delete_removes_the_deck() {
     let f = fixture();
     f.overview.create("B deck".into(), "eng", None, None).unwrap();
-    f.overview.create("A deck".into(), "jpn", None, None).unwrap();
+    f.overview.create("A deck".into(), "fra", None, None).unwrap();
     f.editor.add_draft("A deck", "vocabulary").unwrap();
     let draft = f.editor.drafts("A deck").unwrap().remove(0);
     f.editor
@@ -140,10 +140,10 @@ fn the_list_has_counts_by_type_and_delete_removes_the_deck() {
 fn the_form_has_every_type_and_follows_the_deck_language() {
     let f = fixture();
     f.overview.create("English".into(), "eng", None, None).unwrap();
-    f.overview.create("Japanese".into(), "jpn", None, None).unwrap();
-    let japanese = f.languages.get_language_by_iso("jpn").unwrap();
+    f.overview.create("French".into(), "fra", None, None).unwrap();
+    let french = f.languages.get_language_by_iso("fra").unwrap();
     f.card_types
-        .add_field_definition("vocabulary", japanese.id(), Side::Back, "romaji".into(), "Romaji".into(), 2, false, false, false)
+        .add_field_definition("vocabulary", french.id(), Side::Back, "gender".into(), "Gender".into(), 2, false, false, false)
         .unwrap();
 
     let english = f.editor.form("English").unwrap();
@@ -154,8 +154,8 @@ fn the_form_has_every_type_and_follows_the_deck_language() {
     assert_eq!(english.language.iso_639_3(), "eng");
     assert_eq!(english.variant.bcp47_code(), "en-US");
 
-    let form = f.editor.form("Japanese").unwrap();
-    assert_eq!(keys(&form, "vocabulary"), vec!["phrase", "word_or_expression", "meaning", "romaji"]);
+    let form = f.editor.form("French").unwrap();
+    assert_eq!(keys(&form, "vocabulary"), vec!["phrase", "word_or_expression", "meaning", "gender"]);
     assert_eq!(keys(&form, "phonetic"), vec!["phrase", "ipa_phonetics"], "other types are not affected");
 }
 
@@ -190,7 +190,7 @@ fn updating_a_draft_sanitizes_rich_fields_and_rejects_unknown_keys() {
     assert_eq!(saved.values()["meaning"], "<b>kept as typed</b>", "plain fields are text and stay as typed");
 
     assert!(matches!(
-        f.editor.update_draft(draft.uuid(), values(&[("romaji", "x")])),
+        f.editor.update_draft(draft.uuid(), values(&[("gender", "x")])),
         Err(OrchestratorError::Invalid(_))
     ));
 }

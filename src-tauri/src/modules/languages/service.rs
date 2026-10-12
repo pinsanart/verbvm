@@ -230,10 +230,15 @@ mod tests {
     #[test]
     fn migration_seeds_languages_with_default_variants() {
         let (svc, path) = service();
-        let japanese = svc.get_language_by_iso("jpn").unwrap();
-        let default = svc.get_variant(japanese.default_variant_id().unwrap()).unwrap();
-        assert_eq!(default.bcp47_code(), "ja-JP");
-        assert!(svc.list_languages().unwrap().len() >= 9);
+        let french = svc.get_language_by_iso("fra").unwrap();
+        let default = svc.get_variant(french.default_variant_id().unwrap()).unwrap();
+        assert_eq!(default.bcp47_code(), "fr-FR");
+        let english = svc.get_language_by_iso("eng").unwrap();
+        let accents: Vec<_> =
+            svc.list_variants("eng").unwrap().iter().map(|v| v.bcp47_code().to_owned()).collect();
+        assert_eq!(accents, vec!["en-GB", "en-US"], "listed by name");
+        assert_eq!(svc.get_variant(english.default_variant_id().unwrap()).unwrap().bcp47_code(), "en-US");
+        assert_eq!(svc.list_languages().unwrap().len(), 3);
         let _ = std::fs::remove_file(path);
     }
 

@@ -174,35 +174,20 @@ pub fn migrations() -> Migrations<'static> {
                 last_rating       INTEGER CHECK (last_rating IS NULL OR last_rating BETWEEN 1 AND 4)
             );
 
-            -- Seed data: common languages. The first variant listed for a language is its default.
+            -- Seed data: the languages and accents the app starts with. The first variant listed for
+            -- a language is its default.
             INSERT INTO languages (iso_639_1, iso_639_3, name) VALUES
                 ('en', 'eng', 'English'),
-                ('pt', 'por', 'Portuguese'),
-                ('es', 'spa', 'Spanish'),
                 ('fr', 'fra', 'French'),
-                ('it', 'ita', 'Italian'),
-                ('de', 'deu', 'German'),
-                ('ja', 'jpn', 'Japanese'),
-                ('zh', 'zho', 'Chinese'),
-                ('ko', 'kor', 'Korean');
+                ('pt', 'por', 'Portuguese');
 
             INSERT INTO language_variants (language_id, bcp47_code, variant_name, country_code)
             SELECT l.id, v.bcp47_code, v.variant_name, v.country_code
             FROM (
                 SELECT 'eng' AS iso, 'en-US' AS bcp47_code, 'English (United States)' AS variant_name, 'US' AS country_code
                 UNION ALL SELECT 'eng', 'en-GB', 'English (United Kingdom)', 'GB'
-                UNION ALL SELECT 'por', 'pt-BR', 'Portuguese (Brazil)', 'BR'
-                UNION ALL SELECT 'por', 'pt-PT', 'Portuguese (Portugal)', 'PT'
-                UNION ALL SELECT 'spa', 'es-ES', 'Spanish (Spain)', 'ES'
-                UNION ALL SELECT 'spa', 'es-MX', 'Spanish (Mexico)', 'MX'
                 UNION ALL SELECT 'fra', 'fr-FR', 'French (France)', 'FR'
-                UNION ALL SELECT 'fra', 'fr-CA', 'French (Canada)', 'CA'
-                UNION ALL SELECT 'ita', 'it-IT', 'Italian (Italy)', 'IT'
-                UNION ALL SELECT 'deu', 'de-DE', 'German (Germany)', 'DE'
-                UNION ALL SELECT 'jpn', 'ja-JP', 'Japanese (Japan)', 'JP'
-                UNION ALL SELECT 'zho', 'zh-CN', 'Chinese (China)', 'CN'
-                UNION ALL SELECT 'zho', 'zh-TW', 'Chinese (Taiwan)', 'TW'
-                UNION ALL SELECT 'kor', 'ko-KR', 'Korean (South Korea)', 'KR'
+                UNION ALL SELECT 'por', 'pt-BR', 'Portuguese (Brazil)', 'BR'
             ) AS v
             JOIN languages l ON l.iso_639_3 = v.iso;
 

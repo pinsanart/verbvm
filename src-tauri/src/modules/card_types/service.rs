@@ -191,14 +191,14 @@ mod tests {
     #[test]
     fn language_specific_fields_are_added_only_for_that_language() {
         let (svc, path) = service();
-        // Japanese is seeded as language id 7 (en, pt, es, fr, it, de, ja, ...).
-        let japanese = 7;
-        svc.add_field_definition("vocabulary", Some(japanese), Side::Back, "romaji".into(), "Romaji".into(), 2, false, false, false)
+        // The seeded languages are English (id 1), French (id 2) and Portuguese (id 3).
+        let french = 2;
+        svc.add_field_definition("vocabulary", Some(french), Side::Back, "gender".into(), "Gender".into(), 2, false, false, false)
             .unwrap();
 
-        let japanese_fields = svc.fields_for("vocabulary", Some(japanese)).unwrap();
-        assert_eq!(japanese_fields.len(), 4);
-        assert_eq!(japanese_fields[3].key(), "romaji");
+        let french_fields = svc.fields_for("vocabulary", Some(french)).unwrap();
+        assert_eq!(french_fields.len(), 4);
+        assert_eq!(french_fields[3].key(), "gender");
         assert_eq!(svc.fields_for("vocabulary", Some(1)).unwrap().len(), 3);
         assert_eq!(svc.fields_for("vocabulary", None).unwrap().len(), 3);
         let _ = std::fs::remove_file(path);
@@ -207,9 +207,9 @@ mod tests {
     #[test]
     fn a_language_field_replaces_the_agnostic_one_with_the_same_key() {
         let (svc, path) = service();
-        svc.add_field_definition("vocabulary", Some(7), Side::Back, "meaning".into(), "Meaning (English)".into(), 1, true, true, false)
+        svc.add_field_definition("vocabulary", Some(2), Side::Back, "meaning".into(), "Meaning (English)".into(), 1, true, true, false)
             .unwrap();
-        let fields = svc.fields_for("vocabulary", Some(7)).unwrap();
+        let fields = svc.fields_for("vocabulary", Some(2)).unwrap();
         assert_eq!(fields.len(), 3);
         let meaning = fields.iter().find(|f| f.key() == "meaning").unwrap();
         assert_eq!(meaning.label(), "Meaning (English)");
