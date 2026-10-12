@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { MediaDto, toMedia } from "./media";
-import type { NextReviewCard, Rating, ReviewCard, ReviewCounts, ReviewDeck, ReviewField } from "../types/Review";
+import type { NextReviewCard, Rating, ReviewCard, ReviewDeck, ReviewField } from "../types/Review";
 
 interface ReviewFieldDto extends Omit<ReviewField, "media"> {
     media: MediaDto[];
@@ -10,9 +10,8 @@ interface ReviewCardDto extends Omit<ReviewCard, "fields"> {
     fields: ReviewFieldDto[];
 }
 
-interface NextReviewCardDto {
+interface NextReviewCardDto extends Omit<NextReviewCard, "card"> {
     card: ReviewCardDto | null;
-    counts: ReviewCounts;
 }
 
 const toCard = (dto: ReviewCardDto): ReviewCard => ({
@@ -26,7 +25,7 @@ export const listReviewOverview = () => invoke<ReviewDeck[]>("list_review_overvi
 /** The next flashcard to review in a deck's type, or none when nothing is waiting. */
 export const nextReviewCard = async (deckName: string, typeSlug: string): Promise<NextReviewCard> => {
     const next = await invoke<NextReviewCardDto>("next_review_card", { deckName, typeSlug });
-    return { card: next.card ? toCard(next.card) : null, counts: next.counts };
+    return { ...next, card: next.card ? toCard(next.card) : null };
 };
 
 /** Records the answer to a flashcard. `durationMs` is how long the answer took. */

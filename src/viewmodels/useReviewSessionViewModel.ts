@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAsyncRunner } from "./useAsyncRunner";
-import { answerReviewCard, nextReviewCard } from "../api/review";
-import type { Rating, ReviewCard, ReviewCounts } from "../types/Review";
+import { answerReviewCard, listReviewOverview, nextReviewCard } from "../api/review";
+import type { Intervals, NextReviewCard, Rating, ReviewCard, ReviewCounts, ReviewType } from "../types/Review";
 import type { LoadStatus } from "./useDecksViewModel";
 
 const NO_COUNTS: ReviewCounts = { new: 0, learning: 0, review: 0 };
@@ -18,15 +18,24 @@ export function useReviewSessionViewModel(deckName: string, typeSlug: string) {
     const [counts, setCounts] = useState<ReviewCounts>(NO_COUNTS);
     const [revealed, setRevealed] = useState(false);
     const [answered, setAnswered] = useState(0);
+    const [again, setAgain] = useState(0);
+    const [intervals, setIntervals] = useState<Intervals | null>(null);
+    const [languageTag, setLanguageTag] = useState("");
+    const [nextDueInSeconds, setNextDueInSeconds] = useState<number | null>(null);
+    /** The other types of this deck that have something waiting, for when this one is done. */
+    const [siblings, setSiblings] = useState<ReviewType[]>([]);
     const [status, setStatus] = useState<LoadStatus>("loading");
     const { error, busy, run } = useAsyncRunner();
 
     // When the card appeared, to tell how long the answer took.
     const shownAt = useRef(performance.now());
 
-    const show = useCallback((next: { card: ReviewCard | null; counts: ReviewCounts }) => {
+    const show = useCallback((next: NextReviewCard) => {
         setCard(next.card);
         setCounts(next.counts);
+        setIntervals(next.intervals);
+        setLanguageTag(next.languageTag);
+        setNextDueInSeconds(next.nextDueInSeconds);
         setRevealed(false);
         shownAt.current = performance.now();
     }, []);
@@ -35,6 +44,7 @@ export function useReviewSessionViewModel(deckName: string, typeSlug: string) {
         let cancelled = false;
         setStatus("loading");
         setAnswered(0);
+        setAgain(0);
         (async () => {
             const ok = await run(async () => {
                 const next = await nextReviewCard(deckName, typeSlug);
@@ -46,6 +56,25 @@ export function useReviewSessionViewModel(deckName: string, typeSlug: string) {
             cancelled = true;
         };
     }, [deckName, typeSlug, run, show]);
+
+    // When the session ends, find what else is waiting in the same deck.
+    const done = status === "ready" && card === null;
+    useEffect(() => {
+        if (!done) return;
+        let cancelled = false;
+        listReviewOverview()
+            .then((decks) => {
+                const deck = decks.find((d) => d.name === deckName);
+                const others = (deck?.types ?? []).filter(
+                    (t) => t.slug !== typeSlug && t.counts.new + t.counts.learning + t.counts.review > 0,
+                );
+                if (!cancelled) setSiblings(others);
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, [done, deckName, typeSlug]);
 
     /** Shows the back of the card. */
     const showResponse = () => {
@@ -59,6 +88,7 @@ export function useReviewSessionViewModel(deckName: string, typeSlug: string) {
         return run(async () => {
             await answerReviewCard(card.uuid, rating, durationMs);
             setAnswered((n) => n + 1);
+            if (rating === 1) setAgain((n) => n + 1);
             show(await nextReviewCard(deckName, typeSlug));
         });
     };
@@ -69,8 +99,15 @@ export function useReviewSessionViewModel(deckName: string, typeSlug: string) {
         counts,
         revealed,
         answered,
+        /** How many of the answers so far were Again. */
+        again,
+        intervals,
+        languageTag,
+        /** When the session is over: seconds until the next card of the type is due, if any. */
+        nextDueInSeconds,
+        siblings,
         /** Nothing is waiting: there was nothing to review, or the last card was answered. */
-        done: status === "ready" && card === null,
+        done,
         error,
         busy,
         showResponse,

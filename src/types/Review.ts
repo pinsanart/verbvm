@@ -48,10 +48,24 @@ export interface ReviewCard {
     fields: ReviewField[];
 }
 
+/** How long, in seconds, a card waits before it comes back for each answer. */
+export interface Intervals {
+    again: number;
+    hard: number;
+    good: number;
+    easy: number;
+}
+
 /** The next flashcard of a session, if any, and what is still waiting in the type. */
 export interface NextReviewCard {
     card: ReviewCard | null;
     counts: ReviewCounts;
+    /** BCP 47 code of the deck's accent, for the `lang` of the text on the card. */
+    languageTag: string;
+    /** What each answer would schedule for the card. Present when there is a card. */
+    intervals: Intervals | null;
+    /** When there is no card: seconds until the next one is due, if any is scheduled. */
+    nextDueInSeconds: number | null;
 }
 
 /** 1 is Again, 2 Hard, 3 Good and 4 Easy. */
