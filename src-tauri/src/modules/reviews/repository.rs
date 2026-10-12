@@ -5,7 +5,8 @@ use rusqlite::types::Type;
 use rusqlite::{params, params_from_iter, OptionalExtension, Row};
 
 use super::model::{CardStats, Rating, ReviewLog, Sm2State};
-use crate::dependencies::clock::{format_utc, parse_utc};
+use crate::dependencies::clock::format_utc;
+use crate::dependencies::db::sql_time::{optional_utc_column, utc_column};
 use crate::dependencies::db::{connection::SqliteHandle, error::DbError};
 
 /// Storage port for the module's three tables (`sm2_states`, `review_logs`, `card_stats`).
@@ -40,21 +41,6 @@ fn conversion_error(idx: usize, ty: Type, message: String) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(idx, ty, message.into())
 }
 
-fn utc(row: &Row, idx: usize) -> rusqlite::Result<DateTime<Utc>> {
-    let text: String = row.get(idx)?;
-    parse_utc(&text)
-        .ok_or_else(|| conversion_error(idx, Type::Text, format!("invalid UTC timestamp: {text}")))
-}
-
-fn optional_utc(row: &Row, idx: usize) -> rusqlite::Result<Option<DateTime<Utc>>> {
-    let text: Option<String> = row.get(idx)?;
-    text.map(|t| {
-        parse_utc(&t)
-            .ok_or_else(|| conversion_error(idx, Type::Text, format!("invalid UTC timestamp: {t}")))
-    })
-    .transpose()
-}
-
 fn rating(row: &Row, idx: usize) -> rusqlite::Result<Rating> {
     let value: i64 = row.get(idx)?;
     Rating::try_from(value)
@@ -64,11 +50,11 @@ fn rating(row: &Row, idx: usize) -> rusqlite::Result<Rating> {
 fn state_from_row(row: &Row) -> rusqlite::Result<Sm2State> {
     Ok(Sm2State::restore(
         row.get(0)?,
-        utc(row, 1)?,
+        utc_column(row, 1)?,
         row.get(2)?,
         row.get(3)?,
         row.get(4)?,
-        optional_utc(row, 5)?,
+        optional_utc_column(row, 5)?,
     ))
 }
 
@@ -76,7 +62,7 @@ fn log_from_row(row: &Row) -> rusqlite::Result<ReviewLog> {
     Ok(ReviewLog::restore(
         row.get(0)?,
         row.get(1)?,
-        utc(row, 2)?,
+        utc_column(row, 2)?,
         rating(row, 3)?,
         row.get(4)?,
         row.get(5)?,
