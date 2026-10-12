@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAsyncRunner } from "./useAsyncRunner";
-import { createDeck, deleteDeck, listDecks } from "../api/decks";
+import { createDeck, deleteDeck, listDecks, updateDeck } from "../api/decks";
 import { listLanguages, listLanguageVariants } from "../api/languages";
-import type { Deck, NewDeck } from "../types/Deck";
+import type { Deck, NewDeck, UpdateDeck } from "../types/Deck";
 import type { Language, LanguageVariant } from "../types/Language";
 
 export type LoadStatus = "loading" | "ready" | "error";
@@ -36,6 +36,13 @@ export function useDecksViewModel() {
             setDecks(await listDecks());
         });
 
+    /** Renames a deck and replaces its description. */
+    const editDeck = (name: string, input: UpdateDeck) =>
+        run(async () => {
+            await updateDeck(name, input);
+            setDecks(await listDecks());
+        });
+
     const removeDeck = (name: string) =>
         run(async () => {
             await deleteDeck(name);
@@ -54,5 +61,5 @@ export function useDecksViewModel() {
         [run],
     );
 
-    return { decks, languages, status, error, busy, addDeck, removeDeck, loadVariants, refresh };
+    return { decks, languages, status, error, busy, addDeck, editDeck, removeDeck, loadVariants, refresh };
 }

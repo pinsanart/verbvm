@@ -27,6 +27,12 @@ export interface Deck {
     stats: DeckStats;
 }
 
+/** What can be changed in a deck. Its language and accent are fixed once it is created. */
+export interface UpdateDeck {
+    name: string;
+    description: string | null;
+}
+
 export interface NewDeck {
     name: string;
     languageIso6393: string;

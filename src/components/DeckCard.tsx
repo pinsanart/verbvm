@@ -1,18 +1,21 @@
 import { motion } from "motion/react";
 import { TRANSITION_BASE } from "../lib/motion";
+import { Pencil } from "lucide-react";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { CountryFlag } from "./CountryFlag";
+import { IconButton } from "./IconButton";
 import { styleForType } from "../data/FlashcardTypeStyles";
 import type { Deck } from "../types/Deck";
 
 export interface DeckCardProps {
     deck: Deck;
     onOpen: () => void;
+    onEdit: () => void;
     onDelete: () => void;
 }
 
 /** A deck in the deck list: its name, language and accent, description and card counts. */
-export function DeckCard({ deck, onOpen, onDelete }: DeckCardProps) {
+export function DeckCard({ deck, onOpen, onEdit, onDelete }: DeckCardProps) {
     return (
         <motion.div
             layout
@@ -23,7 +26,7 @@ export function DeckCard({ deck, onOpen, onDelete }: DeckCardProps) {
             className="relative rounded-2xl border border-line bg-panel transition-colors hover:border-line-strong"
         >
             <button type="button" onClick={onOpen} className="flex w-full flex-col gap-3 p-4 text-left">
-                <div className="flex items-center gap-3 pr-8">
+                <div className="flex items-center gap-3 pr-20">
                     <CountryFlag code={deck.variant.countryCode} className="h-6 w-9 shrink-0" />
                     <div className="min-w-0">
                         <h2 className="truncate text-body font-semibold">{deck.name}</h2>
@@ -52,7 +55,8 @@ export function DeckCard({ deck, onOpen, onDelete }: DeckCardProps) {
                 </div>
             </button>
 
-            <div className="absolute right-2 top-2">
+            <div className="absolute right-2 top-2 flex items-center rounded-lg bg-panel">
+                <IconButton label={`Edit ${deck.name}`} icon={Pencil} iconSize={16} onClick={onEdit} />
                 <ConfirmDeleteButton label={`the deck ${deck.name}`} onConfirm={onDelete} />
             </div>
         </motion.div>
