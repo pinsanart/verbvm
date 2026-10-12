@@ -1,14 +1,15 @@
+// Languages are identified by their ISO 639-3 code and variants by their BCP 47 code.
+// No database id crosses the boundary between the backend and the view.
+
 export interface Language {
-    id: number;
     iso6391: string | null;
     iso6393: string;
     name: string;
-    defaultVariantId: number | null;
+    /** BCP 47 code of the default variant. */
+    defaultVariantCode: string | null;
 }
 
 export interface LanguageVariant {
-    id: number;
-    languageId: number;
     bcp47Code: string;
     variantName: string;
     countryCode: string | null;
@@ -21,7 +22,7 @@ export interface NewLanguage {
 }
 
 export interface NewLanguageVariant {
-    languageId: number;
+    languageIso6393: string;
     bcp47Code: string;
     variantName: string;
     countryCode: string | null;

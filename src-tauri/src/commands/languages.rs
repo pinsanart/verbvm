@@ -86,16 +86,16 @@ pub async fn create_language(api: Api<'_>, input: NewLanguageInput) -> CommandRe
 }
 
 #[tauri::command]
-pub async fn delete_language(api: Api<'_>, iso_639_3: String) -> CommandResult<()> {
-    Ok(api.delete_language(&iso_639_3)?)
+pub async fn delete_language(api: Api<'_>, iso: String) -> CommandResult<()> {
+    Ok(api.delete_language(&iso)?)
 }
 
 #[tauri::command]
 pub async fn list_language_variants(
     api: Api<'_>,
-    language_iso_639_3: String,
+    language_iso: String,
 ) -> CommandResult<Vec<LanguageVariantDto>> {
-    Ok(api.list_variants(&language_iso_639_3)?.iter().map(variant_dto).collect())
+    Ok(api.list_variants(&language_iso)?.iter().map(variant_dto).collect())
 }
 
 #[tauri::command]
@@ -115,10 +115,10 @@ pub async fn create_language_variant(
 #[tauri::command]
 pub async fn set_default_language_variant(
     api: Api<'_>,
-    language_iso_639_3: String,
+    language_iso: String,
     bcp47_code: String,
 ) -> CommandResult<LanguageDto> {
-    let language = api.set_default_variant(&language_iso_639_3, &bcp47_code)?;
+    let language = api.set_default_variant(&language_iso, &bcp47_code)?;
     language_dto(&api, &language)
 }
 

@@ -74,19 +74,19 @@ export default function LanguageTests() {
                     <ul className="space-y-2">
                         {languages.length === 0 && <li className="text-sm opacity-60">No languages yet.</li>}
                         {languages.map((language) => (
-                            <li key={language.id}
+                            <li key={language.iso6393}
                                 className={`flex items-center justify-between rounded-md border px-3 py-2 ${
-                                    language.id === selected?.id ? "border-vocabulary" : "border-panel-border"
+                                    language.iso6393 === selected?.iso6393 ? "border-vocabulary" : "border-panel-border"
                                 }`}>
                                 <button type="button" className="flex-1 text-left"
-                                    onClick={() => vm.selectLanguage(language.id)}>
+                                    onClick={() => vm.selectLanguage(language.iso6393)}>
                                     <span className="font-medium">{language.name}</span>
                                     <span className="ml-2 text-sm opacity-60">
                                         {language.iso6393}{language.iso6391 ? ` / ${language.iso6391}` : ""}
                                     </span>
                                 </button>
                                 <button type="button" className={dangerButton}
-                                    onClick={() => vm.removeLanguage(language.id)}>Delete</button>
+                                    onClick={() => vm.removeLanguage(language.iso6393)}>Delete</button>
                             </li>
                         ))}
                     </ul>
@@ -116,9 +116,9 @@ export default function LanguageTests() {
                             <ul className="space-y-2">
                                 {variants.length === 0 && <li className="text-sm opacity-60">No variants yet.</li>}
                                 {variants.map((variant) => {
-                                    const isDefault = selected.defaultVariantId === variant.id;
+                                    const isDefault = selected.defaultVariantCode === variant.bcp47Code;
                                     return (
-                                        <li key={variant.id}
+                                        <li key={variant.bcp47Code}
                                             className="flex items-center justify-between rounded-md border border-panel-border px-3 py-2">
                                             <div>
                                                 <span className="font-medium">{variant.variantName}</span>
@@ -134,10 +134,10 @@ export default function LanguageTests() {
                                             <div className="flex gap-3">
                                                 {!isDefault && (
                                                     <button type="button" className="text-sm text-vocabulary hover:underline"
-                                                        onClick={() => vm.makeDefaultVariant(variant.id)}>Set default</button>
+                                                        onClick={() => vm.makeDefaultVariant(variant.bcp47Code)}>Set default</button>
                                                 )}
                                                 <button type="button" className={dangerButton}
-                                                    onClick={() => vm.removeVariant(variant.id)}>Delete</button>
+                                                    onClick={() => vm.removeVariant(variant.bcp47Code)}>Delete</button>
                                             </div>
                                         </li>
                                     );

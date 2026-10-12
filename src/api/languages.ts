@@ -5,18 +5,19 @@ export const listLanguages = () => invoke<Language[]>("list_languages");
 
 export const createLanguage = (input: NewLanguage) => invoke<Language>("create_language", { input });
 
-export const deleteLanguage = (id: number) => invoke<void>("delete_language", { id });
+export const deleteLanguage = (iso: string) => invoke<void>("delete_language", { iso });
 
-export const listLanguageVariants = (languageId: number) =>
-    invoke<LanguageVariant[]>("list_language_variants", { languageId });
+export const listLanguageVariants = (languageIso: string) =>
+    invoke<LanguageVariant[]>("list_language_variants", { languageIso });
 
 export const createLanguageVariant = (input: NewLanguageVariant) =>
     invoke<LanguageVariant>("create_language_variant", { input });
 
-export const setDefaultLanguageVariant = (languageId: number, variantId: number) =>
-    invoke<Language>("set_default_language_variant", { languageId, variantId });
+export const setDefaultLanguageVariant = (languageIso: string, bcp47Code: string) =>
+    invoke<Language>("set_default_language_variant", { languageIso, bcp47Code });
 
-export const deleteLanguageVariant = (id: number) => invoke<void>("delete_language_variant", { id });
+export const deleteLanguageVariant = (bcp47Code: string) =>
+    invoke<void>("delete_language_variant", { bcp47Code });
 
 /** Turns whatever `invoke` rejected with into a message to show. */
 export function errorMessage(err: unknown): string {

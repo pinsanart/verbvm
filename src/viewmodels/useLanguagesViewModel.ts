@@ -18,10 +18,10 @@ import type { Language, LanguageVariant, NewLanguage, NewLanguageVariant } from 
 export function useLanguagesViewModel() {
     const [languages, setLanguages] = useState<Language[]>([]);
     const [variants, setVariants] = useState<LanguageVariant[]>([]);
-    const [selectedId, setSelectedId] = useState<number | null>(null);
+    const [selectedIso, setSelectedIso] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    const selected = languages.find((language) => language.id === selectedId) ?? null;
+    const selected = languages.find((language) => language.iso6393 === selectedIso) ?? null;
 
     const run = useCallback(async (action: () => Promise<void>) => {
         try {
@@ -40,7 +40,7 @@ export function useLanguagesViewModel() {
     );
 
     const refreshVariants = useCallback(
-        (languageId: number) => run(async () => setVariants(await listLanguageVariants(languageId))),
+        (languageIso: string) => run(async () => setVariants(await listLanguageVariants(languageIso))),
         [run],
     );
 
@@ -49,48 +49,48 @@ export function useLanguagesViewModel() {
     }, [refreshLanguages]);
 
     useEffect(() => {
-        if (selectedId === null) {
+        if (selectedIso === null) {
             setVariants([]);
         } else {
-            refreshVariants(selectedId);
+            refreshVariants(selectedIso);
         }
-    }, [selectedId, refreshVariants]);
+    }, [selectedIso, refreshVariants]);
 
     const addLanguage = (input: NewLanguage) =>
         run(async () => {
             const created = await createLanguage(input);
             await refreshLanguages();
-            setSelectedId(created.id);
+            setSelectedIso(created.iso6393);
         });
 
-    const removeLanguage = (id: number) =>
+    const removeLanguage = (iso: string) =>
         run(async () => {
-            await deleteLanguage(id);
-            if (selectedId === id) setSelectedId(null);
+            await deleteLanguage(iso);
+            if (selectedIso === iso) setSelectedIso(null);
             await refreshLanguages();
         });
 
-    const addVariant = (input: Omit<NewLanguageVariant, "languageId">) => {
-        if (selectedId === null) return Promise.resolve(false);
+    const addVariant = (input: Omit<NewLanguageVariant, "languageIso6393">) => {
+        if (selectedIso === null) return Promise.resolve(false);
         return run(async () => {
-            await createLanguageVariant({ ...input, languageId: selectedId });
-            await Promise.all([refreshVariants(selectedId), refreshLanguages()]);
+            await createLanguageVariant({ ...input, languageIso6393: selectedIso });
+            await Promise.all([refreshVariants(selectedIso), refreshLanguages()]);
         });
     };
 
-    const makeDefaultVariant = (variantId: number) => {
-        if (selectedId === null) return Promise.resolve(false);
+    const makeDefaultVariant = (bcp47Code: string) => {
+        if (selectedIso === null) return Promise.resolve(false);
         return run(async () => {
-            await setDefaultLanguageVariant(selectedId, variantId);
+            await setDefaultLanguageVariant(selectedIso, bcp47Code);
             await refreshLanguages();
         });
     };
 
-    const removeVariant = (variantId: number) => {
-        if (selectedId === null) return Promise.resolve(false);
+    const removeVariant = (bcp47Code: string) => {
+        if (selectedIso === null) return Promise.resolve(false);
         return run(async () => {
-            await deleteLanguageVariant(variantId);
-            await Promise.all([refreshVariants(selectedId), refreshLanguages()]);
+            await deleteLanguageVariant(bcp47Code);
+            await Promise.all([refreshVariants(selectedIso), refreshLanguages()]);
         });
     };
 
@@ -99,7 +99,7 @@ export function useLanguagesViewModel() {
         variants,
         selected,
         error,
-        selectLanguage: setSelectedId,
+        selectLanguage: setSelectedIso,
         addLanguage,
         removeLanguage,
         addVariant,
