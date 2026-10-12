@@ -8,7 +8,12 @@ use std::sync::Arc;
 use tauri::Manager;
 
 use dependencies::db::connection::SqliteHandle;
+use dependencies::sanitizer::{AmmoniaSanitizer, HtmlSanitizer};
+use modules::card_types::{CardTypeApi, CardTypeService};
+use modules::decks::{DeckApi, DeckService};
+use modules::flashcards::{FlashcardApi, FlashcardService};
 use modules::languages::{LanguageApi, LanguageService};
+use orchestrators::{DeckOverviewOrchestrator, FlashcardEditorOrchestrator};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -17,8 +22,22 @@ pub fn run() {
         .setup(|app| {
             let db = Arc::new(SqliteHandle::new(app.path().app_data_dir()?.join("verbvm.db"))?);
 
-            let languages: Arc<dyn LanguageApi> = Arc::new(LanguageService::sqlite(db));
-            app.manage(languages);
+            let languages: Arc<dyn LanguageApi> = Arc::new(LanguageService::sqlite(db.clone()));
+            let decks: Arc<dyn DeckApi> = Arc::new(DeckService::sqlite(db.clone()));
+            let card_types: Arc<dyn CardTypeApi> = Arc::new(CardTypeService::sqlite(db.clone()));
+            let flashcards: Arc<dyn FlashcardApi> = Arc::new(FlashcardService::sqlite(db));
+            let sanitizer: Arc<dyn HtmlSanitizer> = Arc::new(AmmoniaSanitizer::new());
+
+            app.manage(languages.clone());
+            app.manage(Arc::new(DeckOverviewOrchestrator::new(
+                decks.clone(),
+                languages.clone(),
+                card_types.clone(),
+                flashcards.clone(),
+            )));
+            app.manage(Arc::new(FlashcardEditorOrchestrator::new(
+                decks, languages, card_types, flashcards, sanitizer,
+            )));
 
             Ok(())
         })
@@ -30,6 +49,17 @@ pub fn run() {
             commands::languages::create_language_variant,
             commands::languages::set_default_language_variant,
             commands::languages::delete_language_variant,
+            commands::decks::list_decks,
+            commands::decks::create_deck,
+            commands::decks::delete_deck,
+            commands::flashcards::get_flashcard_form,
+            commands::flashcards::list_drafts,
+            commands::flashcards::create_draft,
+            commands::flashcards::update_draft,
+            commands::flashcards::duplicate_draft,
+            commands::flashcards::move_draft,
+            commands::flashcards::delete_draft,
+            commands::flashcards::publish_drafts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
