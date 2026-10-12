@@ -81,7 +81,7 @@ Thin adapters over an orchestrator (or a service):
 
 - The DTOs have `serde` and camelCase names. Entities have no serde. Nothing carries a database id.
 - Errors become `CommandError { kind, message }`, where `kind` is `not_found`, `invalid`, `conflict` or `internal`.
-- Commands: `list_languages`, `list_language_variants`, `list_decks`, `create_deck`, `delete_deck`, `get_flashcard_form(deckName)` (the form of every type), `list_drafts(deckName)`, `create_draft(deckName, typeSlug)`, `update_draft`, `duplicate_draft`, `move_draft`, `delete_draft`, `attach_media`, `remove_media` and `publish_drafts(deckName)`.
+- Commands: `list_languages`, `list_language_variants`, `list_decks`, `create_deck`, `update_deck`, `delete_deck`, `get_flashcard_form(deckName)` (the form of every type), `list_drafts(deckName)`, `create_draft(deckName, typeSlug)`, `update_draft`, `duplicate_draft`, `move_draft`, `delete_draft`, `attach_media`, `remove_media` and `publish_drafts(deckName)`.
 - Commands are `async` and receive their state as `State<'_, Arc<...>>`.
 - A draft's DTO includes, for each attached file, its absolute `path`, which the view previews through the asset protocol.
 - Each file has tests that pin the JSON shape the TypeScript types rely on (`iso6393`, `bcp47Code`, `fieldKey`...).

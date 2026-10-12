@@ -67,7 +67,7 @@ Orchestrators:
 
 | Orchestrator | Coordinates | Use cases |
 |---|---|---|
-| `DeckOverviewOrchestrator` | decks, languages, card types, flashcards | List decks with language, accent and card counts by type. Create a deck from a language and an optional accent. Delete a deck |
+| `DeckOverviewOrchestrator` | decks, languages, card types, flashcards | List decks with language, accent and card counts by type. Create a deck from a language and an optional accent. Rename a deck and change its description (its language and accent are fixed). Delete a deck |
 | `FlashcardEditorOrchestrator` | decks, languages, card types, flashcards, sanitizer, media store | The form of every type in a deck. Add a draft of a type, edit, move, duplicate and delete drafts in the deck's single mixed list. Attach and remove media. Publish all the drafts, each against the fields of its own type |
 
 ## How the view logic is organized
