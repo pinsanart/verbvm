@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown, CodeXml, Paperclip } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { CodeXml, Paperclip } from "lucide-react";
+import { controlClass, errorClass } from "./formStyles";
 import { IconButton } from "./IconButton";
 import { MediaPreview } from "./MediaPreview";
 import { Media } from "../types/Media";
@@ -43,6 +44,9 @@ export function RichInputField({
     error,
 }: RichInputFieldProps) {
     const [showHtml, setShowHtml] = useState(false);
+    const id = useId();
+    const labelId = `${id}-label`;
+    const errorId = `${id}-error`;
     const [content, setContent] = useState(value);
     const richTextRef = useRef<HTMLDivElement>(null);
     const htmlHighlightRef = useRef<HTMLPreElement>(null);
@@ -87,39 +91,45 @@ export function RichInputField({
     return (
         <div>
             <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-xs font-medium uppercase tracking-wider text-muted">
+                <span id={labelId} className="text-meta font-medium text-muted">
                     {label}
-                    {required && <span className="ml-1 text-subtle">*</span>}
-                </label>
+                    {required && (
+                        <span className="ml-1 text-subtle" aria-hidden>
+                            *
+                        </span>
+                    )}
+                </span>
                 <div className="flex items-center gap-0.5">
-                    <IconButton label="Toggle HTML" icon={CodeXml} iconSize={14} onClick={() => setShowHtml((v) => !v)} />
+                    <IconButton label="Edit HTML" icon={CodeXml} iconSize={16} pressed={showHtml} onClick={() => setShowHtml((v) => !v)} />
                     {allowMedia && (
-                        <IconButton label="Attach media" icon={Paperclip} iconSize={14} onClick={onAttachMedia} />
+                        <IconButton label="Attach media" icon={Paperclip} iconSize={16} onClick={onAttachMedia} />
                     )}
                 </div>
             </div>
 
             <div
                 ref={richTextRef}
+                id={id}
                 contentEditable
+                role="textbox"
+                aria-multiline="true"
+                aria-labelledby={labelId}
+                aria-required={required || undefined}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? errorId : undefined}
                 onInput={handleRichInput}
                 suppressContentEditableWarning
-                aria-invalid={error ? true : undefined}
-                className={`min-h-20 w-full rounded-xl border bg-white/5 p-3 text-[15px] leading-6 text-white outline-none transition-colors focus:bg-white/[0.07] ${
-                    error ? "border-stack/70" : "border-line focus:border-white/30"
-                }`}
+                className={`${controlClass} min-h-20 leading-6`}
             />
 
             {showHtml && (
                 <div className="mt-2 overflow-hidden rounded-xl bg-black/30">
-                    <div className="flex items-center gap-1 px-3 pt-2 text-muted">
-                        <ChevronDown size={12} />
-                    </div>
+                    <p className="px-3 pt-2 font-mono text-label text-subtle">HTML</p>
                     <div className="relative h-24">
                         <pre
                             ref={htmlHighlightRef}
                             aria-hidden
-                            className="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-all p-3 pt-1 font-mono text-xs leading-relaxed text-ink"
+                            className="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-all p-3 pt-1 font-mono text-meta leading-relaxed text-ink"
                             dangerouslySetInnerHTML={{ __html: highlightHtml(content) }}
                         />
                         <textarea
@@ -127,13 +137,18 @@ export function RichInputField({
                             onChange={handleHtmlChange}
                             onScroll={handleHtmlScroll}
                             spellCheck={false}
-                            className="absolute inset-0 h-full w-full resize-none overflow-auto whitespace-pre-wrap break-all bg-transparent p-3 pt-1 font-mono text-xs leading-relaxed text-transparent caret-white outline-none"
+                            aria-label="HTML source"
+                            className="absolute inset-0 h-full w-full resize-none overflow-auto whitespace-pre-wrap break-all bg-transparent p-3 pt-1 font-mono text-meta leading-relaxed text-transparent caret-white outline-none"
                         />
                     </div>
                 </div>
             )}
 
-            {error && <p className="mt-1 text-xs text-stack-ink">{error}</p>}
+            {error && (
+                <p id={errorId} className={errorClass}>
+                    {error}
+                </p>
+            )}
 
             {allowMedia && (
                 <div className="mt-2">

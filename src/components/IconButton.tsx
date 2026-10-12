@@ -3,22 +3,27 @@ import { LucideIcon } from "lucide-react";
 interface IconButtonProps {
     label: string;
     icon: LucideIcon;
-    iconSize: number
+    iconSize: number;
     className?: string;
     onClick?: () => void;
     disabled?: boolean;
+    /** Marks a toggle button as on or off. */
+    pressed?: boolean;
 }
 
-export function IconButton({label, icon:Icon, iconSize, className, onClick, disabled}: IconButtonProps) {
+/** An icon-only button. The label names it for screen readers and shows as a tooltip. */
+export function IconButton({ label, icon: Icon, iconSize, className, onClick, disabled, pressed }: IconButtonProps) {
     return (
         <button
             type="button"
+            aria-label={label}
+            title={label}
+            aria-pressed={pressed}
             onClick={onClick}
             disabled={disabled}
-            className={`inline-flex items-center justify-center rounded-lg p-2 text-muted transition-colors hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30 ${className ?? ""}`}
+            className={`inline-flex size-10 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/10 hover:text-ink aria-pressed:bg-white/10 aria-pressed:text-ink disabled:pointer-events-none disabled:opacity-30 md:size-9 ${className ?? ""}`}
         >
-            <label className="sr-only">{label}</label>
-            <Icon size={iconSize}/>
+            <Icon size={iconSize} aria-hidden />
         </button>
-    )
+    );
 }

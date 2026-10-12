@@ -1,4 +1,5 @@
 import { HTMLMotionProps, motion } from "motion/react";
+import { Loader2 } from "lucide-react";
 import { TRANSITION_FAST } from "../lib/motion";
 
 type Variant = "primary" | "outline" | "ghost" | "danger";
@@ -12,19 +13,24 @@ const VARIANTS: Record<Variant, string> = {
 
 export interface ButtonProps extends Omit<HTMLMotionProps<"button">, "children"> {
     variant?: Variant;
+    /** Shows a spinner and blocks presses while an action is running. */
+    loading?: boolean;
     children: React.ReactNode;
 }
 
 /** The app's button, with a small press animation. */
-export function Button({ variant = "primary", className, children, type = "button", ...rest }: ButtonProps) {
+export function Button({ variant = "primary", loading, disabled, className, children, type = "button", ...rest }: ButtonProps) {
     return (
         <motion.button
             type={type}
+            disabled={disabled || loading}
+            aria-busy={loading || undefined}
             whileTap={{ scale: 0.97 }}
             transition={TRANSITION_FAST}
-            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 ${VARIANTS[variant]} ${className ?? ""}`}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-ui font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 ${VARIANTS[variant]} ${className ?? ""}`}
             {...rest}
         >
+            {loading && <Loader2 size={16} className="animate-spin" aria-hidden />}
             {children}
         </motion.button>
     );

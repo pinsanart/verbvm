@@ -1,3 +1,6 @@
+import { useId } from "react";
+import { controlClass, errorClass, labelClass } from "./formStyles";
+
 export interface PlainInputFieldProps {
     label: string;
     value: string;
@@ -7,21 +10,33 @@ export interface PlainInputFieldProps {
 }
 
 export function PlainInputField({ label, value, onChange, required, error }: PlainInputFieldProps) {
+    const id = useId();
+    const errorId = `${id}-error`;
+
     return (
         <div>
-            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted">
+            <label htmlFor={id} className={labelClass}>
                 {label}
-                {required && <span className="ml-1 text-subtle">*</span>}
+                {required && (
+                    <span className="ml-1 text-subtle" aria-hidden>
+                        *
+                    </span>
+                )}
             </label>
             <textarea
+                id={id}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                aria-required={required || undefined}
                 aria-invalid={error ? true : undefined}
-                className={`min-h-20 w-full resize-y rounded-xl border bg-white/5 p-3 text-[15px] leading-6 text-white outline-none transition-colors focus:bg-white/[0.07] ${
-                    error ? "border-stack/70" : "border-line focus:border-white/30"
-                }`}
+                aria-describedby={error ? errorId : undefined}
+                className={`${controlClass} min-h-20 resize-y leading-6`}
             />
-            {error && <p className="mt-1 text-xs text-stack-ink">{error}</p>}
+            {error && (
+                <p id={errorId} className={errorClass}>
+                    {error}
+                </p>
+            )}
         </div>
     );
 }
