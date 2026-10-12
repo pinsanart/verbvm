@@ -5,7 +5,7 @@ import { IconButton } from "./IconButton";
 import { TRANSITION_FAST } from "../lib/motion";
 
 /** How long the confirmation waits before it goes back to the trash button. */
-const CONFIRM_TIMEOUT_MS = 5000;
+const CONFIRM_TIMEOUT_MS = 8000;
 
 export interface ConfirmDeleteButtonProps {
     /** What is being deleted, for screen readers. */
@@ -23,19 +23,36 @@ export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: Confirm
     const [confirming, setConfirming] = useState(false);
     const container = useRef<HTMLDivElement>(null);
     const keepButton = useRef<HTMLButtonElement>(null);
+    const trashButton = useRef<HTMLButtonElement>(null);
+    // Going back to the trash button should keep the keyboard user where they were. Clicking
+    // elsewhere should not pull the focus away from what they clicked.
+    const restoreFocus = useRef(false);
+
+    useEffect(() => {
+        if (confirming) return;
+        if (restoreFocus.current) {
+            restoreFocus.current = false;
+            trashButton.current?.focus();
+        }
+    }, [confirming]);
 
     useEffect(() => {
         if (!confirming) return;
         keepButton.current?.focus();
 
-        const cancel = () => setConfirming(false);
+        const cancel = (keepFocus: boolean) => {
+            // Only when the focus is still in the group (or lost), so it is not taken from a click elsewhere.
+            const active = document.activeElement;
+            restoreFocus.current = keepFocus && (active === document.body || container.current?.contains(active) === true);
+            setConfirming(false);
+        };
         const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") cancel();
+            if (e.key === "Escape") cancel(true);
         };
         const onPointerDown = (e: PointerEvent) => {
-            if (!container.current?.contains(e.target as Node)) cancel();
+            if (!container.current?.contains(e.target as Node)) cancel(false);
         };
-        const timer = setTimeout(cancel, CONFIRM_TIMEOUT_MS);
+        const timer = setTimeout(() => cancel(true), CONFIRM_TIMEOUT_MS);
 
         document.addEventListener("keydown", onKeyDown);
         document.addEventListener("pointerdown", onPointerDown);
@@ -63,8 +80,11 @@ export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: Confirm
                         <button
                             ref={keepButton}
                             type="button"
-                            onClick={() => setConfirming(false)}
-                            className="rounded-md px-3 py-1.5 text-meta font-medium text-muted hover:bg-white/10 hover:text-ink"
+                            onClick={() => {
+                                restoreFocus.current = true;
+                                setConfirming(false);
+                            }}
+                            className="min-h-10 rounded-md px-3 py-1.5 md:min-h-8 text-meta font-medium text-muted hover:bg-white/10 hover:text-ink"
                         >
                             Keep
                         </button>
@@ -74,7 +94,7 @@ export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: Confirm
                                 setConfirming(false);
                                 onConfirm();
                             }}
-                            className="rounded-md bg-danger px-3 py-1.5 text-meta font-medium text-white hover:brightness-110"
+                            className="min-h-10 rounded-md bg-danger px-3 py-1.5 md:min-h-8 text-meta font-medium text-white hover:brightness-110"
                         >
                             Delete
                         </button>
@@ -88,6 +108,7 @@ export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: Confirm
                         transition={TRANSITION_FAST}
                     >
                         <IconButton
+                            ref={trashButton}
                             label={`Delete ${label}`}
                             icon={Trash2}
                             iconSize={iconSize}

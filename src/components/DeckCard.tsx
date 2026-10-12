@@ -25,11 +25,20 @@ export function DeckCard({ deck, onOpen, onEdit, onDelete }: DeckCardProps) {
             transition={TRANSITION_BASE}
             className="relative rounded-2xl border border-line bg-panel transition-colors hover:border-line-strong"
         >
-            <button type="button" onClick={onOpen} className="flex w-full flex-col gap-3 p-4 text-left">
-                <div className="flex items-center gap-3 pr-20">
+            <div className="flex flex-col gap-3 p-4">
+                <div className="flex items-center gap-3 pr-24">
                     <CountryFlag code={deck.variant.countryCode} className="h-6 w-9 shrink-0" />
                     <div className="min-w-0">
-                        <h2 className="truncate text-body font-semibold">{deck.name}</h2>
+                        <h2 className="text-body font-semibold">
+                            {/* The name is the control, stretched over the whole card, so the heading stays a heading. */}
+                            <button
+                                type="button"
+                                onClick={onOpen}
+                                className="block max-w-full truncate text-left after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-accent-ink"
+                            >
+                                {deck.name}
+                            </button>
+                        </h2>
                         <p className="truncate text-meta text-muted">
                             {deck.language.name} · {deck.variant.variantName}
                         </p>
@@ -53,9 +62,9 @@ export function DeckCard({ deck, onOpen, onEdit, onDelete }: DeckCardProps) {
                             </span>
                         ))}
                 </div>
-            </button>
+            </div>
 
-            <div className="absolute right-2 top-2 flex items-center rounded-lg bg-panel">
+            <div className="absolute right-2 top-2 z-10 flex items-center rounded-lg bg-panel">
                 <IconButton label={`Edit ${deck.name}`} icon={Pencil} iconSize={16} onClick={onEdit} />
                 <ConfirmDeleteButton label={`the deck ${deck.name}`} onConfirm={onDelete} />
             </div>
