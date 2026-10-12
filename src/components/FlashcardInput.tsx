@@ -1,4 +1,5 @@
-import { ArrowDown, ArrowUp, Copy, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy } from "lucide-react";
+import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { CountryFlag } from "./CountryFlag";
 import { FieldInput } from "./FieldInput";
 import { IconButton } from "./IconButton";
@@ -57,7 +58,7 @@ function ControlBar({
                 <IconButton label="Move up" icon={ArrowUp} iconSize={15} onClick={onMoveUp} disabled={isFirst} />
                 <IconButton label="Move down" icon={ArrowDown} iconSize={15} onClick={onMoveDown} disabled={isLast} />
                 <IconButton label="Duplicate" icon={Copy} iconSize={15} onClick={onDuplicate} />
-                <IconButton label="Delete" icon={Trash2} iconSize={15} onClick={onDelete} />
+                <ConfirmDeleteButton label="this flashcard" onConfirm={onDelete} />
             </div>
         </div>
     );

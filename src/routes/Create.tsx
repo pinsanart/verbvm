@@ -13,12 +13,6 @@ export default function Create() {
 
   const openDeck = (name: string) => navigate(`/create/${encodeURIComponent(name)}`);
 
-  const deleteDeck = (name: string) => {
-    if (window.confirm(`Delete the deck "${name}" and all its flashcards?`)) {
-      vm.removeDeck(name);
-    }
-  };
-
   return (
     <div className="mx-auto flex w-full flex-col gap-6 p-6 md:max-w-[60%]">
       <div className="flex items-center justify-between">
@@ -52,7 +46,7 @@ export default function Create() {
             key={deck.name}
             deck={deck}
             onOpen={() => openDeck(deck.name)}
-            onDelete={() => deleteDeck(deck.name)}
+            onDelete={() => vm.removeDeck(deck.name)}
           />
         ))}
       </div>

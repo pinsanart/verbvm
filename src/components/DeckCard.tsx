@@ -1,6 +1,5 @@
-import { Trash2 } from "lucide-react";
+import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { CountryFlag } from "./CountryFlag";
-import { IconButton } from "./IconButton";
 import { styleForType } from "../data/FlashcardTypeStyles";
 import type { Deck } from "../types/Deck";
 
@@ -45,7 +44,7 @@ export function DeckCard({ deck, onOpen, onDelete }: DeckCardProps) {
             </button>
 
             <div className="absolute right-2 top-2">
-                <IconButton label={`Delete ${deck.name}`} icon={Trash2} iconSize={15} onClick={onDelete} />
+                <ConfirmDeleteButton label={`the deck ${deck.name}`} onConfirm={onDelete} />
             </div>
         </div>
     );
