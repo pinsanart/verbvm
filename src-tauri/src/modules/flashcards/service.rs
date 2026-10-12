@@ -36,6 +36,19 @@ pub trait FlashcardApi: Send + Sync {
     /// How many flashcards of each type the deck has. Types with none are left out.
     fn count_by_type(&self, deck_id: i64) -> FlashcardsResult<Vec<TypeCount>>;
 
+    /// Replaces the text of a saved flashcard (see `FlashcardRepository::update_flashcard_fields`).
+    /// Its review history is untouched.
+    fn update_flashcard_fields(&self, uuid: &str, fields: Vec<FieldValue>) -> FlashcardsResult<Flashcard>;
+    /// Attaches a stored file to a field of a saved flashcard.
+    fn attach_flashcard_media(&self, uuid: &str, media: FieldMedia) -> FlashcardsResult<Flashcard>;
+    /// Detaches the file with this hash from a field of a saved flashcard.
+    fn remove_flashcard_media(
+        &self,
+        uuid: &str,
+        field_definition_id: i64,
+        sha256: &str,
+    ) -> FlashcardsResult<Flashcard>;
+
     /// Adds an empty draft of a type at the end of the deck's list.
     fn create_draft(&self, deck_id: i64, flashcard_type_id: i64) -> FlashcardsResult<FlashcardDraft>;
     fn get_draft(&self, uuid: &str) -> FlashcardsResult<FlashcardDraft>;
@@ -112,6 +125,36 @@ impl FlashcardApi for FlashcardService {
 
     fn count_by_type(&self, deck_id: i64) -> FlashcardsResult<Vec<TypeCount>> {
         Ok(self.repository.count_by_type(deck_id)?)
+    }
+
+    fn update_flashcard_fields(&self, uuid: &str, fields: Vec<FieldValue>) -> FlashcardsResult<Flashcard> {
+        let current = self.get_flashcard(uuid)?;
+        // Building the entity checks that no field is repeated.
+        Flashcard::new(current.deck_id(), current.flashcard_type_id(), fields.clone(), vec![])?;
+        if !self.repository.update_flashcard_fields(uuid, &fields)? {
+            return Err(FlashcardsError::NotFound("flashcard"));
+        }
+        self.get_flashcard(uuid)
+    }
+
+    fn attach_flashcard_media(&self, uuid: &str, media: FieldMedia) -> FlashcardsResult<Flashcard> {
+        if !self.repository.add_flashcard_media(uuid, &media)? {
+            return Err(FlashcardsError::NotFound("flashcard"));
+        }
+        self.get_flashcard(uuid)
+    }
+
+    fn remove_flashcard_media(
+        &self,
+        uuid: &str,
+        field_definition_id: i64,
+        sha256: &str,
+    ) -> FlashcardsResult<Flashcard> {
+        self.get_flashcard(uuid)?;
+        if !self.repository.remove_flashcard_media(uuid, field_definition_id, sha256)? {
+            return Err(FlashcardsError::NotFound("media"));
+        }
+        self.get_flashcard(uuid)
     }
 
     fn create_draft(&self, deck_id: i64, flashcard_type_id: i64) -> FlashcardsResult<FlashcardDraft> {
@@ -514,6 +557,71 @@ mod tests {
         assert_eq!(count(&f, "flashcard_draft_media"), 0, "the draft and its media rows are gone");
 
         f.service.delete_flashcard(card.uuid()).unwrap();
+        assert_eq!(count(&f, "field_media"), 0);
+    }
+
+    #[test]
+    fn updating_a_saved_flashcard_replaces_its_text_and_keeps_its_identity() {
+        let f = fixture();
+        let created = f
+            .service
+            .create_flashcard(
+                f.deck_id,
+                VOCABULARY,
+                vec![FieldValue::new(1, "old".into()).unwrap(), FieldValue::new(2, "word".into()).unwrap()],
+                vec![],
+            )
+            .unwrap();
+        let updated = f
+            .service
+            .update_flashcard_fields(
+                created.uuid(),
+                vec![FieldValue::new(1, "new".into()).unwrap(), FieldValue::new(3, "meaning".into()).unwrap()],
+            )
+            .unwrap();
+        assert_eq!((updated.id(), updated.uuid()), (created.id(), created.uuid()));
+        let texts: Vec<_> = updated.fields().iter().map(|v| (v.field_definition_id(), v.content())).collect();
+        assert_eq!(texts, vec![(1, "new"), (3, "meaning")], "field 2 was cleared");
+        assert!(updated.updated_at().is_some());
+        assert!(matches!(
+            f.service.update_flashcard_fields("nope", vec![]),
+            Err(FlashcardsError::NotFound(_))
+        ));
+        assert!(matches!(
+            f.service.update_flashcard_fields(
+                created.uuid(),
+                vec![FieldValue::new(1, "a".into()).unwrap(), FieldValue::new(1, "b".into()).unwrap()]
+            ),
+            Err(FlashcardsError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn media_of_a_saved_flashcard_can_be_added_and_removed() {
+        let f = fixture();
+        let card = f
+            .service
+            .create_flashcard(f.deck_id, VOCABULARY, vec![FieldValue::new(2, "word".into()).unwrap()], vec![])
+            .unwrap();
+        let image = || FieldMedia { field_definition_id: 1, attachment: media('a', MediaKind::Image) };
+
+        let with = f.service.attach_flashcard_media(card.uuid(), image()).unwrap();
+        assert_eq!(with.media().len(), 1);
+        assert_eq!(f.service.attach_flashcard_media(card.uuid(), image()).unwrap().media().len(), 1, "the same file counts once");
+        assert!(with.fields().iter().any(|v| v.field_definition_id() == 1 && v.content().is_empty()));
+
+        // Clearing the text keeps a field that still has media.
+        let cleared = f.service.update_flashcard_fields(card.uuid(), vec![]).unwrap();
+        assert_eq!(cleared.media().len(), 1);
+        assert_eq!(cleared.fields().len(), 1);
+
+        let without = f.service.remove_flashcard_media(card.uuid(), 1, &"a".repeat(64)).unwrap();
+        assert!(without.media().is_empty());
+        assert!(without.fields().is_empty(), "a field with nothing left is dropped");
+        assert!(matches!(
+            f.service.remove_flashcard_media(card.uuid(), 1, &"a".repeat(64)),
+            Err(FlashcardsError::NotFound(_))
+        ));
         assert_eq!(count(&f, "field_media"), 0);
     }
 }

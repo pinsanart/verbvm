@@ -21,6 +21,20 @@ pub trait FlashcardRepository: Send + Sync {
     /// Cascades to the flashcard's field values.
     fn delete_flashcard(&self, uuid: &str) -> Result<bool, DbError>;
     fn count_by_type(&self, deck_id: i64) -> Result<Vec<TypeCount>, DbError>;
+    /// Replaces the text of a saved flashcard: the given fields are written and the others are
+    /// cleared (a field that still has media stays, with empty text). The flashcard keeps its id,
+    /// so its review history is untouched. Returns `false` when it does not exist.
+    fn update_flashcard_fields(&self, uuid: &str, fields: &[FieldValue]) -> Result<bool, DbError>;
+    /// Attaches media to a field of a saved flashcard. Attaching the same file twice changes
+    /// nothing. Returns `false` when the flashcard does not exist.
+    fn add_flashcard_media(&self, uuid: &str, media: &FieldMedia) -> Result<bool, DbError>;
+    /// Detaches the file with this hash from a field. Returns `false` when it was not attached.
+    fn remove_flashcard_media(
+        &self,
+        uuid: &str,
+        field_definition_id: i64,
+        sha256: &str,
+    ) -> Result<bool, DbError>;
 
     /// Stores an unsaved draft at the end of its deck's list.
     fn insert_draft(&self, draft: &FlashcardDraft) -> Result<FlashcardDraft, DbError>;
@@ -352,6 +366,115 @@ impl FlashcardRepository for SqliteFlashcardRepository {
                 Ok(TypeCount { flashcard_type_id: row.get(0)?, count: row.get(1)? })
             })?
             .collect()
+        })
+    }
+
+    fn update_flashcard_fields(&self, uuid: &str, fields: &[FieldValue]) -> Result<bool, DbError> {
+        self.db.with_connection(|conn| {
+            let tx = conn.unchecked_transaction()?;
+            let id: Option<i64> = tx
+                .query_row("SELECT id FROM flashcards WHERE uuid = ?1", [uuid], |row| row.get(0))
+                .optional()?;
+            let Some(id) = id else { return Ok(false) };
+
+            let keep: std::collections::HashSet<i64> =
+                fields.iter().map(FieldValue::field_definition_id).collect();
+            let existing: Vec<(i64, i64, bool)> = tx
+                .prepare(
+                    "SELECT ff.id, ff.field_definition_id,
+                            EXISTS (SELECT 1 FROM field_media fm WHERE fm.flashcard_field_id = ff.id)
+                     FROM flashcard_fields ff WHERE ff.flashcard_id = ?1",
+                )?
+                .query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+                .collect::<rusqlite::Result<_>>()?;
+            for (field_id, definition_id, has_media) in existing {
+                if keep.contains(&definition_id) {
+                    continue;
+                }
+                if has_media {
+                    tx.execute("UPDATE flashcard_fields SET content = '' WHERE id = ?1", [field_id])?;
+                } else {
+                    tx.execute("DELETE FROM flashcard_fields WHERE id = ?1", [field_id])?;
+                }
+            }
+            for field in fields {
+                tx.execute(
+                    "INSERT INTO flashcard_fields (flashcard_id, field_definition_id, content) VALUES (?1, ?2, ?3)
+                     ON CONFLICT(flashcard_id, field_definition_id) DO UPDATE SET content = excluded.content",
+                    params![id, field.field_definition_id(), field.content()],
+                )?;
+            }
+            tx.execute("UPDATE flashcards SET updated_at = datetime('now') WHERE id = ?1", [id])?;
+            tx.commit()?;
+            Ok(true)
+        })
+    }
+
+    fn add_flashcard_media(&self, uuid: &str, media: &FieldMedia) -> Result<bool, DbError> {
+        self.db.with_connection(|conn| {
+            let tx = conn.unchecked_transaction()?;
+            let id: Option<i64> = tx
+                .query_row("SELECT id FROM flashcards WHERE uuid = ?1", [uuid], |row| row.get(0))
+                .optional()?;
+            let Some(id) = id else { return Ok(false) };
+
+            tx.execute(
+                "INSERT OR IGNORE INTO flashcard_fields (flashcard_id, field_definition_id, content) VALUES (?1, ?2, '')",
+                params![id, media.field_definition_id],
+            )?;
+            let field_id: i64 = tx.query_row(
+                "SELECT id FROM flashcard_fields WHERE flashcard_id = ?1 AND field_definition_id = ?2",
+                params![id, media.field_definition_id],
+                |row| row.get(0),
+            )?;
+            let m = &media.attachment;
+            tx.execute(
+                "INSERT INTO field_media (flashcard_field_id, kind, mime_type, sha256, file_name, size_bytes, position)
+                 SELECT ?1, ?2, ?3, ?4, ?5, ?6,
+                        (SELECT COALESCE(MAX(position) + 1, 0) FROM field_media WHERE flashcard_field_id = ?1)
+                 WHERE NOT EXISTS (SELECT 1 FROM field_media WHERE flashcard_field_id = ?1 AND sha256 = ?4)",
+                params![field_id, m.kind().as_str(), m.mime_type(), m.sha256(), m.file_name(), m.size_bytes()],
+            )?;
+            tx.execute("UPDATE flashcards SET updated_at = datetime('now') WHERE id = ?1", [id])?;
+            tx.commit()?;
+            Ok(true)
+        })
+    }
+
+    fn remove_flashcard_media(
+        &self,
+        uuid: &str,
+        field_definition_id: i64,
+        sha256: &str,
+    ) -> Result<bool, DbError> {
+        self.db.with_connection(|conn| {
+            let tx = conn.unchecked_transaction()?;
+            let field: Option<(i64, i64)> = tx
+                .query_row(
+                    "SELECT f.id, ff.id FROM flashcards f
+                     JOIN flashcard_fields ff ON ff.flashcard_id = f.id
+                     WHERE f.uuid = ?1 AND ff.field_definition_id = ?2",
+                    params![uuid, field_definition_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()?;
+            let Some((card_id, field_id)) = field else { return Ok(false) };
+
+            let removed = tx.execute(
+                "DELETE FROM field_media WHERE flashcard_field_id = ?1 AND sha256 = ?2",
+                params![field_id, sha256],
+            )? > 0;
+            if removed {
+                // A field with no text and no media left has nothing to keep.
+                tx.execute(
+                    "DELETE FROM flashcard_fields WHERE id = ?1 AND COALESCE(content, '') = ''
+                     AND NOT EXISTS (SELECT 1 FROM field_media WHERE flashcard_field_id = ?1)",
+                    [field_id],
+                )?;
+                tx.execute("UPDATE flashcards SET updated_at = datetime('now') WHERE id = ?1", [card_id])?;
+            }
+            tx.commit()?;
+            Ok(removed)
         })
     }
 
