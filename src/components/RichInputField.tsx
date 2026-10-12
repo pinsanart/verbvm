@@ -93,7 +93,7 @@ export function RichInputField({
 
     return (
         <div>
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex min-h-10 items-center justify-between md:min-h-9">
                 <span id={labelId} className="text-ui font-medium text-muted">
                     {label}
                     {required && (

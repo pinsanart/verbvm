@@ -36,7 +36,7 @@ export function PlainInputField({
 
     return (
         <div>
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex min-h-10 items-center justify-between md:min-h-9">
                 <label htmlFor={id} className={`${editorLabelClass} mb-0`}>
                     {label}
                     {required && (

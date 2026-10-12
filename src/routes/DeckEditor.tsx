@@ -32,11 +32,16 @@ export default function DeckEditor() {
   const saved = useSavedCardsViewModel(deckName);
   const [tab, setTab] = useState<Tab>("new");
 
-  // Cards published from the other tab show up when this one is opened.
+  // Cards published from the other tab show up when this one is opened, and the count in the tab
+  // follows every save.
   const { reload } = saved;
   useEffect(() => {
     if (tab === "saved") reload();
   }, [tab, reload]);
+  const { lastPublished } = vm;
+  useEffect(() => {
+    if (lastPublished !== null) reload();
+  }, [lastPublished, reload]);
 
   const previewKeys = Object.fromEntries(
     Object.entries(vm.fieldsByType).map(([slug, fields]) => [slug, { front: fields.front[0], back: fields.back[0] }]),
