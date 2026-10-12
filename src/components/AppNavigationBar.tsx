@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "motion/react";
 import { TRANSITION_BASE } from "../lib/motion";
 import { CircleUserRound } from "lucide-react";
@@ -9,9 +10,13 @@ const railVariants = { collapsed: { width: 72 }, expanded: { width: 240 } };
 const fadeVariants = { collapsed: { opacity: 0 }, expanded: { opacity: 1 } };
 
 export function AppNavigationBar() {
+  // The rail opens on hover and when keyboard focus is inside it, so it works without a mouse.
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <>
       <nav
+        aria-label="Main"
         className="
           fixed inset-x-0 bottom-0 z-50 flex h-16 flex-row items-center justify-around gap-1
           border-t border-line bg-panel px-2 pb-[env(safe-area-inset-bottom)]
@@ -24,8 +29,15 @@ export function AppNavigationBar() {
       </nav>
 
       <motion.nav
-        initial="collapsed"
-        whileHover="expanded"
+        aria-label="Main"
+        initial={false}
+        animate={expanded ? "expanded" : "collapsed"}
+        onHoverStart={() => setExpanded(true)}
+        onHoverEnd={() => setExpanded(false)}
+        onFocusCapture={() => setExpanded(true)}
+        onBlurCapture={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setExpanded(false);
+        }}
         variants={railVariants}
         transition={TRANSITION_BASE}
         className="
@@ -35,12 +47,12 @@ export function AppNavigationBar() {
         "
       >
         <div className="flex items-center gap-3 overflow-hidden px-1 pb-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-vocabulary p-1.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent p-1.5">
             <img src={verbvmLogo} alt="Verbvm" className="h-full w-full object-contain" />
           </div>
           <motion.span
             variants={fadeVariants}
-            className="overflow-hidden whitespace-nowrap text-lg font-semibold"
+            className="overflow-hidden whitespace-nowrap text-heading font-semibold"
           >
             Verbvm
           </motion.span>
@@ -56,7 +68,7 @@ export function AppNavigationBar() {
           <CircleUserRound size={36} className="shrink-0 text-muted" aria-hidden />
           <motion.span
             variants={fadeVariants}
-            className="overflow-hidden whitespace-nowrap text-sm text-muted"
+            className="overflow-hidden whitespace-nowrap text-ui text-muted"
           >
             Login
           </motion.span>
