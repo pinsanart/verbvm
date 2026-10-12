@@ -3,6 +3,7 @@ import { CodeXml, Paperclip } from "lucide-react";
 import { editorControlClass, errorClass } from "./formStyles";
 import { IconButton } from "./IconButton";
 import { MediaPreview } from "./MediaPreview";
+import { RichToolbar } from "./RichToolbar";
 import { Media } from "../types/Media";
 
 export interface RichInputFieldProps {
@@ -105,6 +106,10 @@ export function RichInputField({
                         <IconButton label="Attach media" icon={Paperclip} iconSize={16} onClick={onAttachMedia} />
                     )}
                 </div>
+            </div>
+
+            <div className="mb-1.5 rounded-lg border border-line bg-panel px-1 py-0.5">
+                <RichToolbar editor={richTextRef} />
             </div>
 
             <div

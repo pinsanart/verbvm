@@ -10,13 +10,15 @@ interface IconButtonProps {
     /** Marks a toggle button as on or off. */
     pressed?: boolean;
     ref?: React.Ref<HTMLButtonElement>;
+    tabIndex?: number;
 }
 
 /** An icon-only button. The label names it for screen readers and shows as a tooltip. */
-export function IconButton({ label, icon: Icon, iconSize, className, onClick, disabled, pressed, ref }: IconButtonProps) {
+export function IconButton({ label, icon: Icon, iconSize, className, onClick, disabled, pressed, ref, tabIndex }: IconButtonProps) {
     return (
         <button
             ref={ref}
+            tabIndex={tabIndex}
             type="button"
             aria-label={label}
             title={label}
