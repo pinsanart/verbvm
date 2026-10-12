@@ -38,6 +38,12 @@ The editor is **driven by the field definitions** the backend sends: for each dr
 - **`Select`** is a dark dropdown (ARIA select-only combobox, with keyboard support) used instead of the native `<select>`, whose list the system draws and cannot be themed. `index.css` also sets `color-scheme: dark`.
 - **`Button`** (primary, outline, ghost and danger), **`Notice`** (animated success and error messages) and the shared control classes in `formStyles.ts` keep controls consistent. Every interactive element has a visible focus ring.
 
+### Typography
+
+- **Inter** (variable, `@fontsource-variable/inter`) is bundled with the app, so the text looks the same on every machine and offline. CJK system fonts are fallbacks for the languages Inter does not cover.
+- The base styles are in `index.css`: antialiasing, a 1.5 line height, headings with a tight letter spacing and balanced wrapping, and paragraphs that wrap prettily.
+- Secondary text uses the `text-muted` and `text-subtle` colors (both at least 4.5:1 contrast on the panel color), not ad hoc `white/NN` opacities. Uppercase labels use `tracking-wider`, badges are 11px at the smallest, the text people write in the editors is 15px with a 1.5rem line height, and counts use tabular numbers.
+
 ### Motion
 
 Animations use `motion/react`. `Root` wraps the app in `MotionConfig reducedMotion="user"`, so they turn off for people who ask the system for less motion, and fades between screens. Lists use `AnimatePresence` with `layout`: cards slide in, fade out and glide when one is moved or removed. Dialogs, notices, the dropdown and media previews animate in and out. The "saved" notice dismisses itself after about 4 seconds.

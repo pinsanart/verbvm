@@ -56,7 +56,7 @@ Rules:
 - `types/` holds the shared TS types, `api/` the typed `invoke` wrappers (`errorMessage`, the file picker, asset URLs), and `viewmodels/` the viewmodels. `routes/CreateFlashcards.tsx` with `viewmodels/useFlashcardEditorViewModel.ts` is the reference for the view and viewmodel split.
 - Confirmations are embedded in the view (`ConfirmDeleteButton`, with Keep and Delete buttons): never `window.confirm`, `alert` or `prompt`, which do not work in the Tauri webview. Selects use the dark `Select` component, not the native `<select>`. Animations use `motion/react`, with `MotionConfig reducedMotion="user"` in `Root`.
 - `FlashcardInput` renders the field definitions the backend sends (front and back, rich or plain, with media where allowed), so a new type or a language-specific field needs no component change. Type colors and icons are in `data/FlashcardTypeStyles.ts`, flags come from the offline `country-flag-icons` package.
-- Styling is Tailwind v4 through the `@tailwindcss/vite` plugin, with the entry in `src/index.css`.
+- Styling is Tailwind v4 through the `@tailwindcss/vite` plugin, with the entry in `src/index.css`. Typography: Inter is bundled (`@fontsource-variable/inter`), secondary text uses the `text-muted` and `text-subtle` tokens instead of ad hoc `white/NN` opacities, and the smallest text is 11px.
 - In the browser (`npm run dev`) Tauri's `invoke` is unavailable, so screens that call the backend show an error. Use `npm run tauri dev`.
 
 ## Data model
