@@ -1,2 +1,4 @@
+pub mod clock;
 pub mod db;
-pub mod http;
+// Not compiled until `reqwest` (with the `json` feature) is added to Cargo.toml.
+// pub mod http;
