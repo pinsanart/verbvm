@@ -324,7 +324,7 @@ fn media_is_only_accepted_for_fields_that_allow_it_and_for_real_images_and_audio
     let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
     let png = source_file(&f, "a.png", PNG);
 
-    assert!(matches!(f.editor.attach_media(draft.uuid(), "meaning", &png), Err(OrchestratorError::Invalid(_))));
+    assert!(matches!(f.editor.attach_media(draft.uuid(), "word_or_expression", &png), Err(OrchestratorError::Invalid(_))));
     assert!(matches!(f.editor.attach_media(draft.uuid(), "nope", &png), Err(OrchestratorError::Invalid(_))));
     let text = source_file(&f, "fake.png", b"not an image");
     assert!(matches!(f.editor.attach_media(draft.uuid(), "phrase", &text), Err(OrchestratorError::Invalid(_))));
@@ -474,7 +474,7 @@ fn media_of_a_saved_card_can_be_added_removed_and_a_card_deleted() {
     let with = f.editor.attach_saved_media(&uuid, "phrase", &source_file(&f, "a.png", PNG)).unwrap();
     assert_eq!(with.media["phrase"].len(), 1);
     assert!(matches!(
-        f.editor.attach_saved_media(&uuid, "meaning", &source_file(&f, "b.png", PNG)),
+        f.editor.attach_saved_media(&uuid, "word_or_expression", &source_file(&f, "b.png", PNG)),
         Err(OrchestratorError::Invalid(_))
     ));
 

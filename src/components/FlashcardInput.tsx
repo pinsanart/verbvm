@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { ArrowDown, ArrowUp, Copy, Eye, EyeOff, RotateCw } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Eye, EyeOff } from "lucide-react";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { CountryFlag } from "./CountryFlag";
 import { FieldInput } from "./FieldInput";
@@ -153,11 +153,7 @@ export function FlashcardFaces({ frontFields, backFields, ...faceProps }: Flashc
         <>
             <Face face="front" fields={frontFields} {...faceProps} />
             {frontFields.length > 0 && backFields.length > 0 && (
-                <div className="flex items-center gap-3 text-subtle" aria-hidden>
-                    <span className="h-px flex-1 bg-line" />
-                    <RotateCw size={16} />
-                    <span className="h-px flex-1 bg-line" />
-                </div>
+                <hr className="border-line" aria-hidden />
             )}
             <Face face="back" fields={backFields} {...faceProps} columns />
         </>

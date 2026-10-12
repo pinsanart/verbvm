@@ -1,29 +1,22 @@
-import { Paperclip, Wand2 } from "lucide-react";
-import { IconButton } from "./IconButton";
+import { Paperclip } from "lucide-react";
+import { Button } from "./Button";
 import { MediaPreview } from "./MediaPreview";
 import { Media } from "../types/Media";
 
 export interface AudioFieldProps {
-    label: string;
     media?: Media[];
     onAttach: () => void;
     onRemove: (sha256: string) => void;
 }
 
-export function AudioField({ label, media, onAttach, onRemove }: AudioFieldProps) {
-    function handleGenerate() {
-        // Visual structure only: generating audio with TTS from the phrase comes in a later step.
-    }
-
+/** Attaches images and audio to a plain field and previews what is attached. */
+export function AudioField({ media, onAttach, onRemove }: AudioFieldProps) {
     return (
-        <div>
-            <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-label font-medium uppercase tracking-wider text-muted">{label}</label>
-                <div className="flex items-center gap-0.5">
-                    <IconButton label="Attach media" icon={Paperclip} iconSize={14} onClick={onAttach} />
-                    <IconButton label="Generate audio" icon={Wand2} iconSize={14} onClick={handleGenerate} />
-                </div>
-            </div>
+        <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outline" onClick={onAttach} className="min-h-10">
+                <Paperclip size={16} aria-hidden />
+                Add image or audio
+            </Button>
             <MediaPreview media={media} onRemove={onRemove} />
         </div>
     );

@@ -208,7 +208,7 @@ pub fn migrations() -> Migrations<'static> {
             FROM (
                 SELECT 'vocabulary' AS slug, 'FRONT' AS side, 'phrase' AS key, 'Phrase' AS label, 0 AS position, 1 AS is_required, 1 AS media_allowed, 1 AS is_rich
                 UNION ALL SELECT 'vocabulary', 'BACK', 'word_or_expression', 'Word or expression', 0, 1, 0, 0
-                UNION ALL SELECT 'vocabulary', 'BACK', 'meaning', 'Meaning', 1, 1, 0, 0
+                UNION ALL SELECT 'vocabulary', 'BACK', 'meaning', 'Meaning', 1, 1, 1, 0
                 UNION ALL SELECT 'phonetic', 'FRONT', 'phrase', 'Phrase', 0, 1, 0, 0
                 UNION ALL SELECT 'phonetic', 'BACK', 'ipa_phonetics', 'IPA phonetics', 0, 1, 0, 1
                 UNION ALL SELECT 'orthographic', 'FRONT', 'phrase', 'Phrase', 0, 1, 1, 0

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { CodeXml, Paperclip } from "lucide-react";
-import { editorControlClass, errorClass } from "./formStyles";
+import { errorClass } from "./formStyles";
 import { IconButton } from "./IconButton";
 import { MediaPreview } from "./MediaPreview";
 import { RichToolbar } from "./RichToolbar";
@@ -108,46 +108,53 @@ export function RichInputField({
                 </div>
             </div>
 
-            <div className="mb-1.5 rounded-lg border border-line bg-panel px-1 py-0.5">
-                <RichToolbar editor={richTextRef} />
-            </div>
-
+            {/* One box: the formatting bar, the text and, when open, the HTML source it produces. */}
             <div
-                ref={richTextRef}
-                id={id}
-                contentEditable
-                role="textbox"
-                aria-multiline="true"
-                aria-labelledby={labelId}
-                aria-required={required || undefined}
-                aria-invalid={error ? true : undefined}
-                aria-describedby={error ? errorId : undefined}
-                onInput={handleRichInput}
-                suppressContentEditableWarning
-                className={`${editorControlClass} min-h-24`}
-            />
-
-            {showHtml && (
-                <div className="mt-2 overflow-hidden rounded-xl bg-black/30">
-                    <p className="px-3 pt-2 font-mono text-label text-subtle">HTML</p>
-                    <div className="relative h-24">
-                        <pre
-                            ref={htmlHighlightRef}
-                            aria-hidden
-                            className="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-all p-3 pt-1 font-mono text-meta leading-relaxed text-ink"
-                            dangerouslySetInnerHTML={{ __html: highlightHtml(content) }}
-                        />
-                        <textarea
-                            value={content}
-                            onChange={handleHtmlChange}
-                            onScroll={handleHtmlScroll}
-                            spellCheck={false}
-                            aria-label="HTML source"
-                            className="absolute inset-0 h-full w-full resize-none overflow-auto whitespace-pre-wrap break-all bg-transparent p-3 pt-1 font-mono text-meta leading-relaxed text-transparent caret-white outline-none"
-                        />
-                    </div>
+                className={`overflow-hidden rounded-xl border bg-white/5 transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/40 ${
+                    error ? "border-stack/70 focus-within:ring-stack/30" : "border-line hover:border-line-strong"
+                }`}
+            >
+                <div className="border-b border-line px-1.5 py-0.5">
+                    <RichToolbar editor={richTextRef} />
                 </div>
-            )}
+
+                <div
+                    ref={richTextRef}
+                    id={id}
+                    contentEditable
+                    role="textbox"
+                    aria-multiline="true"
+                    aria-labelledby={labelId}
+                    aria-required={required || undefined}
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? errorId : undefined}
+                    onInput={handleRichInput}
+                    suppressContentEditableWarning
+                    className="min-h-24 w-full bg-transparent px-4 py-3 text-lead text-ink outline-none"
+                />
+
+                {showHtml && (
+                    <div className="border-t border-dashed border-line-strong bg-black/25">
+                        <p className="px-4 pt-2 font-mono text-label text-subtle">HTML</p>
+                        <div className="relative h-24">
+                            <pre
+                                ref={htmlHighlightRef}
+                                aria-hidden
+                                className="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-all px-4 pb-3 pt-1 font-mono text-meta leading-relaxed text-ink"
+                                dangerouslySetInnerHTML={{ __html: highlightHtml(content) }}
+                            />
+                            <textarea
+                                value={content}
+                                onChange={handleHtmlChange}
+                                onScroll={handleHtmlScroll}
+                                spellCheck={false}
+                                aria-label="HTML source"
+                                className="absolute inset-0 h-full w-full resize-none overflow-auto whitespace-pre-wrap break-all bg-transparent px-4 pb-3 pt-1 font-mono text-meta leading-relaxed text-transparent caret-white outline-none"
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {error && (
                 <p id={errorId} className={errorClass}>

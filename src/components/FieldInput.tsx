@@ -45,7 +45,7 @@ export function FieldInput({ definition, value, error, media, onChange, onAttach
                 error={error}
             />
             {definition.mediaAllowed && onAttachMedia && onRemoveMedia && (
-                <AudioField label="Media" media={media} onAttach={onAttachMedia} onRemove={onRemoveMedia} />
+                <AudioField media={media} onAttach={onAttachMedia} onRemove={onRemoveMedia} />
             )}
         </div>
     );

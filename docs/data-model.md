@@ -61,7 +61,7 @@ A card's layout is **data, not code**:
 |---|---|---|---|---|---|
 | vocabulary | FRONT | `phrase` | yes | yes | yes |
 | vocabulary | BACK | `word_or_expression` | yes | no | no |
-| vocabulary | BACK | `meaning` | yes | no | no |
+| vocabulary | BACK | `meaning` | yes | yes | no |
 | phonetic | FRONT | `phrase` | yes | no | no |
 | phonetic | BACK | `ipa_phonetics` | yes | yes | no |
 | orthographic | FRONT | `phrase` | yes | no | yes |
