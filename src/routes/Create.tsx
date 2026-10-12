@@ -28,7 +28,11 @@ export default function Create() {
   const formOpen = creating || editing !== null;
 
   return (
-    <Page title="Create flashcards" width="wide">
+    <Page title="Create" width="wide">
+      <p className="max-w-prose text-ui text-muted">
+        Pick a deck to write flashcards in, or add a new one at the end.
+      </p>
+
       <AnimatePresence initial={false}>
         {vm.error && !formOpen && (
           <Notice key="error" tone="error">

@@ -19,7 +19,7 @@ export default function CreateFlashcards() {
   return (
     <Page
       title={deckName}
-      back={{ to: "/create", label: "Decks" }}
+      parents={[{ to: "/create", label: "Create" }]}
       meta={
         vm.form && (
           <>
