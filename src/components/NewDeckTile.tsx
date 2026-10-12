@@ -1,4 +1,5 @@
 import { Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export interface NewDeckTileProps {
     onClick: () => void;
@@ -12,6 +13,7 @@ export interface NewDeckTileProps {
  * adding to the list.
  */
 export function NewDeckTile({ onClick, first, ref }: NewDeckTileProps) {
+    const { t } = useTranslation();
     return (
         <button
             ref={ref}
@@ -20,10 +22,10 @@ export function NewDeckTile({ onClick, first, ref }: NewDeckTileProps) {
             className="flex min-h-32 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-line px-6 py-6 text-center text-muted transition-colors hover:border-line-strong hover:text-ink"
         >
             <Plus size={28} aria-hidden />
-            <span className="text-body font-medium">New deck</span>
+            <span className="text-body font-medium">{t("decks.newDeck")}</span>
             {first && (
                 <span className="max-w-xs text-ui text-subtle">
-                    A deck holds flashcards in one language and accent. Create your first one to start writing cards.
+                    {t("decks.newDeckFirstHint")}
                 </span>
             )}
         </button>

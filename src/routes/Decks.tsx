@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { DeckCard } from "../components/DeckCard";
@@ -11,6 +12,7 @@ import { useDecksViewModel } from "../viewmodels/useDecksViewModel";
 
 /** Every deck: open one to write its flashcards, edit or delete it, or add a new one at the end. */
 export default function Decks() {
+  const { t } = useTranslation();
   const vm = useDecksViewModel();
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
@@ -28,9 +30,9 @@ export default function Decks() {
   const formOpen = creating || editing !== null;
 
   return (
-    <Page title="Decks" width="wide">
+    <Page title={t("nav.decks")} width="wide">
       <p className="max-w-prose text-ui text-muted">
-        Open a deck to write its flashcards, or add a new deck at the end.
+        {t("decks.intro")}
       </p>
 
       <AnimatePresence initial={false}>
@@ -42,7 +44,7 @@ export default function Decks() {
       </AnimatePresence>
 
       {vm.status === "loading" && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-busy="true" aria-label="Loading decks">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-busy="true" aria-label={t("decks.loading")}>
           {[0, 1].map((n) => (
             <div key={n} className="h-32 animate-pulse rounded-2xl border border-line bg-panel" />
           ))}

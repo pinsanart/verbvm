@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { Check, Loader2, Save } from "lucide-react";
 import { TypePicker } from "./TypePicker";
 
@@ -19,12 +20,13 @@ export interface EditorDockProps {
  * full width with the add button at the right, and on a wide screen it is a compact pill.
  */
 export function EditorDock({ pending, justSaved, busy, onAdd, onSave }: EditorDockProps) {
+    const { t } = useTranslation();
     const confirmed = justSaved !== null && pending === 0;
     const label = confirmed
-        ? `${justSaved} ${justSaved === 1 ? "card" : "cards"} saved`
+        ? t("dock.saved", { count: justSaved })
         : pending === 0
-          ? "Nothing to save"
-          : `Save ${pending} ${pending === 1 ? "card" : "cards"}`;
+          ? t("dock.nothing")
+          : t("dock.save", { count: pending });
 
     return (
         <div className="pointer-events-none sticky bottom-3 z-10 mt-2 flex justify-center">

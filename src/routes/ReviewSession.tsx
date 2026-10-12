@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "motion/react";
 import { useParams } from "react-router";
 import { Notice } from "../components/Notice";
@@ -7,7 +8,7 @@ import { RatingBar } from "../components/RatingBar";
 import { ReviewCardFace } from "../components/ReviewCardFace";
 import { ReviewSummary } from "../components/ReviewSummary";
 import { TRANSITION_BASE, TRANSITION_FAST } from "../lib/motion";
-import { styleForType } from "../data/FlashcardTypeStyles";
+import { useTypeLabel } from "../i18n/useTypeLabel";
 import type { Rating } from "../types/Review";
 import { useReviewSessionViewModel } from "../viewmodels/useReviewSessionViewModel";
 
@@ -26,8 +27,10 @@ const replayAudio = () => {
 /** Reviews the flashcards of one type in a deck, one card at a time. */
 export default function ReviewSession() {
   const { deckName = "", typeSlug = "" } = useParams();
+  const { t } = useTranslation();
+  const typeLabel = useTypeLabel();
   const vm = useReviewSessionViewModel(deckName, typeSlug);
-  const title = vm.card?.typeName ?? styleForType(typeSlug).label;
+  const title = typeLabel(typeSlug, vm.card?.typeName);
   const front = vm.card?.fields.filter((field) => field.side === "FRONT") ?? [];
   const back = vm.card?.fields.filter((field) => field.side === "BACK") ?? [];
   const cardRef = useRef<HTMLElement>(null);
@@ -60,7 +63,7 @@ export default function ReviewSession() {
   }, [card?.uuid, revealed]);
 
   return (
-    <Page title={title} parents={[{ to: "/review", label: "Review" }]} meta={deckName}>
+    <Page title={title} parents={[{ to: "/review", label: t("nav.review") }]} meta={deckName}>
       <AnimatePresence initial={false}>
         {vm.error && (
           <Notice key="error" tone="error">
@@ -70,7 +73,7 @@ export default function ReviewSession() {
       </AnimatePresence>
 
       {vm.status === "loading" && (
-        <div className="h-64 animate-pulse rounded-2xl border border-line bg-panel" aria-busy="true" aria-label="Loading the card" />
+        <div className="h-64 animate-pulse rounded-2xl border border-line bg-panel" aria-busy="true" aria-label={t("review.loadingCard")} />
       )}
 
       {vm.done && (
@@ -92,7 +95,7 @@ export default function ReviewSession() {
               ref={cardRef}
               tabIndex={-1}
               lang={vm.languageTag || undefined}
-              aria-label="Flashcard"
+              aria-label={t("review.flashcardAria")}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}

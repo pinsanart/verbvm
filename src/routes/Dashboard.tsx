@@ -1,14 +1,16 @@
+import { useTranslation } from "react-i18next";
 import { LayoutDashboard } from "lucide-react";
 import { EmptyState } from "../components/EmptyState";
 import { Page } from "../components/Page";
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   return (
-    <Page title="Dashboard">
+    <Page title={t("nav.dashboard")}>
       <EmptyState
         icon={LayoutDashboard}
-        title="No progress to show yet"
-        description="Your review history and statistics will appear here once you start reviewing."
+        title={t("dashboard.emptyTitle")}
+        description={t("dashboard.emptyDescription")}
       />
     </Page>
   );

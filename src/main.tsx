@@ -4,6 +4,7 @@ import { RouterProvider } from "react-router/dom";
 
 import "@fontsource-variable/inter";
 import "./index.css";
+import "./i18n";
 
 import Root from "./routes/Root";
 import Home from "./routes/Home";

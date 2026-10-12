@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 import type { CommandError } from "../types/Language";
 
 /** Turns whatever `invoke` rejected with into a message to show. */
@@ -6,7 +7,7 @@ export function errorMessage(err: unknown): string {
         return (err as CommandError).message;
     }
     if (err instanceof TypeError) {
-        return "Tauri is not available here. Run the app with `npm run tauri dev`.";
+        return i18n.t("errors.tauriUnavailable");
     }
     return String(err);
 }

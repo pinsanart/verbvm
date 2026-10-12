@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { CodeXml, Paperclip } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { errorClass } from "./formStyles";
 import { IconButton } from "./IconButton";
 import { MediaPreview } from "./MediaPreview";
@@ -44,6 +45,7 @@ export function RichInputField({
     required,
     error,
 }: RichInputFieldProps) {
+    const { t } = useTranslation();
     const [showHtml, setShowHtml] = useState(false);
     const id = useId();
     const labelId = `${id}-label`;
@@ -101,9 +103,9 @@ export function RichInputField({
                     )}
                 </span>
                 <div className="flex items-center gap-0.5">
-                    <IconButton label="Edit HTML" icon={CodeXml} iconSize={16} pressed={showHtml} onClick={() => setShowHtml((v) => !v)} />
+                    <IconButton label={t("rich.editHtml")} icon={CodeXml} iconSize={16} pressed={showHtml} onClick={() => setShowHtml((v) => !v)} />
                     {allowMedia && (
-                        <IconButton label="Attach media" icon={Paperclip} iconSize={16} onClick={onAttachMedia} />
+                        <IconButton label={t("media.attach")} icon={Paperclip} iconSize={16} onClick={onAttachMedia} />
                     )}
                 </div>
             </div>
@@ -148,7 +150,7 @@ export function RichInputField({
                                 onChange={handleHtmlChange}
                                 onScroll={handleHtmlScroll}
                                 spellCheck={false}
-                                aria-label="HTML source"
+                                aria-label={t("rich.htmlSource")}
                                 className="absolute inset-0 h-full w-full resize-none overflow-auto whitespace-pre-wrap break-all bg-transparent px-4 pb-3 pt-1 font-mono text-meta leading-relaxed text-transparent caret-white outline-none"
                             />
                         </div>

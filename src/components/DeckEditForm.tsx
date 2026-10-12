@@ -1,9 +1,11 @@
 import { FormEvent, useId, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { Button } from "./Button";
 import { Notice } from "./Notice";
 import { controlClass, labelClass } from "./formStyles";
 import { TRANSITION_BASE } from "../lib/motion";
+import { useLanguageNames } from "../i18n/useLanguageNames";
 import type { Deck, UpdateDeck } from "../types/Deck";
 
 export interface DeckEditFormProps {
@@ -20,6 +22,8 @@ export interface DeckEditFormProps {
  * the language and accent are fixed, because the fields of its flashcards depend on them.
  */
 export function DeckEditForm({ deck, onSave, onCancel, busy, error }: DeckEditFormProps) {
+    const { t } = useTranslation();
+    const names = useLanguageNames();
     const id = useId();
     const [name, setName] = useState(deck.name);
     const [description, setDescription] = useState(deck.description ?? "");
@@ -36,7 +40,7 @@ export function DeckEditForm({ deck, onSave, onCancel, busy, error }: DeckEditFo
     return (
         <motion.form
             layout
-            aria-label={`Edit ${deck.name}`}
+            aria-label={t("decks.editAria", { name: deck.name })}
             onSubmit={submit}
             onKeyDown={(e) => {
                 if (e.key === "Escape") onCancel();
@@ -47,7 +51,7 @@ export function DeckEditForm({ deck, onSave, onCancel, busy, error }: DeckEditFo
             transition={TRANSITION_BASE}
             className="flex flex-col gap-5 rounded-2xl border border-line-strong bg-panel p-5 md:col-span-2 md:p-6"
         >
-            <h2 className="text-heading">Edit deck</h2>
+            <h2 className="text-heading">{t("decks.editTitle")}</h2>
 
             <AnimatePresence initial={false}>
                 {error && (
@@ -59,7 +63,7 @@ export function DeckEditForm({ deck, onSave, onCancel, busy, error }: DeckEditFo
 
             <div>
                 <label className={labelClass} htmlFor={`${id}-name`}>
-                    Name
+                    {t("common.name")}
                 </label>
                 <input
                     id={`${id}-name`}
@@ -74,7 +78,7 @@ export function DeckEditForm({ deck, onSave, onCancel, busy, error }: DeckEditFo
 
             <div>
                 <label className={labelClass} htmlFor={`${id}-description`}>
-                    Description <span className="font-normal text-subtle">(optional)</span>
+                    {t("common.description")} <span className="font-normal text-subtle">{t("common.optional")}</span>
                 </label>
                 <textarea
                     id={`${id}-description`}
@@ -85,16 +89,15 @@ export function DeckEditForm({ deck, onSave, onCancel, busy, error }: DeckEditFo
             </div>
 
             <p className="text-meta text-muted">
-                {deck.language.name} · {deck.variant.variantName} stays as it is, because the cards in this
-                deck depend on it.
+                {t("decks.fixedNote", { language: names.language(deck.variant.bcp47Code, deck.language.name), accent: names.variant(deck.variant) })}
             </p>
 
             <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={onCancel}>
-                    Cancel
+                    {t("common.cancel")}
                 </Button>
                 <Button type="submit" loading={busy}>
-                    Save changes
+                    {t("common.saveChanges")}
                 </Button>
             </div>
         </motion.form>

@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { ParseKeys } from "i18next";
 import { Bold, Eraser, Italic, List, ListOrdered, Strikethrough, Underline } from "lucide-react";
 import { IconButton } from "./IconButton";
 
 // Only formatting the backend keeps: bold, italic, underline, strikethrough and lists.
 const TOOLS = [
-    { command: "bold", label: "Bold", shortcut: "Ctrl+B", icon: Bold },
-    { command: "italic", label: "Italic", shortcut: "Ctrl+I", icon: Italic },
-    { command: "underline", label: "Underline", shortcut: "Ctrl+U", icon: Underline },
-    { command: "strikeThrough", label: "Strikethrough", shortcut: "", icon: Strikethrough },
-    { command: "insertUnorderedList", label: "Bulleted list", shortcut: "", icon: List },
-    { command: "insertOrderedList", label: "Numbered list", shortcut: "", icon: ListOrdered },
-    { command: "removeFormat", label: "Clear formatting", shortcut: "", icon: Eraser },
-] as const;
+    { command: "bold", labelKey: "rich.bold", shortcut: "Ctrl+B", icon: Bold },
+    { command: "italic", labelKey: "rich.italic", shortcut: "Ctrl+I", icon: Italic },
+    { command: "underline", labelKey: "rich.underline", shortcut: "Ctrl+U", icon: Underline },
+    { command: "strikeThrough", labelKey: "rich.strikethrough", shortcut: "", icon: Strikethrough },
+    { command: "insertUnorderedList", labelKey: "rich.bulletedList", shortcut: "", icon: List },
+    { command: "insertOrderedList", labelKey: "rich.numberedList", shortcut: "", icon: ListOrdered },
+    { command: "removeFormat", labelKey: "rich.clearFormatting", shortcut: "", icon: Eraser },
+] as const satisfies readonly { command: string; labelKey: ParseKeys; shortcut: string; icon: unknown }[];
 
 export interface RichToolbarProps {
     /** The editable element the commands apply to. */
@@ -24,6 +26,7 @@ export interface RichToolbarProps {
  * focus on press, and show which formats apply at the caret. Arrow keys move between the buttons.
  */
 export function RichToolbar({ editor, disabled }: RichToolbarProps) {
+    const { t } = useTranslation();
     const [active, setActive] = useState<Set<string>>(new Set());
     const bar = useRef<HTMLDivElement>(null);
 
@@ -55,17 +58,17 @@ export function RichToolbar({ editor, disabled }: RichToolbarProps) {
         <div
             ref={bar}
             role="toolbar"
-            aria-label="Text formatting"
+            aria-label={t("rich.toolbar")}
             aria-orientation="horizontal"
             onKeyDown={onKeyDown}
             // Pressing a button must not move the focus out of the text, or the selection is lost.
             onMouseDown={(e) => e.preventDefault()}
             className="flex flex-wrap items-center gap-0.5"
         >
-            {TOOLS.map(({ command, label, shortcut, icon }, index) => (
+            {TOOLS.map(({ command, labelKey, shortcut, icon }, index) => (
                 <IconButton
                     key={command}
-                    label={shortcut ? `${label} (${shortcut})` : label}
+                    label={shortcut ? `${t(labelKey)} (${shortcut})` : t(labelKey)}
                     icon={icon}
                     iconSize={16}
                     disabled={disabled}

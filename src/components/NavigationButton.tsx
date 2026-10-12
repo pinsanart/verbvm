@@ -1,5 +1,6 @@
 import { NavLink } from "react-router";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { NavigationButtonType } from "../types/NavigationButton";
 
 const fadeVariants = { collapsed: { opacity: 0 }, expanded: { opacity: 1 } };
@@ -8,7 +9,9 @@ type NavigationButtonProps = NavigationButtonType & {
   variant: "mobile" | "desktop";
 };
 
-export function NavigationButton({ to, label, icon: Icon, variant }: NavigationButtonProps) {
+export function NavigationButton({ to, labelKey, icon: Icon, variant }: NavigationButtonProps) {
+  const { t } = useTranslation();
+  const label = t(labelKey);
   if (variant === "mobile") {
     return (
       <NavLink

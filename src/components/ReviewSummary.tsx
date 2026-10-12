@@ -1,9 +1,11 @@
 import { Link } from "react-router";
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { Check } from "lucide-react";
 import { buttonClass } from "./Button";
 import { TRANSITION_BASE } from "../lib/motion";
 import { formatInterval } from "../lib/format";
+import { useTypeLabel } from "../i18n/useTypeLabel";
 import type { ReviewType } from "../types/Review";
 
 export interface ReviewSummaryProps {
@@ -20,10 +22,12 @@ export interface ReviewSummaryProps {
 
 /** What a session leaves you with: what you did, when the next card comes back, and what is next. */
 export function ReviewSummary({ typeName, deckName, answered, again, nextDueInSeconds, siblings }: ReviewSummaryProps) {
+    const { t } = useTranslation();
+    const typeLabel = useTypeLabel();
     const stats = [
-        { label: "Answered", value: answered },
-        { label: "Remembered", value: answered - again },
-        { label: "Missed", value: again },
+        { label: t("review.answered"), value: answered },
+        { label: t("review.remembered"), value: answered - again },
+        { label: t("review.missed"), value: again },
     ];
 
     return (
@@ -40,12 +44,12 @@ export function ReviewSummary({ typeName, deckName, answered, again, nextDueInSe
 
             <div className="flex flex-col gap-2">
                 <h2 id="review-summary-title" className="text-title">
-                    {answered > 0 ? "All done for now" : `Nothing to review in ${typeName}`}
+                    {answered > 0 ? t("review.allDone") : t("review.nothingToReview", { type: typeName })}
                 </h2>
                 <p className="text-ui text-muted">
                     {nextDueInSeconds !== null
-                        ? `The next card comes back in ${formatInterval(nextDueInSeconds)}.`
-                        : "No more cards are scheduled. New ones appear when you add them."}
+                        ? t("review.nextCard", { interval: formatInterval(nextDueInSeconds) })
+                        : t("review.noneScheduled")}
                 </p>
             </div>
 
@@ -67,11 +71,14 @@ export function ReviewSummary({ typeName, deckName, answered, again, nextDueInSe
                         to={`/review/${encodeURIComponent(deckName)}/${type.slug}`}
                         className={buttonClass("primary")}
                     >
-                        Review {type.name} ({type.counts.new + type.counts.learning + type.counts.review})
+                        {t("review.reviewType", {
+                            type: typeLabel(type.slug, type.name),
+                            count: type.counts.new + type.counts.learning + type.counts.review,
+                        })}
                     </Link>
                 ))}
                 <Link to="/review" className={buttonClass(siblings.length > 0 ? "outline" : "primary")}>
-                    Back to Review
+                    {t("review.backToReview")}
                 </Link>
             </div>
         </motion.section>

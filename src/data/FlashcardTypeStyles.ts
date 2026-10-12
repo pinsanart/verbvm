@@ -1,8 +1,10 @@
 import { CaseSensitive, Layers, LucideIcon, Mic, PencilLine } from "lucide-react";
+import type { ParseKeys } from "i18next";
 
 export interface FlashcardTypeStyle {
     icon: LucideIcon;
-    label: string;
+    /** The translation key of the type's name. */
+    labelKey: ParseKeys;
     /** Solid background, for accent bars. */
     accent: string;
     /** Text color. */
@@ -18,7 +20,7 @@ export interface FlashcardTypeStyle {
 export const FLASHCARD_TYPE_STYLES: Record<string, FlashcardTypeStyle> = {
     stack: {
         icon: Layers,
-        label: "Stack",
+        labelKey: "types.stack",
         accent: "bg-stack",
         text: "text-stack-ink",
         badge: "bg-stack/15 text-stack-ink",
@@ -26,7 +28,7 @@ export const FLASHCARD_TYPE_STYLES: Record<string, FlashcardTypeStyle> = {
     },
     vocabulary: {
         icon: CaseSensitive,
-        label: "Vocabulary",
+        labelKey: "types.vocabulary",
         accent: "bg-vocabulary",
         text: "text-vocabulary-ink",
         badge: "bg-vocabulary/15 text-vocabulary-ink",
@@ -34,7 +36,7 @@ export const FLASHCARD_TYPE_STYLES: Record<string, FlashcardTypeStyle> = {
     },
     phonetic: {
         icon: Mic,
-        label: "Phonetic",
+        labelKey: "types.phonetic",
         accent: "bg-phonetic",
         text: "text-phonetic",
         badge: "bg-phonetic/15 text-phonetic",
@@ -42,7 +44,7 @@ export const FLASHCARD_TYPE_STYLES: Record<string, FlashcardTypeStyle> = {
     },
     orthographic: {
         icon: PencilLine,
-        label: "Orthographic",
+        labelKey: "types.orthographic",
         accent: "bg-orthographic",
         text: "text-orthographic",
         badge: "bg-orthographic/15 text-orthographic",
@@ -58,7 +60,7 @@ export const ENABLED_TYPE_SLUGS: readonly string[] = ["vocabulary"];
 
 const NEUTRAL: FlashcardTypeStyle = {
     icon: CaseSensitive,
-    label: "Flashcard",
+    labelKey: "types.flashcard",
     accent: "bg-white/40",
     text: "text-muted",
     badge: "bg-white/10 text-muted",
@@ -68,4 +70,9 @@ const NEUTRAL: FlashcardTypeStyle = {
 /** The style of a flashcard type, or a neutral one for a type this app has no color for. */
 export function styleForType(slug: string): FlashcardTypeStyle {
     return FLASHCARD_TYPE_STYLES[slug] ?? NEUTRAL;
+}
+
+/** The translation key of a known flashcard type's name, or `null` for a type this app does not know. */
+export function typeLabelKey(slug: string): ParseKeys | null {
+    return FLASHCARD_TYPE_STYLES[slug]?.labelKey ?? null;
 }

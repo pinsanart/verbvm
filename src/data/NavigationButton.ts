@@ -2,9 +2,9 @@ import {House, BookOpen, Layers, LayoutDashboard, Settings2 } from 'lucide-react
 import { NavigationButtonType } from '../types/NavigationButton'
 
 export const buttons: NavigationButtonType[] = [
-    {icon: House, label: 'Home', to: '/'},
-    {icon: BookOpen, label: 'Review', to: '/review'},
-    {icon: Layers, label: 'Decks', to: '/decks'},
-    {icon: LayoutDashboard, label: 'Dashboard', to: '/dashboard'},
-    {icon: Settings2, label: 'Settings', to: '/settings'},
+    {icon: House, labelKey: 'nav.home', to: '/'},
+    {icon: BookOpen, labelKey: 'nav.review', to: '/review'},
+    {icon: Layers, labelKey: 'nav.decks', to: '/decks'},
+    {icon: LayoutDashboard, labelKey: 'nav.dashboard', to: '/dashboard'},
+    {icon: Settings2, labelKey: 'nav.settings', to: '/settings'},
 ]

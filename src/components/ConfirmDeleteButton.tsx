@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { IconButton } from "./IconButton";
 import { TRANSITION_FAST } from "../lib/motion";
 
@@ -8,8 +9,10 @@ import { TRANSITION_FAST } from "../lib/motion";
 const CONFIRM_TIMEOUT_MS = 8000;
 
 export interface ConfirmDeleteButtonProps {
-    /** What is being deleted, for screen readers. */
-    label: string;
+    /** Names the trash button for screen readers, for example "Delete this flashcard". */
+    deleteLabel: string;
+    /** Names the Keep and Delete group for screen readers. */
+    confirmLabel: string;
     onConfirm: () => void;
     iconSize?: number;
 }
@@ -19,7 +22,8 @@ export interface ConfirmDeleteButtonProps {
  * Pressing it swaps it for a Keep and a Delete button. Keep (focused first, the safe choice),
  * Escape, clicking elsewhere and a short timeout all go back to the trash button.
  */
-export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: ConfirmDeleteButtonProps) {
+export function ConfirmDeleteButton({ deleteLabel, confirmLabel, onConfirm, iconSize = 15 }: ConfirmDeleteButtonProps) {
+    const { t } = useTranslation();
     const [confirming, setConfirming] = useState(false);
     const container = useRef<HTMLDivElement>(null);
     const keepButton = useRef<HTMLButtonElement>(null);
@@ -70,7 +74,7 @@ export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: Confirm
                     <motion.div
                         key="confirm"
                         role="group"
-                        aria-label={`Confirm deleting ${label}`}
+                        aria-label={confirmLabel}
                         className="flex items-center gap-1"
                         initial={{ opacity: 0, x: 8 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -86,7 +90,7 @@ export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: Confirm
                             }}
                             className="min-h-10 rounded-md px-3 py-1.5 md:min-h-8 text-meta font-medium text-muted hover:bg-white/10 hover:text-ink"
                         >
-                            Keep
+                            {t("common.keep")}
                         </button>
                         <button
                             type="button"
@@ -96,7 +100,7 @@ export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: Confirm
                             }}
                             className="min-h-10 rounded-md bg-danger px-3 py-1.5 md:min-h-8 text-meta font-medium text-white hover:brightness-110"
                         >
-                            Delete
+                            {t("common.delete")}
                         </button>
                     </motion.div>
                 ) : (
@@ -109,7 +113,7 @@ export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: Confirm
                     >
                         <IconButton
                             ref={trashButton}
-                            label={`Delete ${label}`}
+                            label={deleteLabel}
                             icon={Trash2}
                             iconSize={iconSize}
                             onClick={() => setConfirming(true)}

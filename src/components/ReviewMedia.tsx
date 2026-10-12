@@ -1,4 +1,5 @@
 import { TriangleAlert } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { MediaPlayer } from "./MediaPlayer";
 import type { Media } from "../types/Media";
 
@@ -7,6 +8,7 @@ import type { Media } from "../types/Media";
  * Audio is marked so the review screen can replay it with the R key.
  */
 export function ReviewMedia({ media }: { media: Media[] }) {
+    const { t } = useTranslation();
     if (media.length === 0) return null;
     const hasAudio = media.some((item) => item.kind === "AUDIO" && item.url !== null);
 
@@ -17,7 +19,7 @@ export function ReviewMedia({ media }: { media: Media[] }) {
                     return (
                         <p key={item.sha256} className="flex items-center gap-1.5 text-meta text-muted">
                             <TriangleAlert size={14} aria-hidden />
-                            File not found
+                            {t("common.fileNotFound")}
                         </p>
                     );
                 }
@@ -31,8 +33,10 @@ export function ReviewMedia({ media }: { media: Media[] }) {
             })}
             {hasAudio && (
                 <p className="text-meta text-muted">
-                    Press <kbd className="rounded border border-line-strong px-1.5 py-0.5 font-sans text-label text-ink">R</kbd> to play
-                    it again
+                    <Trans
+                        i18nKey="media.replayHint"
+                        components={{ kbd: <kbd className="rounded border border-line-strong px-1.5 py-0.5 font-sans text-label text-ink" /> }}
+                    />
                 </p>
             )}
         </div>

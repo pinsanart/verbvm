@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { House } from "lucide-react";
 import { Link } from "react-router";
 import { buttonClass } from "../components/Button";
@@ -5,15 +6,16 @@ import { EmptyState } from "../components/EmptyState";
 import { Page } from "../components/Page";
 
 export default function Home() {
+  const { t } = useTranslation();
   return (
-    <Page title="Home">
+    <Page title={t("nav.home")}>
       <EmptyState
         icon={House}
-        title="Your study overview will live here"
-        description="Create a deck and add flashcards to it to get started."
+        title={t("home.emptyTitle")}
+        description={t("home.emptyDescription")}
         action={
           <Link to="/decks" className={buttonClass("primary")}>
-            Go to Decks
+            {t("home.goToDecks")}
           </Link>
         }
       />

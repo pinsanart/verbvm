@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { Save, X } from "lucide-react";
 import { Button } from "./Button";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
@@ -7,6 +8,7 @@ import { FlashcardFaces } from "./FlashcardInput";
 import { IconButton } from "./IconButton";
 import { Notice } from "./Notice";
 import { styleForType } from "../data/FlashcardTypeStyles";
+import { useTypeLabel } from "../i18n/useTypeLabel";
 import { EASE_OUT } from "../lib/motion";
 import type { FieldDefinition, SavedCard } from "../types/FlashcardForm";
 
@@ -33,6 +35,8 @@ export interface SavedCardPanelProps {
  * screen on a phone. Closing with unsaved text asks first, in the panel, and Escape closes it.
  */
 export function SavedCardPanel(props: SavedCardPanelProps) {
+    const { t } = useTranslation();
+    const typeLabel = useTypeLabel();
     const { card, frontFields, backFields, values, dirty, justSaved, error, busy } = props;
     const { onChange, onAttachMedia, onRemoveMedia, onSave, onDelete, onClose } = props;
     const [confirmingDiscard, setConfirmingDiscard] = useState(false);
@@ -86,7 +90,7 @@ export function SavedCardPanel(props: SavedCardPanelProps) {
                         ref={panel}
                         role="dialog"
                         aria-modal="true"
-                        aria-label={`Edit ${style.label} flashcard`}
+                        aria-label={t("panel.editAria", { type: typeLabel(card.typeSlug) })}
                         tabIndex={-1}
                         className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-line bg-panel outline-none md:max-w-xl"
                         initial={{ x: "100%" }}
@@ -97,12 +101,16 @@ export function SavedCardPanel(props: SavedCardPanelProps) {
                         <header className="flex items-center gap-3 border-b border-line px-4 py-3">
                             <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-meta font-medium ${style.badge}`}>
                                 <style.icon size={16} aria-hidden />
-                                {style.label}
+                                {typeLabel(card.typeSlug)}
                             </span>
-                            <h2 className="text-ui font-semibold">Edit flashcard</h2>
+                            <h2 className="text-ui font-semibold">{t("panel.title")}</h2>
                             <div className="ml-auto flex items-center gap-1">
-                                <ConfirmDeleteButton label="this flashcard" onConfirm={onDelete} />
-                                <IconButton label="Close" icon={X} iconSize={20} onClick={requestClose} />
+                                <ConfirmDeleteButton
+                                    deleteLabel={t("card.deleteAria")}
+                                    confirmLabel={t("card.confirmDeleteAria")}
+                                    onConfirm={onDelete}
+                                />
+                                <IconButton label={t("common.close")} icon={X} iconSize={20} onClick={requestClose} />
                             </div>
                         </header>
 
@@ -115,7 +123,7 @@ export function SavedCardPanel(props: SavedCardPanelProps) {
                                 )}
                                 {justSaved && !dirty && (
                                     <Notice key="saved" tone="success">
-                                        Changes saved. The review history of this card is kept.
+                                        {t("panel.saved")}
                                     </Notice>
                                 )}
                             </AnimatePresence>
@@ -137,23 +145,23 @@ export function SavedCardPanel(props: SavedCardPanelProps) {
                             {confirmingDiscard ? (
                                 <>
                                     <p role="alert" className="mr-auto text-ui text-muted">
-                                        Discard your unsaved changes?
+                                        {t("panel.discardPrompt")}
                                     </p>
                                     <Button variant="outline" onClick={() => setConfirmingDiscard(false)}>
-                                        Keep editing
+                                        {t("panel.keepEditing")}
                                     </Button>
                                     <Button variant="danger" onClick={onClose}>
-                                        Discard
+                                        {t("panel.discard")}
                                     </Button>
                                 </>
                             ) : (
                                 <>
                                     <Button variant="outline" onClick={requestClose}>
-                                        {dirty ? "Cancel" : "Close"}
+                                        {dirty ? t("common.cancel") : t("common.close")}
                                     </Button>
                                     <Button onClick={onSave} loading={busy} disabled={!dirty}>
                                         <Save size={16} aria-hidden />
-                                        Save changes
+                                        {t("common.saveChanges")}
                                     </Button>
                                 </>
                             )}

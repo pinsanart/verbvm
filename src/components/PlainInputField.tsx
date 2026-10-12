@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { useTranslation } from "react-i18next";
 import { Paperclip } from "lucide-react";
 import { editorControlClass, editorLabelClass, errorClass } from "./formStyles";
 import { IconButton } from "./IconButton";
@@ -29,6 +30,7 @@ export function PlainInputField({
     onAttachMedia,
     onRemoveMedia,
 }: PlainInputFieldProps) {
+    const { t } = useTranslation();
     const id = useId();
     const errorId = `${id}-error`;
 
@@ -43,7 +45,7 @@ export function PlainInputField({
                         </span>
                     )}
                 </label>
-                {allowMedia && <IconButton label="Attach media" icon={Paperclip} iconSize={16} onClick={onAttachMedia} />}
+                {allowMedia && <IconButton label={t("media.attach")} icon={Paperclip} iconSize={16} onClick={onAttachMedia} />}
             </div>
             <textarea
                 id={id}

@@ -1,0 +1,183 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "keep": "Keep",
+    "delete": "Delete",
+    "name": "Name",
+    "description": "Description",
+    "optional": "(optional)",
+    "saveChanges": "Save changes",
+    "fileNotFound": "File not found"
+  },
+  "nav": {
+    "main": "Main",
+    "home": "Home",
+    "review": "Review",
+    "decks": "Decks",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "login": "Login"
+  },
+  "page": {
+    "breadcrumb": "Breadcrumb"
+  },
+  "types": {
+    "stack": "Stack",
+    "vocabulary": "Vocabulary",
+    "phonetic": "Phonetic",
+    "orthographic": "Orthographic",
+    "flashcard": "Flashcard"
+  },
+  "home": {
+    "emptyTitle": "Your study overview will live here",
+    "emptyDescription": "Create a deck and add flashcards to it to get started.",
+    "goToDecks": "Go to Decks"
+  },
+  "dashboard": {
+    "emptyTitle": "No progress to show yet",
+    "emptyDescription": "Your review history and statistics will appear here once you start reviewing."
+  },
+  "settings": {
+    "languageLabel": "Language",
+    "languageHint": "The language of the app's menus and messages. Your flashcards are not translated."
+  },
+  "decks": {
+    "intro": "Open a deck to write its flashcards, or add a new deck at the end.",
+    "loading": "Loading decks",
+    "newDeck": "New deck",
+    "newDeckFirstHint": "A deck holds flashcards in one language and accent. Create your first one to start writing cards.",
+    "cards_one": "{{count}} card",
+    "cards_other": "{{count}} cards",
+    "editAria": "Edit {{name}}",
+    "deleteAria": "Delete the deck {{name}}",
+    "confirmDeleteAria": "Confirm deleting the deck {{name}}",
+    "editTitle": "Edit deck",
+    "language": "Language",
+    "accent": "Accent",
+    "createDeck": "Create deck",
+    "fixedNote": "{{language}} · {{accent}} stays as it is, because the cards in this deck depend on it."
+  },
+  "deckEditor": {
+    "loading": "Loading flashcards",
+    "tabsAria": "Cards of this deck",
+    "newCards": "New cards",
+    "savedCards": "Saved cards",
+    "noSavedTitle": "No saved cards yet",
+    "noSavedDescription": "Cards you save from New cards appear here, ready to edit.",
+    "goToNewCards": "Go to New cards",
+    "firstCardTitle": "Add your first flashcard",
+    "firstCardDescription": "Use the + below to add a card. Your cards stay here as drafts until you save them."
+  },
+  "dock": {
+    "add": "Add a flashcard",
+    "save_one": "Save {{count}} card",
+    "save_other": "Save {{count}} cards",
+    "saved_one": "{{count}} card saved",
+    "saved_other": "{{count}} cards saved",
+    "nothing": "Nothing to save"
+  },
+  "card": {
+    "front": "Front",
+    "frontHint": "Shown first, as the prompt",
+    "back": "Back",
+    "backHint": "Revealed after, as the answer",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "duplicate": "Duplicate",
+    "deleteAria": "Delete this flashcard",
+    "confirmDeleteAria": "Confirm deleting this flashcard"
+  },
+  "media": {
+    "images": "Images",
+    "audio": "Audio",
+    "videos": "Videos",
+    "remove": "Remove media",
+    "attach": "Attach media",
+    "videoFailed": "The video could not be loaded",
+    "audioFailed": "The audio could not be loaded",
+    "replayHint": "Press <kbd>R</kbd> to play it again",
+    "pickerFilter": "Images, audio and video"
+  },
+  "rich": {
+    "editHtml": "Edit HTML",
+    "htmlSource": "HTML source",
+    "toolbar": "Text formatting",
+    "bold": "Bold",
+    "italic": "Italic",
+    "underline": "Underline",
+    "strikethrough": "Strikethrough",
+    "bulletedList": "Bulleted list",
+    "numberedList": "Numbered list",
+    "clearFormatting": "Clear formatting"
+  },
+  "review": {
+    "legend": "<b>New</b> cards have not been reviewed yet. <b>Learning</b> cards were missed and are due again. <b>Review</b> cards are due to be reviewed.",
+    "legendShort": "New: not reviewed yet. Learning: missed and due again. Review: due to review.",
+    "loadingDecks": "Loading decks",
+    "loadingCard": "Loading the card",
+    "noDecksTitle": "No decks to review yet",
+    "noDecksDescription": "Reviews are built from the flashcards in your decks. Create a deck and add some cards first.",
+    "noCardsTitle": "Your decks have no flashcards yet",
+    "noCardsDescription": "Add flashcards to a deck and it will be ready to review here.",
+    "noFlashcards": "No flashcards yet. <add>Add some</add> to review them here.",
+    "new": "New",
+    "learning": "Learning",
+    "reviewCount": "Review",
+    "completed": "Completed",
+    "reviewAction": "Review",
+    "reviewAria": "Review {{type}} in {{deck}}",
+    "flashcardAria": "Flashcard",
+    "showResponse": "Show response",
+    "space": "Space",
+    "again": "Again",
+    "hard": "Hard",
+    "good": "Good",
+    "easy": "Easy",
+    "allDone": "All done for now",
+    "nothingToReview": "Nothing to review in {{type}}",
+    "nextCard": "The next card comes back in {{interval}}.",
+    "noneScheduled": "No more cards are scheduled. New ones appear when you add them.",
+    "answered": "Answered",
+    "remembered": "Remembered",
+    "missed": "Missed",
+    "reviewType": "Review {{type}} ({{count}})",
+    "backToReview": "Back to Review"
+  },
+  "interval": {
+    "lessThanMinute": "<1 min",
+    "minutes": "{{count}} min",
+    "hours": "{{count}} h",
+    "days_one": "{{count, number}} day",
+    "days_other": "{{count, number}} days",
+    "months_one": "{{count, number}} month",
+    "months_other": "{{count, number}} months"
+  },
+  "savedList": {
+    "search": "Search saved cards",
+    "filterAria": "Filter by type",
+    "all": "All",
+    "count_one": "{{count}} saved card",
+    "count_other": "{{count}} saved cards",
+    "countOf": "{{shown}} of {{total}} saved cards",
+    "noMatch": "No saved card matches this search.",
+    "mediaOnly": "Media only"
+  },
+  "panel": {
+    "editAria": "Edit {{type}} flashcard",
+    "title": "Edit flashcard",
+    "saved": "Changes saved. The review history of this card is kept.",
+    "discardPrompt": "Discard your unsaved changes?",
+    "keepEditing": "Keep editing",
+    "discard": "Discard"
+  },
+  "errors": {
+    "tauriUnavailable": "Tauri is not available here. Run the app with `npm run tauri dev`."
+  },
+  "fields": {
+    "phrase": "Phrase",
+    "word_or_expression": "Word or expression",
+    "meaning": "Meaning",
+    "ipa_phonetics": "IPA phonetics"
+  }
+}

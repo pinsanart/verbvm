@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { Button } from "./Button";
 import { Notice } from "./Notice";
 import { Select } from "./Select";
 import { controlClass, labelClass } from "./formStyles";
 import { TRANSITION_BASE } from "../lib/motion";
+import { useLanguageNames } from "../i18n/useLanguageNames";
 import type { NewDeck } from "../types/Deck";
 import type { Language, LanguageVariant } from "../types/Language";
 
@@ -24,6 +26,8 @@ export interface NewDeckFormProps {
  * interruption nor a trapped focus, so it is not a modal. Escape cancels.
  */
 export function NewDeckForm({ languages, loadVariants, onCreate, onCancel, busy, error }: NewDeckFormProps) {
+    const { t } = useTranslation();
+    const names = useLanguageNames();
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [languageIso, setLanguageIso] = useState(languages[0]?.iso6393 ?? "");
@@ -70,7 +74,7 @@ export function NewDeckForm({ languages, loadVariants, onCreate, onCancel, busy,
             className="flex flex-col gap-5 rounded-2xl border border-line-strong bg-panel p-5 md:col-span-2 md:p-6"
         >
             <h2 id="new-deck-title" className="text-heading">
-                New deck
+                {t("decks.newDeck")}
             </h2>
 
             <AnimatePresence initial={false}>
@@ -83,7 +87,7 @@ export function NewDeckForm({ languages, loadVariants, onCreate, onCancel, busy,
 
             <div>
                 <label className={labelClass} htmlFor="deck-name">
-                    Name
+                    {t("common.name")}
                 </label>
                 <input
                     id="deck-name"
@@ -99,32 +103,32 @@ export function NewDeckForm({ languages, loadVariants, onCreate, onCancel, busy,
             <div className="grid gap-5 sm:grid-cols-2">
                 <div>
                     <label className={labelClass} htmlFor="deck-language">
-                        Language
+                        {t("decks.language")}
                     </label>
                     <Select
                         id="deck-language"
                         value={languageIso}
                         onChange={setLanguageIso}
-                        options={languages.map((l) => ({ value: l.iso6393, label: l.name }))}
+                        options={languages.map((l) => ({ value: l.iso6393, label: names.language(l.iso6391, l.name) }))}
                     />
                 </div>
                 <div>
                     <label className={labelClass} htmlFor="deck-accent">
-                        Accent
+                        {t("decks.accent")}
                     </label>
                     <Select
                         id="deck-accent"
                         value={variantCode}
                         onChange={setVariantCode}
                         disabled={variants.length === 0}
-                        options={variants.map((v) => ({ value: v.bcp47Code, label: v.variantName }))}
+                        options={variants.map((v) => ({ value: v.bcp47Code, label: names.variant(v) }))}
                     />
                 </div>
             </div>
 
             <div>
                 <label className={labelClass} htmlFor="deck-description">
-                    Description <span className="font-normal text-subtle">(optional)</span>
+                    {t("common.description")} <span className="font-normal text-subtle">{t("common.optional")}</span>
                 </label>
                 <textarea
                     id="deck-description"
@@ -136,10 +140,10 @@ export function NewDeckForm({ languages, loadVariants, onCreate, onCancel, busy,
 
             <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={onCancel}>
-                    Cancel
+                    {t("common.cancel")}
                 </Button>
                 <Button type="submit" loading={busy} disabled={languages.length === 0}>
-                    Create deck
+                    {t("decks.createDeck")}
                 </Button>
             </div>
         </motion.form>

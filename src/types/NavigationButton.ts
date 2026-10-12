@@ -1,7 +1,8 @@
 import { LucideIcon } from "lucide-react"
+import type { ParseKeys } from "i18next"
 
 export type NavigationButtonType = {
-    icon: LucideIcon, 
-    label: string, 
+    icon: LucideIcon,
+    labelKey: ParseKeys,
     to: string
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { TriangleAlert } from "lucide-react";
 import { readMedia } from "../api/media";
 import type { Media } from "../types/Media";
@@ -17,6 +18,7 @@ export interface MediaPlayerProps {
  * right type.
  */
 export function MediaPlayer({ media, className, reviewAudio }: MediaPlayerProps) {
+    const { t } = useTranslation();
     const [src, setSrc] = useState<string | null>(null);
     const [failed, setFailed] = useState(false);
 
@@ -42,7 +44,7 @@ export function MediaPlayer({ media, className, reviewAudio }: MediaPlayerProps)
         return (
             <p className="flex items-center gap-1.5 text-meta text-muted">
                 <TriangleAlert size={14} aria-hidden />
-                The {media.kind === "VIDEO" ? "video" : "audio"} could not be loaded
+                {media.kind === "VIDEO" ? t("media.videoFailed") : t("media.audioFailed")}
             </p>
         );
     }

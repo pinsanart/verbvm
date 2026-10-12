@@ -1,0 +1,189 @@
+{
+  "common": {
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "keep": "Garder",
+    "delete": "Supprimer",
+    "name": "Nom",
+    "description": "Description",
+    "optional": "(facultatif)",
+    "saveChanges": "Enregistrer les modifications",
+    "fileNotFound": "Fichier introuvable"
+  },
+  "nav": {
+    "main": "Principal",
+    "home": "Accueil",
+    "review": "Révision",
+    "decks": "Paquets",
+    "dashboard": "Tableau de bord",
+    "settings": "Réglages",
+    "login": "Connexion"
+  },
+  "page": {
+    "breadcrumb": "Fil d'Ariane"
+  },
+  "types": {
+    "stack": "Pile",
+    "vocabulary": "Vocabulaire",
+    "phonetic": "Phonétique",
+    "orthographic": "Orthographe",
+    "flashcard": "Carte"
+  },
+  "home": {
+    "emptyTitle": "Votre aperçu d'étude apparaîtra ici",
+    "emptyDescription": "Créez un paquet et ajoutez-y des cartes pour commencer.",
+    "goToDecks": "Aller aux paquets"
+  },
+  "dashboard": {
+    "emptyTitle": "Aucune progression à afficher pour l'instant",
+    "emptyDescription": "Votre historique de révision et vos statistiques apparaîtront ici dès que vous commencerez à réviser."
+  },
+  "settings": {
+    "languageLabel": "Langue",
+    "languageHint": "La langue des menus et des messages de l'application. Vos cartes ne sont pas traduites."
+  },
+  "decks": {
+    "intro": "Ouvrez un paquet pour écrire ses cartes, ou ajoutez un nouveau paquet à la fin.",
+    "loading": "Chargement des paquets",
+    "newDeck": "Nouveau paquet",
+    "newDeckFirstHint": "Un paquet contient des cartes dans une langue et un accent. Créez le premier pour commencer à écrire des cartes.",
+    "cards_one": "{{count}} carte",
+    "cards_many": "{{count}} de cartes",
+    "cards_other": "{{count}} cartes",
+    "editAria": "Modifier {{name}}",
+    "deleteAria": "Supprimer le paquet {{name}}",
+    "confirmDeleteAria": "Confirmer la suppression du paquet {{name}}",
+    "editTitle": "Modifier le paquet",
+    "language": "Langue",
+    "accent": "Accent",
+    "createDeck": "Créer le paquet",
+    "fixedNote": "{{language}} · {{accent}} reste inchangé, car les cartes de ce paquet en dépendent."
+  },
+  "deckEditor": {
+    "loading": "Chargement des cartes",
+    "tabsAria": "Cartes de ce paquet",
+    "newCards": "Nouvelles cartes",
+    "savedCards": "Cartes enregistrées",
+    "noSavedTitle": "Aucune carte enregistrée pour l'instant",
+    "noSavedDescription": "Les cartes que vous enregistrez depuis Nouvelles cartes apparaissent ici, prêtes à être modifiées.",
+    "goToNewCards": "Aller aux nouvelles cartes",
+    "firstCardTitle": "Ajoutez votre première carte",
+    "firstCardDescription": "Utilisez le + ci-dessous pour ajouter une carte. Vos cartes restent ici en brouillon jusqu'à leur enregistrement."
+  },
+  "dock": {
+    "add": "Ajouter une carte",
+    "save_one": "Enregistrer {{count}} carte",
+    "save_many": "Enregistrer {{count}} de cartes",
+    "save_other": "Enregistrer {{count}} cartes",
+    "saved_one": "{{count}} carte enregistrée",
+    "saved_many": "{{count}} de cartes enregistrées",
+    "saved_other": "{{count}} cartes enregistrées",
+    "nothing": "Rien à enregistrer"
+  },
+  "card": {
+    "front": "Recto",
+    "frontHint": "Affiché en premier, comme question",
+    "back": "Verso",
+    "backHint": "Révélé ensuite, comme réponse",
+    "moveUp": "Monter",
+    "moveDown": "Descendre",
+    "duplicate": "Dupliquer",
+    "deleteAria": "Supprimer cette carte",
+    "confirmDeleteAria": "Confirmer la suppression de cette carte"
+  },
+  "media": {
+    "images": "Images",
+    "audio": "Audio",
+    "videos": "Vidéos",
+    "remove": "Retirer le média",
+    "attach": "Joindre un média",
+    "videoFailed": "La vidéo n'a pas pu être chargée",
+    "audioFailed": "L'audio n'a pas pu être chargé",
+    "replayHint": "Appuyez sur <kbd>R</kbd> pour le réécouter",
+    "pickerFilter": "Images, audio et vidéo"
+  },
+  "rich": {
+    "editHtml": "Modifier le HTML",
+    "htmlSource": "Source HTML",
+    "toolbar": "Mise en forme du texte",
+    "bold": "Gras",
+    "italic": "Italique",
+    "underline": "Souligné",
+    "strikethrough": "Barré",
+    "bulletedList": "Liste à puces",
+    "numberedList": "Liste numérotée",
+    "clearFormatting": "Effacer la mise en forme"
+  },
+  "review": {
+    "legend": "Les cartes <b>Nouvelles</b> n'ont pas encore été révisées. Les cartes <b>En cours</b> ont été ratées et reviennent. Les cartes <b>À réviser</b> sont dues pour révision.",
+    "legendShort": "Nouvelles : pas encore révisées. En cours : ratées et à revoir. À réviser : dues pour révision.",
+    "loadingDecks": "Chargement des paquets",
+    "loadingCard": "Chargement de la carte",
+    "noDecksTitle": "Aucun paquet à réviser pour l'instant",
+    "noDecksDescription": "Les révisions sont construites à partir des cartes de vos paquets. Créez d'abord un paquet et ajoutez-y des cartes.",
+    "noCardsTitle": "Vos paquets ne contiennent aucune carte",
+    "noCardsDescription": "Ajoutez des cartes à un paquet et il sera prêt à être révisé ici.",
+    "noFlashcards": "Aucune carte pour l'instant. <add>Ajoutez-en</add> pour les réviser ici.",
+    "new": "Nouvelles",
+    "learning": "En cours",
+    "reviewCount": "À réviser",
+    "completed": "Terminé",
+    "reviewAction": "Réviser",
+    "reviewAria": "Réviser {{type}} dans {{deck}}",
+    "flashcardAria": "Carte",
+    "showResponse": "Afficher la réponse",
+    "space": "Espace",
+    "again": "À revoir",
+    "hard": "Difficile",
+    "good": "Bien",
+    "easy": "Facile",
+    "allDone": "Terminé pour le moment",
+    "nothingToReview": "Rien à réviser dans {{type}}",
+    "nextCard": "La prochaine carte revient dans {{interval}}.",
+    "noneScheduled": "Aucune autre carte n'est planifiée. Les nouvelles apparaissent quand vous en ajoutez.",
+    "answered": "Répondues",
+    "remembered": "Retenues",
+    "missed": "Ratées",
+    "reviewType": "Réviser {{type}} ({{count}})",
+    "backToReview": "Retour à la révision"
+  },
+  "interval": {
+    "lessThanMinute": "<1 min",
+    "minutes": "{{count}} min",
+    "hours": "{{count}} h",
+    "days_one": "{{count, number}} jour",
+    "days_many": "{{count, number}} de jours",
+    "days_other": "{{count, number}} jours",
+    "months_one": "{{count, number}} mois",
+    "months_many": "{{count, number}} de mois",
+    "months_other": "{{count, number}} mois"
+  },
+  "savedList": {
+    "search": "Rechercher dans les cartes enregistrées",
+    "filterAria": "Filtrer par type",
+    "all": "Tous",
+    "count_one": "{{count}} carte enregistrée",
+    "count_many": "{{count}} de cartes enregistrées",
+    "count_other": "{{count}} cartes enregistrées",
+    "countOf": "{{shown}} sur {{total}} cartes enregistrées",
+    "noMatch": "Aucune carte enregistrée ne correspond à cette recherche.",
+    "mediaOnly": "Média uniquement"
+  },
+  "panel": {
+    "editAria": "Modifier la carte {{type}}",
+    "title": "Modifier la carte",
+    "saved": "Modifications enregistrées. L'historique de révision de cette carte est conservé.",
+    "discardPrompt": "Abandonner vos modifications non enregistrées ?",
+    "keepEditing": "Continuer à modifier",
+    "discard": "Abandonner"
+  },
+  "errors": {
+    "tauriUnavailable": "Tauri n'est pas disponible ici. Lancez l'application avec `npm run tauri dev`."
+  },
+  "fields": {
+    "phrase": "Phrase",
+    "word_or_expression": "Mot ou expression",
+    "meaning": "Signification",
+    "ipa_phonetics": "Phonétique API"
+  }
+}

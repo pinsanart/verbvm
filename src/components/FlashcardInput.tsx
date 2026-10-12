@@ -1,9 +1,11 @@
 import { useId } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, Copy, Eye, EyeOff } from "lucide-react";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { CountryFlag } from "./CountryFlag";
 import { FieldInput } from "./FieldInput";
 import { IconButton } from "./IconButton";
+import { useTypeLabel } from "../i18n/useTypeLabel";
 import { styleForType } from "../data/FlashcardTypeStyles";
 import type { FieldDefinition } from "../types/FlashcardForm";
 import type { Media } from "../types/Media";
@@ -41,7 +43,9 @@ function ControlBar({
     onDuplicate,
     onDelete,
 }: Pick<FlashcardInputProps, "typeSlug" | "accent" | "isFirst" | "isLast" | "onMoveUp" | "onMoveDown" | "onDuplicate" | "onDelete">) {
-    const { icon: TypeIcon, label, badge } = styleForType(typeSlug);
+    const { t } = useTranslation();
+    const { icon: TypeIcon, badge } = styleForType(typeSlug);
+    const label = useTypeLabel()(typeSlug);
 
     return (
         <div className="flex items-center gap-3">
@@ -56,10 +60,14 @@ function ControlBar({
             </div>
 
             <div className="ml-auto flex items-center gap-0.5 rounded-lg bg-white/5 p-1">
-                <IconButton label="Move up" icon={ArrowUp} iconSize={16} onClick={onMoveUp} disabled={isFirst} />
-                <IconButton label="Move down" icon={ArrowDown} iconSize={16} onClick={onMoveDown} disabled={isLast} />
-                <IconButton label="Duplicate" icon={Copy} iconSize={16} onClick={onDuplicate} />
-                <ConfirmDeleteButton label="this flashcard" onConfirm={onDelete} />
+                <IconButton label={t("card.moveUp")} icon={ArrowUp} iconSize={16} onClick={onMoveUp} disabled={isFirst} />
+                <IconButton label={t("card.moveDown")} icon={ArrowDown} iconSize={16} onClick={onMoveDown} disabled={isLast} />
+                <IconButton label={t("card.duplicate")} icon={Copy} iconSize={16} onClick={onDuplicate} />
+                <ConfirmDeleteButton
+                    deleteLabel={t("card.deleteAria")}
+                    confirmLabel={t("card.confirmDeleteAria")}
+                    onConfirm={onDelete}
+                />
             </div>
         </div>
     );
@@ -70,14 +78,14 @@ function ControlBar({
 // (what stays hidden until you flip).
 const FACES = {
     front: {
-        title: "Front",
-        hint: "Shown first, as the prompt",
+        titleKey: "card.front",
+        hintKey: "card.frontHint",
         icon: Eye,
         spine: "border-t-4 border-solid border-ink",
     },
     back: {
-        title: "Back",
-        hint: "Revealed after, as the answer",
+        titleKey: "card.back",
+        hintKey: "card.backHint",
         icon: EyeOff,
         spine: "border-t-4 border-dashed border-line-strong",
     },
@@ -105,18 +113,19 @@ function Face({
     onRemoveMedia: (key: string, sha256: string) => void;
     columns?: boolean;
 }) {
+    const { t } = useTranslation();
     const titleId = useId();
     if (fields.length === 0) return null;
-    const { title, hint, icon: Icon, spine } = FACES[face];
+    const { titleKey, hintKey, icon: Icon, spine } = FACES[face];
 
     return (
         <section aria-labelledby={titleId} className={`flex flex-col gap-5 pt-4 ${spine}`}>
             <header className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <Icon size={18} className="text-muted" aria-hidden />
                 <h3 id={titleId} className="text-body font-semibold text-ink">
-                    {title}
+                    {t(titleKey)}
                 </h3>
-                <p className="text-meta text-muted">{hint}</p>
+                <p className="text-meta text-muted">{t(hintKey)}</p>
             </header>
             <div className={columns ? "grid grid-cols-1 gap-5 md:grid-cols-2" : "flex flex-col gap-5"}>
                 {fields.map((field) => (

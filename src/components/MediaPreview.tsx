@@ -1,7 +1,9 @@
 import { AnimatePresence, motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { TriangleAlert, X } from "lucide-react";
 import { MediaPlayer } from "./MediaPlayer";
 import { TRANSITION_FAST } from "../lib/motion";
+import type { ParseKeys } from "i18next";
 import type { Media, MediaKind } from "../types/Media";
 
 export interface MediaPreviewProps {
@@ -11,17 +13,18 @@ export interface MediaPreviewProps {
 }
 
 // A section appears only when the field has files of that kind.
-const GROUPS: { kind: MediaKind; title: string }[] = [
-    { kind: "IMAGE", title: "Images" },
-    { kind: "AUDIO", title: "Audio" },
-    { kind: "VIDEO", title: "Videos" },
+const GROUPS: { kind: MediaKind; titleKey: ParseKeys }[] = [
+    { kind: "IMAGE", titleKey: "media.images" },
+    { kind: "AUDIO", titleKey: "media.audio" },
+    { kind: "VIDEO", titleKey: "media.videos" },
 ];
 
 function RemoveButton({ onRemove }: { onRemove: () => void }) {
+    const { t } = useTranslation();
     return (
         <button
             type="button"
-            aria-label="Remove media"
+            aria-label={t("media.remove")}
             onClick={onRemove}
             className="flex size-6 shrink-0 items-center justify-center rounded-full bg-black/70 text-ink transition-colors hover:bg-black hover:text-white"
         >
@@ -35,11 +38,13 @@ function RemoveButton({ onRemove }: { onRemove: () => void }) {
  * under its own heading. A group is shown only when it has files.
  */
 export function MediaPreview({ media, onRemove }: MediaPreviewProps) {
+    const { t } = useTranslation();
     if (!media || media.length === 0) return null;
 
     return (
         <div className="flex flex-col gap-4 rounded-xl border border-line bg-white/5 p-3">
-            {GROUPS.map(({ kind, title }) => {
+            {GROUPS.map(({ kind, titleKey }) => {
+                const title = t(titleKey);
                 const items = media.filter((item) => item.kind === kind);
                 if (items.length === 0) return null;
                 return (
@@ -63,7 +68,7 @@ export function MediaPreview({ media, onRemove }: MediaPreviewProps) {
                                         {item.url === null ? (
                                             <p className="flex h-12 items-center gap-1.5 rounded-lg bg-white/5 px-3 text-meta text-muted">
                                                 <TriangleAlert size={14} aria-hidden />
-                                                File not found
+                                                {t("common.fileNotFound")}
                                             </p>
                                         ) : kind === "IMAGE" ? (
                                             <img src={item.url} alt="" className="size-20 rounded-lg object-cover" />

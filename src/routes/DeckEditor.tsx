@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { Layers } from "lucide-react";
 import { useParams } from "react-router";
 import { Button } from "../components/Button";
@@ -12,6 +13,7 @@ import { Page } from "../components/Page";
 import { SavedCardList } from "../components/SavedCardList";
 import { SavedCardPanel } from "../components/SavedCardPanel";
 import { TRANSITION_BASE } from "../lib/motion";
+import { useLanguageNames } from "../i18n/useLanguageNames";
 import { useFlashcardEditorViewModel } from "../viewmodels/useFlashcardEditorViewModel";
 import { useSavedCardsViewModel } from "../viewmodels/useSavedCardsViewModel";
 
@@ -23,6 +25,8 @@ type Tab = "new" | "saved";
  * in a panel to be edited or deleted.
  */
 export default function DeckEditor() {
+  const { t } = useTranslation();
+  const names = useLanguageNames();
   const { deckName = "" } = useParams();
   const vm = useFlashcardEditorViewModel(deckName);
   const saved = useSavedCardsViewModel(deckName);
@@ -39,19 +43,19 @@ export default function DeckEditor() {
   );
   const panelFields = vm.fieldsByType[saved.selected?.typeSlug ?? ""] ?? { front: [], back: [] };
   const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: "new", label: "New cards", count: vm.drafts.length },
-    { id: "saved", label: "Saved cards", count: saved.cards.length },
+    { id: "new", label: t("deckEditor.newCards"), count: vm.drafts.length },
+    { id: "saved", label: t("deckEditor.savedCards"), count: saved.cards.length },
   ];
 
   return (
     <Page
       title={deckName}
-      parents={[{ to: "/decks", label: "Decks" }]}
+      parents={[{ to: "/decks", label: t("nav.decks") }]}
       meta={
         vm.form && (
           <>
             <CountryFlag code={vm.form.variant.countryCode} className="h-3.5 w-5" />
-            {vm.form.variant.variantName}
+            {names.variant(vm.form.variant)}
           </>
         )
       }
@@ -70,13 +74,13 @@ export default function DeckEditor() {
       </AnimatePresence>
 
       {vm.status === "loading" && (
-        <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading flashcards">
+        <div className="flex flex-col gap-6" aria-busy="true" aria-label={t("deckEditor.loading")}>
           <div className="h-48 animate-pulse rounded-2xl border border-line bg-panel" />
         </div>
       )}
 
       {vm.status === "ready" && vm.form && (
-        <div role="tablist" aria-label="Cards of this deck" className="flex gap-1 border-b border-line">
+        <div role="tablist" aria-label={t("deckEditor.tabsAria")} className="flex gap-1 border-b border-line">
           {tabs.map(({ id, label, count }) => (
             <button
               key={id}
@@ -101,11 +105,11 @@ export default function DeckEditor() {
           {saved.cards.length === 0 && saved.status !== "loading" ? (
             <EmptyState
               icon={Layers}
-              title="No saved cards yet"
-              description="Cards you save from New cards appear here, ready to edit."
+              title={t("deckEditor.noSavedTitle")}
+              description={t("deckEditor.noSavedDescription")}
               action={
                 <Button variant="outline" onClick={() => setTab("new")}>
-                  Go to New cards
+                  {t("deckEditor.goToNewCards")}
                 </Button>
               }
             />
@@ -129,8 +133,8 @@ export default function DeckEditor() {
           {vm.drafts.length === 0 && (
             <EmptyState
               icon={Layers}
-              title="Add your first flashcard"
-              description="Use the + below to add a card. Your cards stay here as drafts until you save them."
+              title={t("deckEditor.firstCardTitle")}
+              description={t("deckEditor.firstCardDescription")}
             />
           )}
 
@@ -149,7 +153,7 @@ export default function DeckEditor() {
                   >
                     <FlashcardInput
                       typeSlug={draft.typeSlug}
-                      accent={{ name: vm.form!.variant.variantName, countryCode: vm.form!.variant.countryCode }}
+                      accent={{ name: names.variant(vm.form!.variant), countryCode: vm.form!.variant.countryCode }}
                       frontFields={fields.front}
                       backFields={fields.back}
                       values={draft.values}

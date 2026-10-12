@@ -1,10 +1,13 @@
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { TRANSITION_BASE } from "../lib/motion";
 import { Pencil } from "lucide-react";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { CountryFlag } from "./CountryFlag";
 import { IconButton } from "./IconButton";
 import { styleForType } from "../data/FlashcardTypeStyles";
+import { useLanguageNames } from "../i18n/useLanguageNames";
+import { useTypeLabel } from "../i18n/useTypeLabel";
 import type { Deck } from "../types/Deck";
 
 export interface DeckCardProps {
@@ -16,6 +19,9 @@ export interface DeckCardProps {
 
 /** A deck in the deck list: its name, language and accent, description and card counts. */
 export function DeckCard({ deck, onOpen, onEdit, onDelete }: DeckCardProps) {
+    const { t } = useTranslation();
+    const typeLabel = useTypeLabel();
+    const names = useLanguageNames();
     return (
         <motion.div
             layout
@@ -40,7 +46,7 @@ export function DeckCard({ deck, onOpen, onEdit, onDelete }: DeckCardProps) {
                             </button>
                         </h2>
                         <p className="truncate text-meta text-muted">
-                            {deck.language.name} · {deck.variant.variantName}
+                            {names.language(deck.variant.bcp47Code, deck.language.name)} · {names.variant(deck.variant)}
                         </p>
                     </div>
                 </div>
@@ -49,7 +55,7 @@ export function DeckCard({ deck, onOpen, onEdit, onDelete }: DeckCardProps) {
 
                 <div className="flex flex-wrap items-center gap-2 text-label tabular-nums">
                     <span className="rounded-full bg-white/10 px-2 py-0.5 font-medium text-muted">
-                        {deck.stats.totalCards} {deck.stats.totalCards === 1 ? "card" : "cards"}
+                        {t("decks.cards", { count: deck.stats.totalCards })}
                     </span>
                     {deck.stats.cardsByType
                         .filter((entry) => entry.count > 0)
@@ -58,15 +64,19 @@ export function DeckCard({ deck, onOpen, onEdit, onDelete }: DeckCardProps) {
                                 key={entry.typeSlug}
                                 className={`rounded-full px-2 py-0.5 font-medium ${styleForType(entry.typeSlug).badge}`}
                             >
-                                {entry.typeName} {entry.count}
+                                {typeLabel(entry.typeSlug, entry.typeName)} {entry.count}
                             </span>
                         ))}
                 </div>
             </div>
 
             <div className="absolute right-2 top-2 z-10 flex items-center rounded-lg bg-panel">
-                <IconButton label={`Edit ${deck.name}`} icon={Pencil} iconSize={16} onClick={onEdit} />
-                <ConfirmDeleteButton label={`the deck ${deck.name}`} onConfirm={onDelete} />
+                <IconButton label={t("decks.editAria", { name: deck.name })} icon={Pencil} iconSize={16} onClick={onEdit} />
+                <ConfirmDeleteButton
+                    deleteLabel={t("decks.deleteAria", { name: deck.name })}
+                    confirmLabel={t("decks.confirmDeleteAria", { name: deck.name })}
+                    onConfirm={onDelete}
+                />
             </div>
         </motion.div>
     );

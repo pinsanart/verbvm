@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router";
+import { useTranslation } from "react-i18next";
 
 export interface PageProps {
     /** The name of this screen. It is the last step of the breadcrumb and the page's `h1`. */
@@ -22,6 +23,7 @@ export interface PageProps {
  * breadcrumb at the start of the bar. Either way the content starts right below.
  */
 export function Page({ title, parents = [], meta, actions, width = "reading", children }: PageProps) {
+    const { t } = useTranslation();
     const column = `mx-auto w-full px-4 md:px-8 ${width === "wide" ? "max-w-4xl" : "max-w-3xl"}`;
     const lastParent = parents.length - 1;
 
@@ -31,7 +33,7 @@ export function Page({ title, parents = [], meta, actions, width = "reading", ch
                 <div
                     className={`${column} grid min-h-16 grid-cols-[1fr_auto_1fr] items-center gap-2 py-2 md:flex md:min-h-14 md:gap-1.5`}
                 >
-                    <nav aria-label="Breadcrumb" className="justify-self-start md:min-w-0">
+                    <nav aria-label={t("page.breadcrumb")} className="justify-self-start md:min-w-0">
                         <ol className="flex items-center gap-1.5 text-ui">
                             {parents.map((parent, index) => (
                                 // Phones show only a back arrow to the closest parent.

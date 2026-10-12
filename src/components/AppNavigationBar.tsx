@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { TRANSITION_BASE } from "../lib/motion";
 import { CircleUserRound } from "lucide-react";
 import { buttons } from "../data/NavigationButton";
@@ -10,13 +11,14 @@ const railVariants = { collapsed: { width: 72 }, expanded: { width: 240 } };
 const fadeVariants = { collapsed: { opacity: 0 }, expanded: { opacity: 1 } };
 
 export function AppNavigationBar() {
+  const { t } = useTranslation();
   // The rail opens on hover and when keyboard focus is inside it, so it works without a mouse.
   const [expanded, setExpanded] = useState(false);
 
   return (
     <>
       <nav
-        aria-label="Main"
+        aria-label={t("nav.main")}
         className="
           fixed inset-x-0 bottom-0 z-50 flex h-16 flex-row items-center justify-around gap-1
           border-t border-line bg-panel px-2 pb-[env(safe-area-inset-bottom)]
@@ -29,7 +31,7 @@ export function AppNavigationBar() {
       </nav>
 
       <motion.nav
-        aria-label="Main"
+        aria-label={t("nav.main")}
         initial={false}
         animate={expanded ? "expanded" : "collapsed"}
         onHoverStart={() => setExpanded(true)}
@@ -70,7 +72,7 @@ export function AppNavigationBar() {
             variants={fadeVariants}
             className="overflow-hidden whitespace-nowrap text-body font-medium text-muted"
           >
-            Login
+            {t("nav.login")}
           </motion.span>
         </div>
       </motion.nav>
