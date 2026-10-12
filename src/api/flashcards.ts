@@ -1,14 +1,6 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
+import { MediaDto, toMedia } from "./media";
 import type { Draft, FlashcardForm, MoveDirection, PublishResult } from "../types/FlashcardForm";
-import type { Media, MediaKind } from "../types/Media";
-
-// What the backend sends: a media file comes with its path on disk.
-interface MediaDto {
-    sha256: string;
-    kind: MediaKind;
-    mimeType: string;
-    path: string | null;
-}
 
 interface DraftDto {
     uuid: string;
@@ -17,15 +9,6 @@ interface DraftDto {
     values: Record<string, string>;
     media: Record<string, MediaDto[]>;
 }
-
-// The webview cannot read a path directly, so it is turned into an asset protocol URL. The
-// backend only allows that protocol for its own media folder.
-const toMedia = (dto: MediaDto): Media => ({
-    sha256: dto.sha256,
-    kind: dto.kind,
-    mimeType: dto.mimeType,
-    url: dto.path ? convertFileSrc(dto.path) : null,
-});
 
 const toDraft = (dto: DraftDto): Draft => ({
     uuid: dto.uuid,
