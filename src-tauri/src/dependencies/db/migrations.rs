@@ -122,6 +122,22 @@ pub fn migrations() -> Migrations<'static> {
             CREATE INDEX idx_field_media_flashcard_field_id ON field_media(flashcard_field_id);
             CREATE INDEX idx_field_media_sha256 ON field_media(sha256);
 
+            -- Media attached to a draft, by the key of the field it is for. Publishing copies the
+            -- rows into field_media. Attaching the same file to a field twice has no effect.
+            CREATE TABLE flashcard_draft_media (
+                id         INTEGER PRIMARY KEY,
+                draft_id   INTEGER NOT NULL REFERENCES flashcard_drafts(id) ON DELETE CASCADE,
+                field_key  TEXT NOT NULL,
+                kind       TEXT NOT NULL CHECK (kind IN ('IMAGE', 'AUDIO')),
+                mime_type  TEXT NOT NULL,
+                sha256     TEXT NOT NULL,
+                file_name  TEXT NOT NULL,
+                size_bytes INTEGER NOT NULL,
+                position   INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE (draft_id, field_key, sha256)
+            );
+
             -- All timestamps are UTC text in the 'YYYY-MM-DD HH:MM:SS' format of datetime('now').
 
             -- SM-2 scheduling state. A flashcard with no row has never been reviewed.
