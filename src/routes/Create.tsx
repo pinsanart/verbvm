@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { Plus } from "lucide-react";
 import { useNavigate } from "react-router";
 import { Button } from "../components/Button";
 import { DeckCard } from "../components/DeckCard";
-import { NewDeckDialog } from "../components/NewDeckDialog";
+import { NewDeckForm } from "../components/NewDeckForm";
 import { Notice } from "../components/Notice";
 import { useDecksViewModel } from "../viewmodels/useDecksViewModel";
 
@@ -12,7 +12,14 @@ import { useDecksViewModel } from "../viewmodels/useDecksViewModel";
 export default function Create() {
   const vm = useDecksViewModel();
   const navigate = useNavigate();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const newDeckButton = useRef<HTMLButtonElement>(null);
+
+  // Closing the form hands the focus back to the button that opened it.
+  const closeForm = () => {
+    setCreating(false);
+    requestAnimationFrame(() => newDeckButton.current?.focus());
+  };
 
   const openDeck = (name: string) => navigate(`/create/${encodeURIComponent(name)}`);
 
@@ -20,17 +27,36 @@ export default function Create() {
     <div className="mx-auto flex w-full flex-col gap-6 p-6 md:max-w-[60%]">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Create flashcards</h1>
-        <Button onClick={() => setDialogOpen(true)} disabled={vm.status !== "ready"}>
+        <Button
+          ref={newDeckButton}
+          onClick={() => setCreating(true)}
+          disabled={vm.status !== "ready" || creating}
+          aria-expanded={creating}
+        >
           <Plus size={16} />
           New deck
         </Button>
       </div>
 
       <AnimatePresence initial={false}>
-        {vm.error && !dialogOpen && (
+        {vm.error && !creating && (
           <Notice key="error" tone="error">
             {vm.error}
           </Notice>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence initial={false}>
+        {creating && (
+          <NewDeckForm
+            key="new-deck"
+            languages={vm.languages}
+            loadVariants={vm.loadVariants}
+            onCreate={vm.addDeck}
+            onCancel={closeForm}
+            busy={vm.busy}
+            error={vm.error}
+          />
         )}
       </AnimatePresence>
 
@@ -61,18 +87,6 @@ export default function Create() {
         </AnimatePresence>
       </div>
 
-      <AnimatePresence>
-        {dialogOpen && (
-          <NewDeckDialog
-            languages={vm.languages}
-            loadVariants={vm.loadVariants}
-            onCreate={vm.addDeck}
-            onClose={() => setDialogOpen(false)}
-            busy={vm.busy}
-            error={vm.error}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }
