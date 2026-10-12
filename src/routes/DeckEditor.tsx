@@ -54,7 +54,7 @@ export default function DeckEditor() {
             <EmptyState
               icon={Layers}
               title="Add your first flashcard"
-              description="Choose a type below. Your cards stay here as drafts until you press Save all."
+              description="Use the button below to add a card. Your cards stay here as drafts until you press Save all."
             />
           )}
 
