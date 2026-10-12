@@ -16,7 +16,7 @@ export function NavigationButton({ to, label, icon: Icon, variant }: NavigationB
         end={to === "/"}
         className={({ isActive }) =>
           [
-            "flex flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1 text-[11px] transition-colors",
+            "flex flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1 text-label transition-colors",
             isActive
               ? "bg-white/10 text-ink"
               : "text-muted hover:bg-white/5 hover:text-ink",
@@ -35,7 +35,7 @@ export function NavigationButton({ to, label, icon: Icon, variant }: NavigationB
       end={to === "/"}
       className={({ isActive }) =>
         [
-          "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+          "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-ui transition-colors",
           isActive
             ? "bg-white/10 text-ink"
             : "text-muted hover:bg-white/5 hover:text-ink",

@@ -13,6 +13,9 @@ export interface TypePickerProps {
 export function TypePicker({ onPick, disabled }: TypePickerProps) {
     return (
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Add a flashcard">
+            <span className="mr-1 text-meta font-medium text-muted" aria-hidden>
+                Add
+            </span>
             {TYPE_BUTTON_SLUGS.map((slug) => {
                 const { icon: Icon, label, tile } = styleForType(slug);
                 const enabled = ENABLED_TYPE_SLUGS.includes(slug);
@@ -22,14 +25,14 @@ export function TypePicker({ onPick, disabled }: TypePickerProps) {
                         type="button"
                         disabled={!enabled || disabled}
                         onClick={() => onPick(slug)}
-                        className={`relative flex items-center gap-2 rounded-lg border-2 border-dotted px-3 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed ${tile} ${
+                        className={`relative flex items-center gap-2 rounded-lg border-2 border-dotted px-3 py-2 text-ui font-medium text-ink transition-colors disabled:cursor-not-allowed ${tile} ${
                             enabled ? "" : "opacity-40"
                         }`}
                     >
-                        <Icon size={18} strokeWidth={1.5} />
+                        <Icon size={18} aria-hidden />
                         {label}
                         {!enabled && (
-                            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-muted">
+                            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-label font-medium text-muted">
                                 Soon
                             </span>
                         )}

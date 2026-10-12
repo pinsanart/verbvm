@@ -23,7 +23,7 @@ export function Notice({ tone, children }: NoticeProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={TRANSITION_BASE}
-            className={`rounded-lg border px-3 py-2 text-sm ${TONES[tone]}`}
+            className={`rounded-lg border px-3 py-2 text-ui ${TONES[tone]}`}
         >
             {children}
         </motion.div>

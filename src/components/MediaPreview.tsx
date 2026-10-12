@@ -27,7 +27,7 @@ export function MediaPreview({ media, onRemove }: MediaPreviewProps) {
                     className="relative"
                 >
                     {item.url === null ? (
-                        <div className="flex h-16 items-center gap-1.5 rounded-lg bg-white/5 px-3 text-xs text-muted">
+                        <div className="flex h-16 items-center gap-1.5 rounded-lg bg-white/5 px-3 text-meta text-muted">
                             <TriangleAlert size={14} />
                             File not found
                         </div>

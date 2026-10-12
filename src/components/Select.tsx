@@ -153,7 +153,7 @@ export function Select({ id, options, value, onChange, disabled }: SelectProps) 
                                     aria-selected={isSelected}
                                     onPointerEnter={() => setActive(index)}
                                     onClick={() => choose(index)}
-                                    className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm ${
+                                    className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-ui ${
                                         index === active ? "bg-white/10" : ""
                                     } ${isSelected ? "text-white" : "text-muted"}`}
                                 >

@@ -64,7 +64,7 @@ export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: Confirm
                             ref={keepButton}
                             type="button"
                             onClick={() => setConfirming(false)}
-                            className="rounded-md px-2.5 py-1 text-xs font-medium text-muted hover:bg-white/10 hover:text-white"
+                            className="rounded-md px-3 py-1.5 text-meta font-medium text-muted hover:bg-white/10 hover:text-ink"
                         >
                             Keep
                         </button>
@@ -74,7 +74,7 @@ export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: Confirm
                                 setConfirming(false);
                                 onConfirm();
                             }}
-                            className="rounded-md bg-stack px-2.5 py-1 text-xs font-medium text-white hover:brightness-110"
+                            className="rounded-md bg-danger px-3 py-1.5 text-meta font-medium text-white hover:brightness-110"
                         >
                             Delete
                         </button>

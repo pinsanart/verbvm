@@ -18,7 +18,7 @@ export function AudioField({ label, media, onAttach, onRemove }: AudioFieldProps
     return (
         <div>
             <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-xs font-medium uppercase tracking-wider text-muted">{label}</label>
+                <label className="text-label font-medium uppercase tracking-wider text-muted">{label}</label>
                 <div className="flex items-center gap-0.5">
                     <IconButton label="Attach media" icon={Paperclip} iconSize={14} onClick={onAttach} />
                     <IconButton label="Generate audio" icon={Wand2} iconSize={14} onClick={handleGenerate} />
