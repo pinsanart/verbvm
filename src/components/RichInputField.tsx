@@ -2,13 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, CodeXml, Paperclip } from "lucide-react";
 import { IconButton } from "./IconButton";
 import { MediaPreview } from "./MediaPreview";
-import { Field } from "../types/Flashcard";
+import { Media } from "../types/Media";
 
 export interface RichInputFieldProps {
     label: string;
-    field: Field;
-    onChange: (field: Field) => void;
+    /** The HTML content. Only read when the field is mounted: the editor keeps its own DOM. */
+    value: string;
+    onChange: (value: string) => void;
     allowMedia?: boolean;
+    media?: Media[];
+    required?: boolean;
+    error?: string;
 }
 
 function escapeHtml(value: string) {
@@ -24,9 +28,9 @@ function highlightHtml(html: string) {
         .join("");
 }
 
-export function RichInputField({ label, field, onChange, allowMedia }: RichInputFieldProps) {
+export function RichInputField({ label, value, onChange, allowMedia, media, required, error }: RichInputFieldProps) {
     const [showHtml, setShowHtml] = useState(false);
-    const [content, setContent] = useState(field.content);
+    const [content, setContent] = useState(value);
     const richTextRef = useRef<HTMLDivElement>(null);
     const htmlHighlightRef = useRef<HTMLPreElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,7 +53,7 @@ export function RichInputField({ label, field, onChange, allowMedia }: RichInput
 
     function updateContent(newContent: string) {
         setContent(newContent);
-        onChange({ ...field, content: newContent });
+        onChange(newContent);
     }
 
     function handleRichInput(e: React.FormEvent<HTMLDivElement>) {
@@ -76,7 +80,10 @@ export function RichInputField({ label, field, onChange, allowMedia }: RichInput
     return (
         <div>
             <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-xs font-medium uppercase tracking-wide text-white/40">{label}</label>
+                <label className="text-xs font-medium uppercase tracking-wide text-white/40">
+                    {label}
+                    {required && <span className="ml-1 text-white/30">*</span>}
+                </label>
                 <div className="flex items-center gap-0.5">
                     <IconButton label="Toggle HTML" icon={CodeXml} iconSize={14} onClick={() => setShowHtml((v) => !v)} />
                     {allowMedia && (
@@ -93,7 +100,10 @@ export function RichInputField({ label, field, onChange, allowMedia }: RichInput
                 contentEditable
                 onInput={handleRichInput}
                 suppressContentEditableWarning
-                className="min-h-20 w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white outline-none transition-colors focus:border-white/30 focus:bg-white/[0.07]"
+                aria-invalid={error ? true : undefined}
+                className={`min-h-20 w-full rounded-xl border bg-white/5 p-3 text-sm text-white outline-none transition-colors focus:bg-white/[0.07] ${
+                    error ? "border-stack/70" : "border-white/10 focus:border-white/30"
+                }`}
             />
 
             {showHtml && (
@@ -119,9 +129,11 @@ export function RichInputField({ label, field, onChange, allowMedia }: RichInput
                 </div>
             )}
 
+            {error && <p className="mt-1 text-xs text-stack">{error}</p>}
+
             {allowMedia && (
                 <div className="mt-2">
-                    <MediaPreview media={field.media} />
+                    <MediaPreview media={media} />
                 </div>
             )}
         </div>
