@@ -26,3 +26,5 @@ rusqlite = {version = "0.40.1", features = ["bundled"] }
 rusqlite_migration = "2.6.0"
 thiserror = "2.0.20"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+uuid = { version = "1.28.0", features = ["v4"] }
+ammonia = "4.2.3"
