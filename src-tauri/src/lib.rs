@@ -48,12 +48,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::languages::list_languages,
-            commands::languages::create_language,
-            commands::languages::delete_language,
             commands::languages::list_language_variants,
-            commands::languages::create_language_variant,
-            commands::languages::set_default_language_variant,
-            commands::languages::delete_language_variant,
             commands::decks::list_decks,
             commands::decks::create_deck,
             commands::decks::delete_deck,

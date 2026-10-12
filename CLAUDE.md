@@ -47,8 +47,8 @@ Module rules:
 - `src/modules/languages/` is the reference module: `model.rs`, `repository.rs`, `service.rs` and `error.rs`, plus unit tests in `model.rs` and `service.rs` that run against a temp SQLite file. Run them with `cargo test` in `src-tauri/`, or `cargo test <name>` for one.
 
 **Frontend (`src/`)**
-- `main.tsx` defines the routes with `createHashRouter` (hash routing, which suits Tauri's file-served frontend). `routes/Root.tsx` is the layout, with a responsive sidebar (`AppNavigationBar`, fed by `data/NavigationButton.ts`). Child routes are `Home`, `Review`, `Create`, `Dashboard`, `Settings` and `language_tests` (a manual test UI for languages and variants).
-- `types/` holds the shared TS types, `api/` the typed `invoke` wrappers, and `viewmodels/` the viewmodels. `routes/LanguageTests.tsx` with `viewmodels/useLanguagesViewModel.ts` is the reference for the view and viewmodel split.
+- `main.tsx` defines the routes with `createHashRouter` (hash routing, which suits Tauri's file-served frontend). `routes/Root.tsx` is the layout, with a responsive sidebar (`AppNavigationBar`, fed by `data/NavigationButton.ts`). Child routes are `Home`, `Review`, `Create` (with nested `create/:deckName` and `create/:deckName/:typeSlug`), `Dashboard` and `Settings`.
+- `types/` holds the shared TS types, `api/` the typed `invoke` wrappers, and `viewmodels/` the viewmodels. `routes/CreateFlashcards.tsx` with `viewmodels/useFlashcardEditorViewModel.ts` is the reference for the view and viewmodel split.
 - `Create` uses `FlashcardInput` with `PlainInputField`, `RichInputField`, `AudioField` and `MediaPreview` for card content. `types/Flashcard.ts` still uses string ids and a hard-coded type union and does not match the schema below.
 - Styling is Tailwind v4 through the `@tailwindcss/vite` plugin, with the entry in `src/index.css`.
 - In the browser (`npm run dev`) Tauri's `invoke` is unavailable, so the language UI shows an error. Use `npm run tauri dev`.

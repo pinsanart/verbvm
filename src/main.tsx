@@ -12,7 +12,6 @@ import CreateTypes from "./routes/CreateTypes";
 import CreateFlashcards from "./routes/CreateFlashcards";
 import Dashboard from "./routes/Dashboard";
 import Settings from "./routes/Settings";
-import LanguageTests from "./routes/LanguageTests";
 
 const router = createHashRouter([
   {
@@ -26,7 +25,6 @@ const router = createHashRouter([
       { path: "create/:deckName/:typeSlug", Component: CreateFlashcards },
       { path: "dashboard", Component: Dashboard },
       { path: "settings", Component: Settings },
-      { path: "language_tests", Component: LanguageTests },
     ],
   },
 ]);

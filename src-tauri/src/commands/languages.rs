@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::State;
 
 use super::error::CommandError;
@@ -53,41 +53,10 @@ fn language_dto(api: &Arc<dyn LanguageApi>, language: &Language) -> CommandResul
     })
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NewLanguageInput {
-    #[serde(rename = "iso6391")]
-    iso_639_1: Option<String>,
-    #[serde(rename = "iso6393")]
-    iso_639_3: String,
-    name: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NewLanguageVariantInput {
-    #[serde(rename = "languageIso6393")]
-    language_iso_639_3: String,
-    bcp47_code: String,
-    variant_name: String,
-    country_code: Option<String>,
-}
-
 #[tauri::command]
 pub async fn list_languages(api: Api<'_>) -> CommandResult<Vec<LanguageDto>> {
     let languages = api.list_languages()?;
     languages.iter().map(|language| language_dto(&api, language)).collect()
-}
-
-#[tauri::command]
-pub async fn create_language(api: Api<'_>, input: NewLanguageInput) -> CommandResult<LanguageDto> {
-    let language = api.create_language(input.iso_639_1, input.iso_639_3, input.name)?;
-    language_dto(&api, &language)
-}
-
-#[tauri::command]
-pub async fn delete_language(api: Api<'_>, iso: String) -> CommandResult<()> {
-    Ok(api.delete_language(&iso)?)
 }
 
 #[tauri::command]
@@ -96,35 +65,6 @@ pub async fn list_language_variants(
     language_iso: String,
 ) -> CommandResult<Vec<LanguageVariantDto>> {
     Ok(api.list_variants(&language_iso)?.iter().map(variant_dto).collect())
-}
-
-#[tauri::command]
-pub async fn create_language_variant(
-    api: Api<'_>,
-    input: NewLanguageVariantInput,
-) -> CommandResult<LanguageVariantDto> {
-    let variant = api.create_variant(
-        &input.language_iso_639_3,
-        input.bcp47_code,
-        input.variant_name,
-        input.country_code,
-    )?;
-    Ok(variant_dto(&variant))
-}
-
-#[tauri::command]
-pub async fn set_default_language_variant(
-    api: Api<'_>,
-    language_iso: String,
-    bcp47_code: String,
-) -> CommandResult<LanguageDto> {
-    let language = api.set_default_variant(&language_iso, &bcp47_code)?;
-    language_dto(&api, &language)
-}
-
-#[tauri::command]
-pub async fn delete_language_variant(api: Api<'_>, bcp47_code: String) -> CommandResult<()> {
-    Ok(api.delete_variant(&bcp47_code)?)
 }
 
 #[cfg(test)]
@@ -153,17 +93,5 @@ mod tests {
             serde_json::to_value(variant).unwrap(),
             json!({"bcp47Code": "ja-JP", "variantName": "Japanese (Japan)", "countryCode": "JP"})
         );
-    }
-
-    #[test]
-    fn inputs_are_read_from_the_typescript_shape() {
-        let language: NewLanguageInput =
-            serde_json::from_value(json!({"iso6391": null, "iso6393": "tlh", "name": "Klingon"})).unwrap();
-        assert_eq!(language.iso_639_3, "tlh");
-        let variant: NewLanguageVariantInput = serde_json::from_value(json!({
-            "languageIso6393": "tlh", "bcp47Code": "tlh-a", "variantName": "A", "countryCode": null
-        }))
-        .unwrap();
-        assert_eq!((variant.language_iso_639_3.as_str(), variant.bcp47_code.as_str()), ("tlh", "tlh-a"));
     }
 }

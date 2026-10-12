@@ -1,4 +1,4 @@
-import {House, BookOpen, Plus, LayoutDashboard, Settings2, FlaskConical } from 'lucide-react'
+import {House, BookOpen, Plus, LayoutDashboard, Settings2 } from 'lucide-react'
 import { NavigationButtonType } from '../types/NavigationButton'
 
 export const buttons: NavigationButtonType[] = [
@@ -7,5 +7,4 @@ export const buttons: NavigationButtonType[] = [
     {icon: Plus, label: 'Create', to: '/create'},
     {icon: LayoutDashboard, label: 'Dashboard', to: '/dashboard'},
     {icon: Settings2, label: 'Settings', to: '/settings'},
-    {icon: FlaskConical, label: 'Language tests', to: '/language_tests'},
 ]
