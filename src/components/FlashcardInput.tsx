@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { ArrowDown, ArrowUp, Copy, RotateCw } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Eye, EyeOff, RotateCw } from "lucide-react";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { CountryFlag } from "./CountryFlag";
 import { FieldInput } from "./FieldInput";
@@ -65,20 +65,21 @@ function ControlBar({
     );
 }
 
+// Front and back share one surface and one palette. They differ in structure: the front has a
+// solid spine and an open eye (what you see first), the back a dashed spine and a closed one
+// (what stays hidden until you flip).
 const FACES = {
     front: {
         title: "Front",
         hint: "Shown first, as the prompt",
-        // A solid light chip on a raised surface: the face you meet first.
-        chip: "bg-ink text-canvas",
-        surface: "border-line-strong bg-raised",
+        icon: Eye,
+        spine: "border-l-4 border-solid border-ink",
     },
     back: {
         title: "Back",
         hint: "Revealed after, as the answer",
-        // An outlined chip on a sunken surface: the face behind it.
-        chip: "border border-line-strong text-ink",
-        surface: "border-line bg-canvas",
+        icon: EyeOff,
+        spine: "border-l-4 border-dashed border-line-strong",
     },
 } as const;
 
@@ -106,12 +107,13 @@ function Face({
 }) {
     const titleId = useId();
     if (fields.length === 0) return null;
-    const { title, hint, chip, surface } = FACES[face];
+    const { title, hint, icon: Icon, spine } = FACES[face];
 
     return (
-        <section aria-labelledby={titleId} className={`flex flex-col gap-5 rounded-xl border p-4 md:p-5 ${surface}`}>
-            <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <h3 id={titleId} className={`rounded-md px-2.5 py-1 text-ui font-semibold ${chip}`}>
+        <section aria-labelledby={titleId} className={`flex flex-col gap-5 py-1 pl-4 md:pl-5 ${spine}`}>
+            <header className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <Icon size={18} className="text-muted" aria-hidden />
+                <h3 id={titleId} className="text-body font-semibold text-ink">
                     {title}
                 </h3>
                 <p className="text-meta text-muted">{hint}</p>
