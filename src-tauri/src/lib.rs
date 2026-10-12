@@ -59,6 +59,8 @@ pub fn run() {
             commands::flashcards::duplicate_draft,
             commands::flashcards::move_draft,
             commands::flashcards::delete_draft,
+            commands::flashcards::attach_media,
+            commands::flashcards::remove_media,
             commands::flashcards::publish_drafts,
         ])
         .run(tauri::generate_context!())

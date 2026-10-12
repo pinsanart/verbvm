@@ -8,7 +8,8 @@ use super::decks::LanguageSummaryDto;
 use super::error::CommandError;
 use super::languages::{variant_dto, LanguageVariantDto};
 use crate::modules::card_types::FieldDefinition;
-use crate::modules::flashcards::{Direction, FlashcardDraft};
+use crate::dependencies::media_store::MediaKind;
+use crate::modules::flashcards::{Direction, FlashcardDraft, MediaAttachment};
 use crate::orchestrators::{DraftIssue, EditorForm, FlashcardEditorOrchestrator, PublishOutcome};
 
 type Api<'a> = State<'a, Arc<FlashcardEditorOrchestrator>>;
@@ -73,25 +74,57 @@ fn form_dto(form: &EditorForm) -> FlashcardFormDto {
     }
 }
 
-/// A draft, identified by its uuid. `values` maps a field key to its content.
+/// A media file attached to a field. `path` is where the file is on disk, for the view to
+/// preview through the asset protocol.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaDto {
+    pub sha256: String,
+    /// `IMAGE` or `AUDIO`.
+    pub kind: String,
+    pub mime_type: String,
+    pub path: Option<String>,
+}
+
+fn media_dto(api: &FlashcardEditorOrchestrator, media: &MediaAttachment) -> MediaDto {
+    MediaDto {
+        sha256: media.sha256().to_owned(),
+        kind: match media.kind() {
+            MediaKind::Image => "IMAGE",
+            MediaKind::Audio => "AUDIO",
+        }
+        .to_owned(),
+        mime_type: media.mime_type().to_owned(),
+        path: api.media_path(media.file_name()).map(|p| p.to_string_lossy().into_owned()),
+    }
+}
+
+/// A draft, identified by its uuid. `values` maps a field key to its content and `media` to its
+/// attached files.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DraftDto {
     pub uuid: String,
     pub position: i64,
     pub values: BTreeMap<String, String>,
+    pub media: BTreeMap<String, Vec<MediaDto>>,
 }
 
-fn draft_dto(draft: &FlashcardDraft) -> DraftDto {
+fn draft_dto(api: &FlashcardEditorOrchestrator, draft: &FlashcardDraft) -> DraftDto {
     DraftDto {
         uuid: draft.uuid().to_owned(),
         position: draft.position(),
         values: draft.values().clone(),
+        media: draft
+            .media()
+            .iter()
+            .map(|(key, items)| (key.clone(), items.iter().map(|m| media_dto(api, m)).collect()))
+            .collect(),
     }
 }
 
-fn draft_dtos(drafts: &[FlashcardDraft]) -> Vec<DraftDto> {
-    drafts.iter().map(draft_dto).collect()
+fn draft_dtos(api: &FlashcardEditorOrchestrator, drafts: &[FlashcardDraft]) -> Vec<DraftDto> {
+    drafts.iter().map(|d| draft_dto(api, d)).collect()
 }
 
 #[derive(Debug, Serialize)]
@@ -156,7 +189,7 @@ pub async fn list_drafts(
     deck_name: String,
     type_slug: String,
 ) -> CommandResult<Vec<DraftDto>> {
-    Ok(draft_dtos(&api.drafts(&deck_name, &type_slug)?))
+    Ok(draft_dtos(&api, &api.drafts(&deck_name, &type_slug)?))
 }
 
 #[tauri::command]
@@ -165,7 +198,7 @@ pub async fn create_draft(
     deck_name: String,
     type_slug: String,
 ) -> CommandResult<Vec<DraftDto>> {
-    Ok(draft_dtos(&api.add_draft(&deck_name, &type_slug)?))
+    Ok(draft_dtos(&api, &api.add_draft(&deck_name, &type_slug)?))
 }
 
 #[tauri::command]
@@ -174,12 +207,12 @@ pub async fn update_draft(
     draft_uuid: String,
     values: BTreeMap<String, String>,
 ) -> CommandResult<DraftDto> {
-    Ok(draft_dto(&api.update_draft(&draft_uuid, values)?))
+    Ok(draft_dto(&api, &api.update_draft(&draft_uuid, values)?))
 }
 
 #[tauri::command]
 pub async fn duplicate_draft(api: Api<'_>, draft_uuid: String) -> CommandResult<Vec<DraftDto>> {
-    Ok(draft_dtos(&api.duplicate_draft(&draft_uuid)?))
+    Ok(draft_dtos(&api, &api.duplicate_draft(&draft_uuid)?))
 }
 
 #[tauri::command]
@@ -188,12 +221,36 @@ pub async fn move_draft(
     draft_uuid: String,
     direction: DirectionInput,
 ) -> CommandResult<Vec<DraftDto>> {
-    Ok(draft_dtos(&api.move_draft(&draft_uuid, direction.into())?))
+    Ok(draft_dtos(&api, &api.move_draft(&draft_uuid, direction.into())?))
 }
 
 #[tauri::command]
 pub async fn delete_draft(api: Api<'_>, draft_uuid: String) -> CommandResult<Vec<DraftDto>> {
-    Ok(draft_dtos(&api.delete_draft(&draft_uuid)?))
+    Ok(draft_dtos(&api, &api.delete_draft(&draft_uuid)?))
+}
+
+/// Attaches a file picked on disk to a field of a draft. The backend copies it into its own
+/// media folder, so the original can be moved or deleted afterwards.
+#[tauri::command]
+pub async fn attach_media(
+    api: Api<'_>,
+    draft_uuid: String,
+    field_key: String,
+    source_path: String,
+) -> CommandResult<DraftDto> {
+    let draft = api.attach_media(&draft_uuid, &field_key, std::path::Path::new(&source_path))?;
+    Ok(draft_dto(&api, &draft))
+}
+
+#[tauri::command]
+pub async fn remove_media(
+    api: Api<'_>,
+    draft_uuid: String,
+    field_key: String,
+    sha256: String,
+) -> CommandResult<DraftDto> {
+    let draft = api.remove_media(&draft_uuid, &field_key, &sha256)?;
+    Ok(draft_dto(&api, &draft))
 }
 
 #[tauri::command]
@@ -229,10 +286,23 @@ mod tests {
 
         let mut values = BTreeMap::new();
         values.insert("phrase".to_string(), "hi".to_string());
-        let draft = DraftDto { uuid: "u".into(), position: 1, values };
+        let mut media = BTreeMap::new();
+        media.insert(
+            "phrase".to_string(),
+            vec![MediaDto {
+                sha256: "ab".into(),
+                kind: "IMAGE".into(),
+                mime_type: "image/png".into(),
+                path: Some("/data/media/ab.png".into()),
+            }],
+        );
+        let draft = DraftDto { uuid: "u".into(), position: 1, values, media };
         assert_eq!(
             serde_json::to_value(draft).unwrap(),
-            json!({"uuid": "u", "position": 1, "values": {"phrase": "hi"}})
+            json!({
+                "uuid": "u", "position": 1, "values": {"phrase": "hi"},
+                "media": {"phrase": [{"sha256": "ab", "kind": "IMAGE", "mimeType": "image/png", "path": "/data/media/ab.png"}]}
+            })
         );
 
         let result = PublishResultDto {
