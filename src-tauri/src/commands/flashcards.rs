@@ -6,10 +6,10 @@ use tauri::State;
 
 use super::decks::LanguageSummaryDto;
 use super::error::CommandError;
+use super::media::{media_dto, MediaDto};
 use super::languages::{variant_dto, LanguageVariantDto};
 use crate::modules::card_types::FieldDefinition;
-use crate::dependencies::media_store::MediaKind;
-use crate::modules::flashcards::{Direction, FlashcardDraft, MediaAttachment};
+use crate::modules::flashcards::{Direction, FlashcardDraft};
 use crate::orchestrators::{DraftIssue, EditorForm, FlashcardEditorOrchestrator, PublishOutcome};
 
 type Api<'a> = State<'a, Arc<FlashcardEditorOrchestrator>>;
@@ -81,31 +81,6 @@ fn form_dto(form: &EditorForm) -> FlashcardFormDto {
     }
 }
 
-/// A media file attached to a field. `path` is where the file is on disk, for the view to
-/// preview through the asset protocol.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MediaDto {
-    pub sha256: String,
-    /// `IMAGE` or `AUDIO`.
-    pub kind: String,
-    pub mime_type: String,
-    pub path: Option<String>,
-}
-
-fn media_dto(api: &FlashcardEditorOrchestrator, media: &MediaAttachment) -> MediaDto {
-    MediaDto {
-        sha256: media.sha256().to_owned(),
-        kind: match media.kind() {
-            MediaKind::Image => "IMAGE",
-            MediaKind::Audio => "AUDIO",
-        }
-        .to_owned(),
-        mime_type: media.mime_type().to_owned(),
-        path: api.media_path(media.file_name()).map(|p| p.to_string_lossy().into_owned()),
-    }
-}
-
 /// A draft, identified by its uuid. `values` maps a field key to its content and `media` to its
 /// attached files.
 #[derive(Debug, Serialize)]
@@ -132,7 +107,7 @@ fn draft_dto(
         media: draft
             .media()
             .iter()
-            .map(|(key, items)| (key.clone(), items.iter().map(|m| media_dto(api, m)).collect()))
+            .map(|(key, items)| (key.clone(), items.iter().map(|m| media_dto(m, api.media_path(m.file_name()))).collect()))
             .collect(),
     }
 }

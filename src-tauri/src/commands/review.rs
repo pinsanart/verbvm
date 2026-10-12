@@ -1,0 +1,245 @@
+use std::sync::Arc;
+
+use serde::Serialize;
+use tauri::State;
+
+use super::decks::LanguageSummaryDto;
+use super::error::CommandError;
+use super::languages::{variant_dto, LanguageVariantDto};
+use super::media::{media_dto, MediaDto};
+use crate::modules::card_types::Side;
+use crate::orchestrators::{
+    CardState, DeckReview, ReviewCardView, ReviewCounts, ReviewNext, ReviewSessionOrchestrator,
+};
+
+type Api<'a> = State<'a, Arc<ReviewSessionOrchestrator>>;
+type CommandResult<T> = Result<T, CommandError>;
+
+/// How many flashcards of a type are waiting.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewCountsDto {
+    pub new: usize,
+    pub learning: usize,
+    pub review: usize,
+}
+
+fn counts_dto(counts: ReviewCounts) -> ReviewCountsDto {
+    ReviewCountsDto { new: counts.new, learning: counts.learning, review: counts.review }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewTypeDto {
+    pub slug: String,
+    pub name: String,
+    pub counts: ReviewCountsDto,
+}
+
+/// A deck as the review overview shows it. Only the types the deck has cards of are listed.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewDeckDto {
+    pub name: String,
+    pub language: LanguageSummaryDto,
+    pub variant: LanguageVariantDto,
+    pub types: Vec<ReviewTypeDto>,
+}
+
+fn deck_dto(deck: &DeckReview) -> ReviewDeckDto {
+    ReviewDeckDto {
+        name: deck.deck.name().to_owned(),
+        language: LanguageSummaryDto {
+            name: deck.language.name().to_owned(),
+            iso_639_3: deck.language.iso_639_3().to_owned(),
+        },
+        variant: variant_dto(&deck.variant),
+        types: deck
+            .types
+            .iter()
+            .map(|t| ReviewTypeDto {
+                slug: t.flashcard_type.slug().to_owned(),
+                name: t.flashcard_type.name().to_owned(),
+                counts: counts_dto(t.counts),
+            })
+            .collect(),
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewFieldDto {
+    pub key: String,
+    pub label: String,
+    /// `FRONT` or `BACK`.
+    pub side: String,
+    /// The content is sanitized HTML.
+    pub is_rich: bool,
+    pub content: String,
+    pub media: Vec<MediaDto>,
+}
+
+/// A flashcard to review, identified by its uuid.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewCardDto {
+    pub uuid: String,
+    pub type_slug: String,
+    pub type_name: String,
+    /// `new`, `learning` or `review`.
+    pub state: String,
+    pub fields: Vec<ReviewFieldDto>,
+}
+
+fn card_dto(api: &ReviewSessionOrchestrator, card: &ReviewCardView) -> ReviewCardDto {
+    ReviewCardDto {
+        uuid: card.uuid.clone(),
+        type_slug: card.flashcard_type.slug().to_owned(),
+        type_name: card.flashcard_type.name().to_owned(),
+        state: match card.state {
+            CardState::New => "new",
+            CardState::Learning => "learning",
+            CardState::Review => "review",
+        }
+        .to_owned(),
+        fields: card
+            .fields
+            .iter()
+            .map(|field| ReviewFieldDto {
+                key: field.key.clone(),
+                label: field.label.clone(),
+                side: match field.side {
+                    Side::Front => "FRONT",
+                    Side::Back => "BACK",
+                }
+                .to_owned(),
+                is_rich: field.is_rich,
+                content: field.content.clone(),
+                media: field
+                    .media
+                    .iter()
+                    .map(|m| media_dto(m, api.media_path(m.file_name())))
+                    .collect(),
+            })
+            .collect(),
+    }
+}
+
+/// The next flashcard of a session, if any, and what is still waiting in the type.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NextReviewCardDto {
+    pub card: Option<ReviewCardDto>,
+    pub counts: ReviewCountsDto,
+}
+
+fn next_dto(api: &ReviewSessionOrchestrator, next: &ReviewNext) -> NextReviewCardDto {
+    NextReviewCardDto {
+        card: next.card.as_ref().map(|c| card_dto(api, c)),
+        counts: counts_dto(next.counts),
+    }
+}
+
+#[tauri::command]
+pub async fn list_review_overview(api: Api<'_>) -> CommandResult<Vec<ReviewDeckDto>> {
+    Ok(api.overview()?.iter().map(deck_dto).collect())
+}
+
+#[tauri::command]
+pub async fn next_review_card(
+    api: Api<'_>,
+    deck_name: String,
+    type_slug: String,
+) -> CommandResult<NextReviewCardDto> {
+    Ok(next_dto(&api, &api.next_card(&deck_name, &type_slug)?))
+}
+
+/// Records the answer to a flashcard. `rating` is 1 (Again) to 4 (Easy), and `duration_ms` is how
+/// long the answer took.
+#[tauri::command]
+pub async fn answer_review_card(
+    api: Api<'_>,
+    card_uuid: String,
+    rating: i64,
+    duration_ms: Option<i64>,
+) -> CommandResult<()> {
+    Ok(api.answer(&card_uuid, rating, duration_ms)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn dtos_match_the_typescript_types() {
+        let deck = ReviewDeckDto {
+            name: "Travel".into(),
+            language: LanguageSummaryDto { name: "French".into(), iso_639_3: "fra".into() },
+            variant: LanguageVariantDto {
+                bcp47_code: "fr-FR".into(),
+                variant_name: "French (France)".into(),
+                country_code: Some("FR".into()),
+            },
+            types: vec![ReviewTypeDto {
+                slug: "vocabulary".into(),
+                name: "Vocabulary".into(),
+                counts: ReviewCountsDto { new: 5, learning: 1, review: 2 },
+            }],
+        };
+        assert_eq!(
+            serde_json::to_value(deck).unwrap(),
+            json!({
+                "name": "Travel",
+                "language": {"name": "French", "iso6393": "fra"},
+                "variant": {"bcp47Code": "fr-FR", "variantName": "French (France)", "countryCode": "FR"},
+                "types": [{"slug": "vocabulary", "name": "Vocabulary", "counts": {"new": 5, "learning": 1, "review": 2}}]
+            })
+        );
+
+        let next = NextReviewCardDto {
+            card: Some(ReviewCardDto {
+                uuid: "u".into(),
+                type_slug: "vocabulary".into(),
+                type_name: "Vocabulary".into(),
+                state: "learning".into(),
+                fields: vec![ReviewFieldDto {
+                    key: "phrase".into(),
+                    label: "Phrase".into(),
+                    side: "FRONT".into(),
+                    is_rich: true,
+                    content: "<b>hi</b>".into(),
+                    media: vec![MediaDto {
+                        sha256: "ab".into(),
+                        kind: "AUDIO".into(),
+                        mime_type: "audio/mpeg".into(),
+                        path: Some("/m/ab.mp3".into()),
+                    }],
+                }],
+            }),
+            counts: ReviewCountsDto { new: 0, learning: 1, review: 0 },
+        };
+        assert_eq!(
+            serde_json::to_value(next).unwrap(),
+            json!({
+                "card": {
+                    "uuid": "u", "typeSlug": "vocabulary", "typeName": "Vocabulary", "state": "learning",
+                    "fields": [{
+                        "key": "phrase", "label": "Phrase", "side": "FRONT", "isRich": true, "content": "<b>hi</b>",
+                        "media": [{"sha256": "ab", "kind": "AUDIO", "mimeType": "audio/mpeg", "path": "/m/ab.mp3"}]
+                    }]
+                },
+                "counts": {"new": 0, "learning": 1, "review": 0}
+            })
+        );
+    }
+
+    #[test]
+    fn no_next_card_is_a_null_card() {
+        let none = NextReviewCardDto { card: None, counts: ReviewCountsDto { new: 0, learning: 0, review: 0 } };
+        assert_eq!(
+            serde_json::to_value(none).unwrap(),
+            json!({"card": null, "counts": {"new": 0, "learning": 0, "review": 0}})
+        );
+    }
+}

@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use tauri::Manager;
 
+use dependencies::clock::{Clock, SystemClock};
 use dependencies::db::connection::SqliteHandle;
 use dependencies::media_store::{LocalMediaStore, MediaStorage};
 use dependencies::sanitizer::{AmmoniaSanitizer, HtmlSanitizer};
@@ -14,7 +15,8 @@ use modules::card_types::{CardTypeApi, CardTypeService};
 use modules::decks::{DeckApi, DeckService};
 use modules::flashcards::{FlashcardApi, FlashcardService};
 use modules::languages::{LanguageApi, LanguageService};
-use orchestrators::{DeckOverviewOrchestrator, FlashcardEditorOrchestrator};
+use modules::reviews::{ReviewApi, ReviewService};
+use orchestrators::{DeckOverviewOrchestrator, FlashcardEditorOrchestrator, ReviewSessionOrchestrator};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -30,7 +32,9 @@ pub fn run() {
             let languages: Arc<dyn LanguageApi> = Arc::new(LanguageService::sqlite(db.clone()));
             let decks: Arc<dyn DeckApi> = Arc::new(DeckService::sqlite(db.clone()));
             let card_types: Arc<dyn CardTypeApi> = Arc::new(CardTypeService::sqlite(db.clone()));
-            let flashcards: Arc<dyn FlashcardApi> = Arc::new(FlashcardService::sqlite(db));
+            let flashcards: Arc<dyn FlashcardApi> = Arc::new(FlashcardService::sqlite(db.clone()));
+            let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+            let reviews: Arc<dyn ReviewApi> = Arc::new(ReviewService::sqlite(db, clock.clone()));
             let sanitizer: Arc<dyn HtmlSanitizer> = Arc::new(AmmoniaSanitizer::new());
 
             app.manage(languages.clone());
@@ -41,7 +45,15 @@ pub fn run() {
                 flashcards.clone(),
             )));
             app.manage(Arc::new(FlashcardEditorOrchestrator::new(
-                decks, languages, card_types, flashcards, sanitizer, media,
+                decks.clone(),
+                languages.clone(),
+                card_types.clone(),
+                flashcards.clone(),
+                sanitizer,
+                media.clone(),
+            )));
+            app.manage(Arc::new(ReviewSessionOrchestrator::new(
+                decks, languages, card_types, flashcards, reviews, clock, media,
             )));
 
             Ok(())
@@ -63,6 +75,9 @@ pub fn run() {
             commands::flashcards::attach_media,
             commands::flashcards::remove_media,
             commands::flashcards::publish_drafts,
+            commands::review::list_review_overview,
+            commands::review::next_review_card,
+            commands::review::answer_review_card,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
