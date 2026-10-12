@@ -11,6 +11,14 @@ const VARIANTS: Record<Variant, string> = {
     danger: "bg-danger text-white hover:brightness-110",
 };
 
+const BASE =
+    "inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-ui font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
+
+/** The classes of a button, for a link that should look like one. */
+export function buttonClass(variant: Variant = "primary", extra = ""): string {
+    return `${BASE} ${VARIANTS[variant]} ${extra}`;
+}
+
 export interface ButtonProps extends Omit<HTMLMotionProps<"button">, "children"> {
     variant?: Variant;
     /** Shows a spinner and blocks presses while an action is running. */
@@ -27,7 +35,7 @@ export function Button({ variant = "primary", loading, disabled, className, chil
             aria-busy={loading || undefined}
             whileTap={{ scale: 0.97 }}
             transition={TRANSITION_FAST}
-            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-ui font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 ${VARIANTS[variant]} ${className ?? ""}`}
+            className={buttonClass(variant, className)}
             {...rest}
         >
             {loading && <Loader2 size={16} className="animate-spin" aria-hidden />}
