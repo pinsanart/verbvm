@@ -30,7 +30,7 @@ export interface RatingBarProps {
  */
 export function RatingBar({ counts, intervals, revealed, busy, onShowResponse, onAnswer }: RatingBarProps) {
     return (
-        <div className="sticky bottom-16 z-10 -mx-4 border-t border-line bg-canvas/90 px-4 py-3 backdrop-blur md:-mx-8 md:bottom-0 md:px-8">
+        <div className="sticky bottom-0 z-10 -mx-4 border-t border-line bg-canvas/90 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
             <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
                 <p
                     className="text-center text-meta tabular-nums text-muted md:text-left"

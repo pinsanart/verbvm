@@ -176,7 +176,7 @@ export default function DeckEditor() {
             </AnimatePresence>
           </div>
 
-          <div className="sticky bottom-16 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas/90 px-4 py-3 backdrop-blur md:-mx-8 md:bottom-0 md:px-8">
+          <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas/90 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
             <TypePicker onPick={vm.addDraft} disabled={vm.busy} />
             <Button onClick={vm.saveAll} loading={vm.busy} disabled={vm.drafts.length === 0}>
               <Save size={16} aria-hidden />
