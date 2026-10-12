@@ -111,6 +111,25 @@ fn duplicate_deck_names_conflict() {
 }
 
 #[test]
+fn updating_a_deck_renames_it_and_keeps_its_language_and_cards() {
+    let f = fixture();
+    f.overview.create("Trips".into(), "fra", None, Some("Old".into())).unwrap();
+    f.overview.create("Other".into(), "eng", None, None).unwrap();
+    f.editor.add_draft("Trips", "vocabulary").unwrap();
+
+    let updated = f.overview.update("Trips", " Travel ".into(), None).unwrap();
+    assert_eq!(updated.deck.name(), "Travel");
+    assert_eq!(updated.deck.description(), None, "the description is replaced");
+    assert_eq!(updated.variant.bcp47_code(), "fr-FR");
+    assert_eq!(f.editor.drafts("Travel").unwrap().len(), 1, "the deck keeps what it had");
+    assert!(matches!(f.overview.get("Trips"), Err(OrchestratorError::NotFound(_))));
+
+    assert!(matches!(f.overview.update("Travel", "Other".into(), None), Err(OrchestratorError::Conflict(_))));
+    assert!(matches!(f.overview.update("Travel", "  ".into(), None), Err(OrchestratorError::Invalid(_))));
+    assert!(matches!(f.overview.update("Nope", "X".into(), None), Err(OrchestratorError::NotFound(_))));
+}
+
+#[test]
 fn the_list_has_counts_by_type_and_delete_removes_the_deck() {
     let f = fixture();
     f.overview.create("B deck".into(), "eng", None, None).unwrap();

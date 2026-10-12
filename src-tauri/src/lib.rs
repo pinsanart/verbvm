@@ -51,6 +51,7 @@ pub fn run() {
             commands::languages::list_language_variants,
             commands::decks::list_decks,
             commands::decks::create_deck,
+            commands::decks::update_deck,
             commands::decks::delete_deck,
             commands::flashcards::get_flashcard_form,
             commands::flashcards::list_drafts,

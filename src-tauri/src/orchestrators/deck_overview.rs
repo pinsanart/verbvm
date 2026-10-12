@@ -86,6 +86,18 @@ impl DeckOverviewOrchestrator {
         self.overview(deck, &self.card_types.list_types()?)
     }
 
+    /// Renames a deck and replaces its description. The language and accent do not change, since
+    /// the fields of its flashcards depend on the language. Conflicts when the new name is taken.
+    pub fn update(
+        &self,
+        deck_name: &str,
+        new_name: String,
+        description: Option<String>,
+    ) -> OrchestratorResult<DeckOverview> {
+        let deck = self.decks.update_deck(deck_name, new_name, description)?;
+        self.overview(deck, &self.card_types.list_types()?)
+    }
+
     /// Deletes the deck with its flashcards and drafts.
     pub fn delete(&self, deck_name: &str) -> OrchestratorResult<()> {
         Ok(self.decks.delete_deck(deck_name)?)

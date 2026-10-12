@@ -98,6 +98,19 @@ pub async fn create_deck(api: Api<'_>, input: NewDeckInput) -> CommandResult<Dec
     Ok(deck_dto(&overview))
 }
 
+/// The editable attributes of a deck. The language and accent are fixed once it is created.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateDeckInput {
+    name: String,
+    description: Option<String>,
+}
+
+#[tauri::command]
+pub async fn update_deck(api: Api<'_>, name: String, input: UpdateDeckInput) -> CommandResult<DeckDto> {
+    Ok(deck_dto(&api.update(&name, input.name, input.description)?))
+}
+
 #[tauri::command]
 pub async fn delete_deck(api: Api<'_>, name: String) -> CommandResult<()> {
     Ok(api.delete(&name)?)
@@ -150,5 +163,12 @@ mod tests {
         .unwrap();
         assert_eq!(input.language_iso_639_3, "eng");
         assert!(input.variant_bcp47_code.is_none());
+    }
+
+    #[test]
+    fn update_deck_input_is_read_from_the_typescript_shape() {
+        let input: UpdateDeckInput =
+            serde_json::from_value(json!({"name": "Trips", "description": null})).unwrap();
+        assert_eq!((input.name.as_str(), input.description), ("Trips", None));
     }
 }
