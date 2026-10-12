@@ -2,6 +2,7 @@ import { KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronDown } from "lucide-react";
 import { controlClass } from "./formStyles";
+import { TRANSITION_FAST } from "../lib/motion";
 
 export interface SelectOption {
     value: string;
@@ -139,8 +140,8 @@ export function Select({ id, options, value, onChange, disabled }: SelectProps) 
                         initial={{ opacity: 0, y: -4, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                        transition={{ duration: 0.12 }}
-                        className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 origin-top overflow-auto rounded-xl border border-white/10 bg-[#2c2d32] py-1 shadow-xl shadow-black/40"
+                        transition={TRANSITION_FAST}
+                        className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 origin-top overflow-auto rounded-xl border border-line bg-[#2c2d32] py-1 shadow-xl shadow-black/40"
                     >
                         {options.map((option, index) => {
                             const isSelected = option.value === value;
@@ -154,10 +155,10 @@ export function Select({ id, options, value, onChange, disabled }: SelectProps) 
                                     onClick={() => choose(index)}
                                     className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm ${
                                         index === active ? "bg-white/10" : ""
-                                    } ${isSelected ? "text-white" : "text-white/70"}`}
+                                    } ${isSelected ? "text-white" : "text-muted"}`}
                                 >
                                     <span className="truncate">{option.label}</span>
-                                    {isSelected && <Check size={14} aria-hidden className="shrink-0 text-vocabulary" />}
+                                    {isSelected && <Check size={14} aria-hidden className="shrink-0 text-accent-ink" />}
                                 </li>
                             );
                         })}

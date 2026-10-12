@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { TRANSITION_BASE } from "../lib/motion";
 
 export interface NoticeProps {
     tone: "success" | "error";
@@ -7,7 +8,7 @@ export interface NoticeProps {
 
 const TONES = {
     success: "border-orthographic/50 text-orthographic",
-    error: "border-stack/70 text-stack",
+    error: "border-stack/70 text-stack-ink",
 } as const;
 
 /**
@@ -21,7 +22,7 @@ export function Notice({ tone, children }: NoticeProps) {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.18 }}
+            transition={TRANSITION_BASE}
             className={`rounded-lg border px-3 py-2 text-sm ${TONES[tone]}`}
         >
             {children}

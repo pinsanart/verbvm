@@ -131,7 +131,7 @@ export function FlashcardInput({
     onDelete,
 }: FlashcardInputProps) {
     return (
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-panel shadow-lg shadow-black/20">
+        <div className="overflow-hidden rounded-2xl border border-line bg-panel shadow-lg shadow-black/20">
             <div className={`h-1 w-full ${styleForType(typeSlug).accent}`} />
             <div className="flex flex-col gap-5 p-5">
                 <ControlBar

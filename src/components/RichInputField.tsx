@@ -106,7 +106,7 @@ export function RichInputField({
                 suppressContentEditableWarning
                 aria-invalid={error ? true : undefined}
                 className={`min-h-20 w-full rounded-xl border bg-white/5 p-3 text-[15px] leading-6 text-white outline-none transition-colors focus:bg-white/[0.07] ${
-                    error ? "border-stack/70" : "border-white/10 focus:border-white/30"
+                    error ? "border-stack/70" : "border-line focus:border-white/30"
                 }`}
             />
 
@@ -119,7 +119,7 @@ export function RichInputField({
                         <pre
                             ref={htmlHighlightRef}
                             aria-hidden
-                            className="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-all p-3 pt-1 font-mono text-xs leading-relaxed text-white/90"
+                            className="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-all p-3 pt-1 font-mono text-xs leading-relaxed text-ink"
                             dangerouslySetInnerHTML={{ __html: highlightHtml(content) }}
                         />
                         <textarea
@@ -133,7 +133,7 @@ export function RichInputField({
                 </div>
             )}
 
-            {error && <p className="mt-1 text-xs text-stack">{error}</p>}
+            {error && <p className="mt-1 text-xs text-stack-ink">{error}</p>}
 
             {allowMedia && (
                 <div className="mt-2">

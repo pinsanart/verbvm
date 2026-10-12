@@ -37,24 +37,23 @@ export default function Create() {
       {vm.status === "loading" && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2" aria-busy="true" aria-label="Loading decks">
           {[0, 1].map((n) => (
-            <div key={n} className="h-32 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+            <div key={n} className="h-32 animate-pulse rounded-2xl border border-line bg-white/5" />
           ))}
         </div>
       )}
 
       {vm.status === "ready" && vm.decks.length === 0 && (
-        <p className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-muted">
+        <p className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
           No decks yet. Create one to start adding flashcards.
         </p>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <AnimatePresence>
-          {vm.decks.map((deck, index) => (
+          {vm.decks.map((deck) => (
             <DeckCard
               key={deck.name}
               deck={deck}
-              index={index}
               onOpen={() => openDeck(deck.name)}
               onDelete={() => vm.removeDeck(deck.name)}
             />

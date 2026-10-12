@@ -7,21 +7,56 @@
     "Noto Sans CJK SC", "Hiragino Sans", "Yu Gothic UI", "Microsoft YaHei UI", "Malgun Gothic", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 
-  /* Secondary text. Both keep at least 4.5:1 contrast on the panel color. */
-  --color-muted: rgb(255 255 255 / 0.62);
-  --color-subtle: rgb(255 255 255 / 0.5);
-
+  /* Surfaces, from the page outward: the canvas the content sits on, the panels (sidebar, cards)
+     on it, and the raised layer for menus. All lean slightly cool, like the brand blue. */
+  --color-canvas: #1b1c20;
   --color-panel: #232428;
-  --color-panel-border: #5B5858;
-  --color-vocabulary: #204AF5;
-  --color-stack: #F5204D;
-  --color-phonetic: #F5BE20;
-  --color-orthographic: #22F544;
+  --color-raised: #2d2e34;
+  --color-line: rgb(255 255 255 / 0.1);
+  --color-line-strong: rgb(255 255 255 / 0.22);
+
+  /* Text. Each keeps at least 4.5:1 contrast on every surface above, including form fields. */
+  --color-ink: #f2f3f5;
+  --color-muted: #b0b3bd;
+  --color-subtle: #9699a4;
+
+  /* Brand colors, one per flashcard type. Use them as fills, borders and icons.
+     The "ink" variants are for text: the raw blue and red are too dark to read on the panels. */
+  --color-vocabulary: #204af5;
+  --color-vocabulary-ink: #8fa8ff;
+  --color-stack: #f5204d;
+  --color-stack-ink: #ff8da3;
+  --color-phonetic: #f5be20;
+  --color-orthographic: #22f544;
+  /* Behind white text: the brand red is 4.0:1 there, this one is above 5:1. */
+  --color-danger: #d4183f;
+
+  /* The accent is for primary actions, the current selection and focus. It is not a type color,
+     even though it shares the blue. */
+  --color-accent: #204af5;
+  --color-accent-ink: #8fa8ff;
+
+  /* A fixed type scale, about 1.125 to 1.2 between steps. */
+  --text-label: 0.75rem;
+  --text-label--line-height: 1rem;
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: 1.25rem;
+  --text-ui: 0.875rem;
+  --text-ui--line-height: 1.25rem;
+  --text-body: 1rem;
+  --text-body--line-height: 1.625rem;
+  --text-heading: 1.25rem;
+  --text-heading--line-height: 1.75rem;
+  --text-title: 1.5rem;
+  --text-title--line-height: 2rem;
 }
 
 html {
   /* Scrollbars and any native control follow the dark theme. */
   color-scheme: dark;
+  accent-color: var(--color-accent);
+  scrollbar-width: thin;
+  scrollbar-color: #4a4c56 transparent;
 }
 
 @layer base {
@@ -31,21 +66,49 @@ html {
     text-rendering: optimizeLegibility;
   }
 
+  /* Light text on a dark surface reads thinner, so it gets a little more weight, tracking and
+     leading than the same text would on white. */
   body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
     font-optical-sizing: auto;
-    line-height: 1.5;
+    font-weight: 450;
+    letter-spacing: 0.005em;
+    line-height: 1.55;
   }
 
   h1,
   h2,
   h3 {
-    letter-spacing: -0.02em;
-    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.25;
     text-wrap: balance;
   }
 
   p {
     text-wrap: pretty;
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+  }
+
+  /* The parts of the browser that are not drawn by the app still belong to it. */
+  ::selection {
+    background: color-mix(in oklab, var(--color-accent) 55%, transparent);
+    color: #fff;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"] {
+    caret-color: var(--color-accent-ink);
+  }
+
+  ::placeholder {
+    color: var(--color-subtle);
+    opacity: 1;
   }
 }
 
@@ -56,7 +119,7 @@ body,
 }
 
 /* A visible focus ring for keyboard users, on every interactive element. */
-:where(button, a, [role="button"], [role="combobox"]):focus-visible {
-  outline: 2px solid var(--color-vocabulary);
+:where(button, a, [role="button"], [role="combobox"], [role="textbox"]):focus-visible {
+  outline: 2px solid var(--color-accent-ink);
   outline-offset: 2px;
 }

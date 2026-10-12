@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Button } from "./Button";
+import { TRANSITION_BASE } from "../lib/motion";
 import { Select } from "./Select";
 import { controlClass, labelClass } from "./formStyles";
 import type { NewDeck } from "../types/Deck";
@@ -58,14 +59,14 @@ export function NewDeckDialog({ languages, loadVariants, onCreate, onClose, busy
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
+            transition={TRANSITION_BASE}
             onClick={onClose}
         >
             <motion.form
                 initial={{ opacity: 0, scale: 0.96, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 8 }}
-                transition={{ duration: 0.18 }}
+                transition={TRANSITION_BASE}
                 role="dialog"
                 aria-modal="true"
                 aria-label="New deck"
@@ -74,12 +75,12 @@ export function NewDeckDialog({ languages, loadVariants, onCreate, onClose, busy
                     if (e.key === "Escape") onClose();
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="flex w-full max-w-md flex-col gap-4 rounded-2xl border border-white/10 bg-panel p-5 shadow-xl"
+                className="flex w-full max-w-md flex-col gap-4 rounded-2xl border border-line bg-panel p-5 shadow-xl"
             >
                 <h2 className="text-lg font-semibold">New deck</h2>
 
                 {error && (
-                    <div role="alert" className="rounded-lg border border-stack/70 px-3 py-2 text-sm text-stack">
+                    <div role="alert" className="rounded-lg border border-stack/70 px-3 py-2 text-sm text-stack-ink">
                         {error}
                     </div>
                 )}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Trash2 } from "lucide-react";
 import { IconButton } from "./IconButton";
+import { TRANSITION_FAST } from "../lib/motion";
 
 /** How long the confirmation waits before it goes back to the trash button. */
 const CONFIRM_TIMEOUT_MS = 5000;
@@ -57,13 +58,13 @@ export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: Confirm
                         initial={{ opacity: 0, x: 8 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 8 }}
-                        transition={{ duration: 0.15 }}
+                        transition={TRANSITION_FAST}
                     >
                         <button
                             ref={keepButton}
                             type="button"
                             onClick={() => setConfirming(false)}
-                            className="rounded-md px-2.5 py-1 text-xs font-medium text-white/70 hover:bg-white/10 hover:text-white"
+                            className="rounded-md px-2.5 py-1 text-xs font-medium text-muted hover:bg-white/10 hover:text-white"
                         >
                             Keep
                         </button>
@@ -84,7 +85,7 @@ export function ConfirmDeleteButton({ label, onConfirm, iconSize = 15 }: Confirm
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.12 }}
+                        transition={TRANSITION_FAST}
                     >
                         <IconButton
                             label={`Delete ${label}`}

@@ -20,17 +20,17 @@ export const FLASHCARD_TYPE_STYLES: Record<string, FlashcardTypeStyle> = {
         icon: Layers,
         label: "Stack",
         accent: "bg-stack",
-        text: "text-stack",
-        badge: "bg-stack/15 text-stack",
-        tile: "border-stack/40 hover:border-stack text-stack",
+        text: "text-stack-ink",
+        badge: "bg-stack/15 text-stack-ink",
+        tile: "border-stack/40 hover:border-stack text-stack-ink",
     },
     vocabulary: {
         icon: CaseSensitive,
         label: "Vocabulary",
         accent: "bg-vocabulary",
-        text: "text-vocabulary",
-        badge: "bg-vocabulary/15 text-vocabulary",
-        tile: "border-vocabulary/40 hover:border-vocabulary text-vocabulary",
+        text: "text-vocabulary-ink",
+        badge: "bg-vocabulary/15 text-vocabulary-ink",
+        tile: "border-vocabulary/40 hover:border-vocabulary text-vocabulary-ink",
     },
     phonetic: {
         icon: Mic,
@@ -60,9 +60,9 @@ const NEUTRAL: FlashcardTypeStyle = {
     icon: CaseSensitive,
     label: "Flashcard",
     accent: "bg-white/40",
-    text: "text-white/70",
-    badge: "bg-white/10 text-white/70",
-    tile: "border-white/20 hover:border-white/50 text-white/70",
+    text: "text-muted",
+    badge: "bg-white/10 text-muted",
+    tile: "border-line-strong hover:border-white/50 text-muted",
 };
 
 /** The style of a flashcard type, or a neutral one for a type this app has no color for. */

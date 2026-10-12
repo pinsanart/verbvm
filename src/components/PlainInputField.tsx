@@ -17,11 +17,11 @@ export function PlainInputField({ label, value, onChange, required, error }: Pla
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 aria-invalid={error ? true : undefined}
-                className={`min-h-20 w-full resize-y rounded-xl border bg-white/5 p-3 text-[15px] leading-6 text-white outline-none transition-colors placeholder:text-white/45 focus:bg-white/[0.07] ${
-                    error ? "border-stack/70" : "border-white/10 focus:border-white/30"
+                className={`min-h-20 w-full resize-y rounded-xl border bg-white/5 p-3 text-[15px] leading-6 text-white outline-none transition-colors focus:bg-white/[0.07] ${
+                    error ? "border-stack/70" : "border-line focus:border-white/30"
                 }`}
             />
-            {error && <p className="mt-1 text-xs text-stack">{error}</p>}
+            {error && <p className="mt-1 text-xs text-stack-ink">{error}</p>}
         </div>
     );
 }

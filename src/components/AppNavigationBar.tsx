@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { TRANSITION_BASE } from "../lib/motion";
 import { CircleUserRound } from "lucide-react";
 import { buttons } from "../data/NavigationButton";
 import { NavigationButton } from "./NavigationButton";
@@ -13,7 +14,7 @@ export function AppNavigationBar() {
       <nav
         className="
           fixed inset-x-0 bottom-0 z-50 flex h-16 flex-row items-center justify-around gap-1
-          border-t border-panel-border bg-panel px-2 pb-[env(safe-area-inset-bottom)]
+          border-t border-line bg-panel px-2 pb-[env(safe-area-inset-bottom)]
           md:hidden
         "
       >
@@ -26,10 +27,10 @@ export function AppNavigationBar() {
         initial="collapsed"
         whileHover="expanded"
         variants={railVariants}
-        transition={{ duration: 0.2, ease: "easeInOut" }}
+        transition={TRANSITION_BASE}
         className="
           fixed inset-y-0 left-0 z-50 hidden flex-col overflow-hidden
-          border-r border-panel-border bg-panel p-3
+          border-r border-line bg-panel p-3
           md:flex
         "
       >
@@ -51,11 +52,11 @@ export function AppNavigationBar() {
           ))}
         </div>
 
-        <div className="flex items-center gap-3 overflow-hidden border-t border-panel-border px-1 pt-3">
-          <CircleUserRound size={36} className="shrink-0 text-white/70" aria-hidden />
+        <div className="flex items-center gap-3 overflow-hidden border-t border-line px-1 pt-3">
+          <CircleUserRound size={36} className="shrink-0 text-muted" aria-hidden />
           <motion.span
             variants={fadeVariants}
-            className="overflow-hidden whitespace-nowrap text-sm text-white/70"
+            className="overflow-hidden whitespace-nowrap text-sm text-muted"
           >
             Login
           </motion.span>

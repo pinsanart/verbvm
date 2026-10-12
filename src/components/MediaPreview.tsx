@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { TriangleAlert, X } from "lucide-react";
+import { TRANSITION_FAST } from "../lib/motion";
 import { Media } from "../types/Media";
 
 export interface MediaPreviewProps {
@@ -13,7 +14,7 @@ export function MediaPreview({ media, onRemove }: MediaPreviewProps) {
     if (!media || media.length === 0) return null;
 
     return (
-        <div className="flex flex-wrap items-start gap-2 rounded-xl border border-white/10 bg-white/5 p-2">
+        <div className="flex flex-wrap items-start gap-2 rounded-xl border border-line bg-white/5 p-2">
             <AnimatePresence initial={false}>
             {media.map((item) => (
                 <motion.div
@@ -22,7 +23,7 @@ export function MediaPreview({ media, onRemove }: MediaPreviewProps) {
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ duration: 0.15 }}
+                    transition={TRANSITION_FAST}
                     className="relative"
                 >
                     {item.url === null ? (
@@ -40,7 +41,7 @@ export function MediaPreview({ media, onRemove }: MediaPreviewProps) {
                             type="button"
                             aria-label="Remove media"
                             onClick={() => onRemove(item.sha256)}
-                            className="absolute -right-1.5 -top-1.5 rounded-full bg-black/70 p-0.5 text-white/80 hover:bg-black hover:text-white"
+                            className="absolute -right-1.5 -top-1.5 rounded-full bg-black/70 p-0.5 text-ink hover:bg-black hover:text-white"
                         >
                             <X size={12} />
                         </button>

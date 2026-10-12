@@ -6,6 +6,7 @@ import { CountryFlag } from "../components/CountryFlag";
 import { FlashcardInput } from "../components/FlashcardInput";
 import { Notice } from "../components/Notice";
 import { TypePicker } from "../components/TypePicker";
+import { TRANSITION_BASE } from "../lib/motion";
 import { useFlashcardEditorViewModel } from "../viewmodels/useFlashcardEditorViewModel";
 
 /** The editor of a deck: one list of flashcards of any type, with the type buttons at the bottom. */
@@ -47,7 +48,7 @@ export default function CreateFlashcards() {
       {vm.status === "ready" && vm.form && (
         <>
           {vm.drafts.length === 0 && (
-            <p className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-muted">
+            <p className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
               No flashcards yet. Pick a type below to add one.
             </p>
           )}
@@ -63,7 +64,7 @@ export default function CreateFlashcards() {
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.96 }}
-                    transition={{ duration: 0.2 }}
+                    transition={TRANSITION_BASE}
                   >
                     <FlashcardInput
                       typeSlug={draft.typeSlug}
@@ -89,7 +90,7 @@ export default function CreateFlashcards() {
             </AnimatePresence>
           </div>
 
-          <div className="sticky bottom-16 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-panel/90 px-6 py-3 backdrop-blur md:bottom-0">
+          <div className="sticky bottom-16 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-panel/90 px-6 py-3 backdrop-blur md:bottom-0">
             <TypePicker onPick={vm.addDraft} disabled={vm.busy} />
             <Button onClick={vm.saveAll} disabled={vm.busy || vm.drafts.length === 0}>
               <Save size={16} />

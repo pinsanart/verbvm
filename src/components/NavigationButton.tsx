@@ -18,8 +18,8 @@ export function NavigationButton({ to, label, icon: Icon, variant }: NavigationB
           [
             "flex flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1 text-[11px] transition-colors",
             isActive
-              ? "bg-panel-border/60 text-white"
-              : "text-muted hover:bg-panel-border/30 hover:text-white",
+              ? "bg-white/10 text-ink"
+              : "text-muted hover:bg-white/5 hover:text-ink",
           ].join(" ")
         }
       >
@@ -37,8 +37,8 @@ export function NavigationButton({ to, label, icon: Icon, variant }: NavigationB
         [
           "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
           isActive
-            ? "bg-panel-border/60 text-white"
-            : "text-muted hover:bg-panel-border/30 hover:text-white",
+            ? "bg-white/10 text-ink"
+            : "text-muted hover:bg-white/5 hover:text-ink",
         ].join(" ")
       }
     >

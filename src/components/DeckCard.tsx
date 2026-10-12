@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { TRANSITION_BASE } from "../lib/motion";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { CountryFlag } from "./CountryFlag";
 import { styleForType } from "../data/FlashcardTypeStyles";
@@ -6,23 +7,20 @@ import type { Deck } from "../types/Deck";
 
 export interface DeckCardProps {
     deck: Deck;
-    /** Position in the list, to stagger the entrance. */
-    index?: number;
     onOpen: () => void;
     onDelete: () => void;
 }
 
 /** A deck in the deck list: its name, language and accent, description and card counts. */
-export function DeckCard({ deck, index = 0, onOpen, onDelete }: DeckCardProps) {
+export function DeckCard({ deck, onOpen, onDelete }: DeckCardProps) {
     return (
         <motion.div
             layout
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            whileHover={{ y: -2 }}
-            transition={{ duration: 0.2, delay: Math.min(index, 8) * 0.04 }}
-            className="relative rounded-2xl border border-white/10 bg-panel transition-colors hover:border-white/30"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 0.97 }}
+            transition={TRANSITION_BASE}
+            className="relative rounded-2xl border border-line bg-panel transition-colors hover:border-line-strong"
         >
             <button type="button" onClick={onOpen} className="flex w-full flex-col gap-3 p-4 text-left">
                 <div className="flex items-center gap-3 pr-8">
@@ -38,7 +36,7 @@ export function DeckCard({ deck, index = 0, onOpen, onDelete }: DeckCardProps) {
                 {deck.description && <p className="line-clamp-2 text-sm text-muted">{deck.description}</p>}
 
                 <div className="flex flex-wrap items-center gap-2 text-xs tabular-nums">
-                    <span className="rounded-full bg-white/10 px-2 py-0.5 font-medium text-white/70">
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 font-medium text-muted">
                         {deck.stats.totalCards} {deck.stats.totalCards === 1 ? "card" : "cards"}
                     </span>
                     {deck.stats.cardsByType
