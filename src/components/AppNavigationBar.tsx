@@ -65,10 +65,10 @@ export function AppNavigationBar() {
         </div>
 
         <div className="flex items-center gap-3 overflow-hidden border-t border-line px-3 pt-4 pb-1">
-          <CircleUserRound size={24} className="shrink-0 text-muted" aria-hidden />
+          <CircleUserRound size={32} className="shrink-0 text-muted" aria-hidden />
           <motion.span
             variants={fadeVariants}
-            className="overflow-hidden whitespace-nowrap text-ui text-muted"
+            className="overflow-hidden whitespace-nowrap text-body font-medium text-muted"
           >
             Login
           </motion.span>

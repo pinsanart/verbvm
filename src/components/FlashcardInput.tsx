@@ -66,20 +66,20 @@ function ControlBar({
 }
 
 // Front and back share one surface and one palette. They differ in structure: the front has a
-// solid spine and an open eye (what you see first), the back a dashed spine and a closed one
+// solid top rule and an open eye (what you see first), the back a dashed top rule and a closed one
 // (what stays hidden until you flip).
 const FACES = {
     front: {
         title: "Front",
         hint: "Shown first, as the prompt",
         icon: Eye,
-        spine: "border-l-4 border-solid border-ink",
+        spine: "border-t-4 border-solid border-ink",
     },
     back: {
         title: "Back",
         hint: "Revealed after, as the answer",
         icon: EyeOff,
-        spine: "border-l-4 border-dashed border-line-strong",
+        spine: "border-t-4 border-dashed border-line-strong",
     },
 } as const;
 
@@ -110,7 +110,7 @@ function Face({
     const { title, hint, icon: Icon, spine } = FACES[face];
 
     return (
-        <section aria-labelledby={titleId} className={`flex flex-col gap-5 py-1 pl-4 md:pl-5 ${spine}`}>
+        <section aria-labelledby={titleId} className={`flex flex-col gap-5 pt-4 ${spine}`}>
             <header className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <Icon size={18} className="text-muted" aria-hidden />
                 <h3 id={titleId} className="text-body font-semibold text-ink">
