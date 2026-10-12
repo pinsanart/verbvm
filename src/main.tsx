@@ -8,7 +8,6 @@ import Root from "./routes/Root";
 import Home from "./routes/Home";
 import Review from "./routes/Review";
 import Create from "./routes/Create";
-import CreateTypes from "./routes/CreateTypes";
 import CreateFlashcards from "./routes/CreateFlashcards";
 import Dashboard from "./routes/Dashboard";
 import Settings from "./routes/Settings";
@@ -21,8 +20,7 @@ const router = createHashRouter([
       { index: true, Component: Home },
       { path: "review", Component: Review },
       { path: "create", Component: Create },
-      { path: "create/:deckName", Component: CreateTypes },
-      { path: "create/:deckName/:typeSlug", Component: CreateFlashcards },
+      { path: "create/:deckName", Component: CreateFlashcards },
       { path: "dashboard", Component: Dashboard },
       { path: "settings", Component: Settings },
     ],

@@ -19,18 +19,22 @@ import type { LoadStatus } from "./useDecksViewModel";
 /** How long typing pauses before a draft is saved. */
 const AUTOSAVE_DELAY_MS = 500;
 
+/** How long the "saved" notice stays. */
+const NOTICE_DURATION_MS = 4000;
+
 /** Field errors of one draft, by field key. */
 export type FieldErrors = Record<string, string>;
 
 /**
- * The view's API for editing the drafts of a flashcard type in a deck.
+ * The view's API for editing the drafts of a deck. A deck has one list of drafts that mixes
+ * flashcard types.
  *
  * The backend is the source of truth. Add, move, duplicate and delete replace the list with the
  * one the backend returns. Typing is applied locally right away and saved after a short pause, and
  * pending saves are flushed before any other action and when the screen closes. The backend
  * enforces every rule (required fields, sanitizing). This only shows what it reports.
  */
-export function useFlashcardEditorViewModel(deckName: string, typeSlug: string) {
+export function useFlashcardEditorViewModel(deckName: string) {
     const [form, setForm] = useState<FlashcardForm | null>(null);
     const [drafts, setDrafts] = useState<Draft[]>([]);
     const [status, setStatus] = useState<LoadStatus>("loading");
@@ -65,9 +69,8 @@ export function useFlashcardEditorViewModel(deckName: string, typeSlug: string) 
         setStatus("loading");
         (async () => {
             const ok = await run(async () => {
-                const loadedForm = await getFlashcardForm(deckName, typeSlug);
-                let loaded = await listDrafts(deckName, typeSlug);
-                if (loaded.length === 0) loaded = await createDraft(deckName, typeSlug);
+                const loadedForm = await getFlashcardForm(deckName);
+                const loaded = await listDrafts(deckName);
                 if (cancelled) return;
                 setForm(loadedForm);
                 replaceDrafts(loaded);
@@ -78,7 +81,14 @@ export function useFlashcardEditorViewModel(deckName: string, typeSlug: string) 
             cancelled = true;
             flush().catch(() => undefined);
         };
-    }, [deckName, typeSlug, run, replaceDrafts, flush]);
+    }, [deckName, run, replaceDrafts, flush]);
+
+    // The "saved" notice goes away by itself.
+    useEffect(() => {
+        if (lastPublished === null) return;
+        const timer = setTimeout(() => setLastPublished(null), NOTICE_DURATION_MS);
+        return () => clearTimeout(timer);
+    }, [lastPublished]);
 
     const setValue = (uuid: string, key: string, value: string) => {
         replaceDrafts(
@@ -110,7 +120,8 @@ export function useFlashcardEditorViewModel(deckName: string, typeSlug: string) 
             replaceDrafts(await action());
         });
 
-    const addDraft = () => structural(() => createDraft(deckName, typeSlug));
+    /** Adds an empty draft of a type at the end of the list. */
+    const addDraft = (typeSlug: string) => structural(() => createDraft(deckName, typeSlug));
     const duplicate = (uuid: string) => structural(() => duplicateDraft(uuid));
     const move = (uuid: string, direction: MoveDirection) => structural(() => moveDraft(uuid, direction));
     const remove = (uuid: string) => structural(() => deleteDraft(uuid));
@@ -119,7 +130,7 @@ export function useFlashcardEditorViewModel(deckName: string, typeSlug: string) 
     const saveAll = () =>
         run(async () => {
             await flush();
-            const result = await publishDrafts(deckName, typeSlug);
+            const result = await publishDrafts(deckName);
             const grouped: Record<string, FieldErrors> = {};
             for (const issue of result.issues) {
                 (grouped[issue.draftUuid] ??= {})[issue.fieldKey ?? ""] = issue.message;
@@ -128,8 +139,7 @@ export function useFlashcardEditorViewModel(deckName: string, typeSlug: string) 
             if (result.issues.length > 0) return;
 
             setLastPublished(result.published);
-            const remaining = await listDrafts(deckName, typeSlug);
-            replaceDrafts(remaining.length > 0 ? remaining : await createDraft(deckName, typeSlug));
+            replaceDrafts(await listDrafts(deckName));
         });
 
     /** Takes the media of a draft from the backend and leaves what was typed untouched. */
@@ -149,16 +159,22 @@ export function useFlashcardEditorViewModel(deckName: string, typeSlug: string) 
     const detachFile = (uuid: string, key: string, sha256: string) =>
         run(async () => applyMedia(await removeMedia(uuid, key, sha256)));
 
-    const fieldsBySide = useMemo(() => {
-        const bySide = (side: FieldDefinition["side"]) =>
-            (form?.fields ?? []).filter((field) => field.side === side);
-        return { front: bySide("FRONT"), back: bySide("BACK") };
+    /** The front and back fields of each flashcard type, by slug. */
+    const fieldsByType = useMemo(() => {
+        const byType: Record<string, { front: FieldDefinition[]; back: FieldDefinition[] }> = {};
+        for (const type of form?.types ?? []) {
+            byType[type.slug] = {
+                front: type.fields.filter((field) => field.side === "FRONT"),
+                back: type.fields.filter((field) => field.side === "BACK"),
+            };
+        }
+        return byType;
     }, [form]);
 
     return {
         status,
         form,
-        fieldsBySide,
+        fieldsByType,
         drafts,
         errorsFor: (uuid: string): FieldErrors => errors[uuid] ?? {},
         error,

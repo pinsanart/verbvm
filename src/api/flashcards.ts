@@ -12,6 +12,7 @@ interface MediaDto {
 
 interface DraftDto {
     uuid: string;
+    typeSlug: string;
     position: number;
     values: Record<string, string>;
     media: Record<string, MediaDto[]>;
@@ -28,18 +29,20 @@ const toMedia = (dto: MediaDto): Media => ({
 
 const toDraft = (dto: DraftDto): Draft => ({
     uuid: dto.uuid,
+    typeSlug: dto.typeSlug,
     position: dto.position,
     values: dto.values,
     media: Object.fromEntries(Object.entries(dto.media).map(([key, items]) => [key, items.map(toMedia)])),
 });
 
-export const getFlashcardForm = (deckName: string, typeSlug: string) =>
-    invoke<FlashcardForm>("get_flashcard_form", { deckName, typeSlug });
+export const getFlashcardForm = (deckName: string) =>
+    invoke<FlashcardForm>("get_flashcard_form", { deckName });
 
-export const listDrafts = async (deckName: string, typeSlug: string) =>
-    (await invoke<DraftDto[]>("list_drafts", { deckName, typeSlug })).map(toDraft);
+/** The deck's drafts, of every type, in order. */
+export const listDrafts = async (deckName: string) =>
+    (await invoke<DraftDto[]>("list_drafts", { deckName })).map(toDraft);
 
-/** Adds an empty draft and returns the updated list. */
+/** Adds an empty draft of a type at the end of the deck's list and returns the updated list. */
 export const createDraft = async (deckName: string, typeSlug: string) =>
     (await invoke<DraftDto[]>("create_draft", { deckName, typeSlug })).map(toDraft);
 
@@ -62,5 +65,5 @@ export const attachMedia = async (draftUuid: string, fieldKey: string, sourcePat
 export const removeMedia = async (draftUuid: string, fieldKey: string, sha256: string) =>
     toDraft(await invoke<DraftDto>("remove_media", { draftUuid, fieldKey, sha256 }));
 
-export const publishDrafts = (deckName: string, typeSlug: string) =>
-    invoke<PublishResult>("publish_drafts", { deckName, typeSlug });
+/** Saves every draft of the deck as a flashcard of its own type. */
+export const publishDrafts = (deckName: string) => invoke<PublishResult>("publish_drafts", { deckName });

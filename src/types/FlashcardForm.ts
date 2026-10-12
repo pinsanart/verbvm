@@ -16,12 +16,22 @@ export interface FieldDefinition {
     mediaAllowed: boolean;
 }
 
+/** A flashcard type with its fields in the deck's language. */
+export interface TypeForm {
+    slug: string;
+    name: string;
+    fields: FieldDefinition[];
+}
+
+/**
+ * What the editor shows for a deck: its language and accent, and the form of every flashcard
+ * type, since a deck has one list of drafts that mixes types.
+ */
 export interface FlashcardForm {
     deckName: string;
     language: LanguageSummary;
     variant: LanguageVariant;
-    flashcardType: { slug: string; name: string };
-    fields: FieldDefinition[];
+    types: TypeForm[];
 }
 
 /**
@@ -30,6 +40,8 @@ export interface FlashcardForm {
  */
 export interface Draft {
     uuid: string;
+    /** The slug of the draft's flashcard type. */
+    typeSlug: string;
     position: number;
     values: Record<string, string>;
     media: Record<string, Media[]>;
