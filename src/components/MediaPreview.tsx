@@ -1,8 +1,8 @@
-import { AudioPlayer } from "./AudioPlayer";
 import { AnimatePresence, motion } from "motion/react";
 import { TriangleAlert, X } from "lucide-react";
+import { AudioPlayer } from "./AudioPlayer";
 import { TRANSITION_FAST } from "../lib/motion";
-import { Media } from "../types/Media";
+import type { Media, MediaKind } from "../types/Media";
 
 export interface MediaPreviewProps {
     media?: Media[];
@@ -10,46 +10,80 @@ export interface MediaPreviewProps {
     onRemove?: (sha256: string) => void;
 }
 
-/** A preview of the images and audio attached to a field. */
+// A section appears only when the field has files of that kind.
+const GROUPS: { kind: MediaKind; title: string }[] = [
+    { kind: "IMAGE", title: "Images" },
+    { kind: "AUDIO", title: "Audio" },
+];
+
+function RemoveButton({ onRemove }: { onRemove: () => void }) {
+    return (
+        <button
+            type="button"
+            aria-label="Remove media"
+            onClick={onRemove}
+            className="flex size-6 shrink-0 items-center justify-center rounded-full bg-black/70 text-ink transition-colors hover:bg-black hover:text-white"
+        >
+            <X size={12} aria-hidden />
+        </button>
+    );
+}
+
+/**
+ * The files attached to a field, grouped by kind: images as thumbnails and audio as players, each
+ * under its own heading. A group is shown only when it has files.
+ */
 export function MediaPreview({ media, onRemove }: MediaPreviewProps) {
     if (!media || media.length === 0) return null;
 
     return (
-        <div className="flex flex-wrap items-start gap-2 rounded-xl border border-line bg-white/5 p-2">
-            <AnimatePresence initial={false}>
-            {media.map((item) => (
-                <motion.div
-                    key={item.sha256}
-                    layout
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={TRANSITION_FAST}
-                    className="relative"
-                >
-                    {item.url === null ? (
-                        <div className="flex h-16 items-center gap-1.5 rounded-lg bg-white/5 px-3 text-meta text-muted">
-                            <TriangleAlert size={14} />
-                            File not found
-                        </div>
-                    ) : item.kind === "IMAGE" ? (
-                        <img src={item.url} alt="" className="h-16 w-16 rounded-lg object-cover" />
-                    ) : (
-                        <AudioPlayer media={item} className="h-9" />
-                    )}
-                    {onRemove && (
-                        <button
-                            type="button"
-                            aria-label="Remove media"
-                            onClick={() => onRemove(item.sha256)}
-                            className="absolute -right-1.5 -top-1.5 rounded-full bg-black/70 p-0.5 text-ink hover:bg-black hover:text-white"
-                        >
-                            <X size={12} />
-                        </button>
-                    )}
-                </motion.div>
-            ))}
-            </AnimatePresence>
+        <div className="flex flex-col gap-4 rounded-xl border border-line bg-white/5 p-3">
+            {GROUPS.map(({ kind, title }) => {
+                const items = media.filter((item) => item.kind === kind);
+                if (items.length === 0) return null;
+                return (
+                    <section key={kind} aria-label={title} className="flex flex-col gap-2">
+                        <h4 className="flex items-center gap-2 text-label font-medium uppercase tracking-wider text-muted">
+                            {title}
+                            <span className="tabular-nums text-subtle">{items.length}</span>
+                        </h4>
+                        <ul className={kind === "IMAGE" ? "flex flex-wrap gap-2" : "flex flex-col gap-2"}>
+                            <AnimatePresence initial={false}>
+                                {items.map((item) => (
+                                    <motion.li
+                                        key={item.sha256}
+                                        layout
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.95 }}
+                                        transition={TRANSITION_FAST}
+                                        className={kind === "IMAGE" ? "relative" : "flex items-center gap-2"}
+                                    >
+                                        {item.url === null ? (
+                                            <p className="flex h-12 items-center gap-1.5 rounded-lg bg-white/5 px-3 text-meta text-muted">
+                                                <TriangleAlert size={14} aria-hidden />
+                                                File not found
+                                            </p>
+                                        ) : kind === "IMAGE" ? (
+                                            <img src={item.url} alt="" className="size-20 rounded-lg object-cover" />
+                                        ) : (
+                                            <AudioPlayer media={item} className="h-10 min-w-0 flex-1" />
+                                        )}
+                                        {onRemove &&
+                                            (kind === "IMAGE" ? (
+                                                <span className="absolute -right-1.5 -top-1.5">
+                                                    <RemoveButton onRemove={() => onRemove(item.sha256)} />
+                                                </span>
+                                            ) : (
+                                                <RemoveButton onRemove={() => onRemove(item.sha256)} />
+                                            ))}
+                                    </motion.li>
+                                ))}
+                            </AnimatePresence>
+                        </ul>
+                    </section>
+                );
+            })}
         </div>
     );
 }

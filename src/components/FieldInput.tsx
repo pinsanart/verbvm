@@ -1,4 +1,3 @@
-import { AudioField } from "./AudioField";
 import { RichInputField } from "./RichInputField";
 import { PlainInputField } from "./PlainInputField";
 import type { FieldDefinition } from "../types/FlashcardForm";
@@ -36,17 +35,16 @@ export function FieldInput({ definition, value, error, media, onChange, onAttach
         );
     }
     return (
-        <div className="flex flex-col gap-2">
-            <PlainInputField
-                label={definition.label}
-                value={value}
-                onChange={onChange}
-                required={definition.isRequired}
-                error={error}
-            />
-            {definition.mediaAllowed && onAttachMedia && onRemoveMedia && (
-                <AudioField media={media} onAttach={onAttachMedia} onRemove={onRemoveMedia} />
-            )}
-        </div>
+        <PlainInputField
+            label={definition.label}
+            value={value}
+            onChange={onChange}
+            required={definition.isRequired}
+            error={error}
+            allowMedia={definition.mediaAllowed}
+            media={media}
+            onAttachMedia={onAttachMedia}
+            onRemoveMedia={onRemoveMedia}
+        />
     );
 }
