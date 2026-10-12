@@ -10,6 +10,7 @@ pub trait LanguageRepository: Send + Sync {
     /// Stores an unsaved language and returns it with its id.
     fn insert(&self, language: &Language) -> Result<Language, DbError>;
     fn find(&self, id: i64) -> Result<Option<Language>, DbError>;
+    fn find_by_iso_639_3(&self, iso_639_3: &str) -> Result<Option<Language>, DbError>;
     fn find_all(&self) -> Result<Vec<Language>, DbError>;
     /// Writes every editable column. Returns `false` when the language is unsaved or gone.
     fn update(&self, language: &Language) -> Result<bool, DbError>;
@@ -21,6 +22,7 @@ pub trait LanguageRepository: Send + Sync {
 pub trait LanguageVariantRepository: Send + Sync {
     fn insert(&self, variant: &LanguageVariant) -> Result<LanguageVariant, DbError>;
     fn find(&self, id: i64) -> Result<Option<LanguageVariant>, DbError>;
+    fn find_by_bcp47(&self, bcp47_code: &str) -> Result<Option<LanguageVariant>, DbError>;
     fn find_by_language(&self, language_id: i64) -> Result<Vec<LanguageVariant>, DbError>;
     fn update(&self, variant: &LanguageVariant) -> Result<bool, DbError>;
     fn delete(&self, id: i64) -> Result<bool, DbError>;
@@ -71,6 +73,17 @@ impl LanguageRepository for SqliteLanguageRepository {
             conn.query_row(
                 &format!("SELECT {LANGUAGE_COLUMNS} FROM languages WHERE id = ?1"),
                 [id],
+                language_from_row,
+            )
+            .optional()
+        })
+    }
+
+    fn find_by_iso_639_3(&self, iso_639_3: &str) -> Result<Option<Language>, DbError> {
+        self.db.with_connection(|conn| {
+            conn.query_row(
+                &format!("SELECT {LANGUAGE_COLUMNS} FROM languages WHERE iso_639_3 = ?1"),
+                [iso_639_3],
                 language_from_row,
             )
             .optional()
@@ -145,6 +158,17 @@ impl LanguageVariantRepository for SqliteLanguageVariantRepository {
             conn.query_row(
                 &format!("SELECT {VARIANT_COLUMNS} FROM language_variants WHERE id = ?1"),
                 [id],
+                variant_from_row,
+            )
+            .optional()
+        })
+    }
+
+    fn find_by_bcp47(&self, bcp47_code: &str) -> Result<Option<LanguageVariant>, DbError> {
+        self.db.with_connection(|conn| {
+            conn.query_row(
+                &format!("SELECT {VARIANT_COLUMNS} FROM language_variants WHERE bcp47_code = ?1"),
+                [bcp47_code],
                 variant_from_row,
             )
             .optional()

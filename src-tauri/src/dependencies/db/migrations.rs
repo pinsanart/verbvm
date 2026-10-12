@@ -2,7 +2,7 @@ use rusqlite_migration::{Migrations, M};
 
 pub fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
-        // v1.0: languages, decks, flashcards, stacks and reviews
+        // v1.0: languages, decks, flashcards, drafts, media, stacks, reviews and seed data
         M::up(
             r#"
             CREATE TABLE languages (
@@ -27,7 +27,7 @@ pub fn migrations() -> Migrations<'static> {
 
             CREATE TABLE decks (
                 id                  INTEGER PRIMARY KEY,
-                name                TEXT NOT NULL,
+                name                TEXT NOT NULL UNIQUE,
                 language_variant_id INTEGER NOT NULL REFERENCES language_variants(id) ON DELETE RESTRICT,
                 description         TEXT,
                 created_at          TEXT NOT NULL DEFAULT (datetime('now'))
@@ -52,7 +52,9 @@ pub fn migrations() -> Migrations<'static> {
                 label            TEXT NOT NULL,
                 position         INTEGER NOT NULL DEFAULT 0,
                 is_required      INTEGER NOT NULL DEFAULT 0 CHECK (is_required IN (0, 1)),
-                media_allowed    INTEGER NOT NULL DEFAULT 0 CHECK (media_allowed IN (0, 1))
+                media_allowed    INTEGER NOT NULL DEFAULT 0 CHECK (media_allowed IN (0, 1)),
+                -- Rich fields hold HTML, editable in the rich editor. Plain fields hold text.
+                is_rich          INTEGER NOT NULL DEFAULT 0 CHECK (is_rich IN (0, 1))
             );
             CREATE UNIQUE INDEX idx_field_definitions_unique
                 ON field_definitions(flashcard_type_id, COALESCE(language_id, 0), key);
@@ -65,6 +67,8 @@ pub fn migrations() -> Migrations<'static> {
 
             CREATE TABLE flashcards (
                 id                INTEGER PRIMARY KEY,
+                -- Opaque public identifier. Database ids never leave the backend.
+                uuid              TEXT NOT NULL UNIQUE,
                 deck_id           INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
                 flashcard_type_id INTEGER NOT NULL REFERENCES flashcard_types(id) ON DELETE RESTRICT,
                 -- A flashcard belongs to at most one stack. Deleting a stack keeps its flashcards.
@@ -85,6 +89,38 @@ pub fn migrations() -> Migrations<'static> {
                 UNIQUE (flashcard_id, field_definition_id)
             );
             CREATE INDEX idx_flashcard_fields_field_definition_id ON flashcard_fields(field_definition_id);
+
+            -- Unsaved flashcards being edited. `values_json` maps a field key to its content and is
+            -- never queried by field.
+            CREATE TABLE flashcard_drafts (
+                id                INTEGER PRIMARY KEY,
+                uuid              TEXT NOT NULL UNIQUE,
+                deck_id           INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+                flashcard_type_id INTEGER NOT NULL REFERENCES flashcard_types(id) ON DELETE RESTRICT,
+                position          INTEGER NOT NULL,
+                values_json       TEXT NOT NULL DEFAULT '{}',
+                updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_flashcard_drafts_deck_type_position
+                ON flashcard_drafts(deck_id, flashcard_type_id, position);
+
+            -- Media files are kept in S3 and cached in a local folder. `file_name` is
+            -- `<sha256>.<ext>` inside that folder. `remote_key` is the S3 object key, NULL until the
+            -- file is uploaded. A sync compares the rows with the files on disk.
+            CREATE TABLE field_media (
+                id                 INTEGER PRIMARY KEY,
+                flashcard_field_id INTEGER NOT NULL REFERENCES flashcard_fields(id) ON DELETE CASCADE,
+                kind               TEXT NOT NULL CHECK (kind IN ('IMAGE', 'AUDIO')),
+                mime_type          TEXT NOT NULL,
+                sha256             TEXT NOT NULL,
+                file_name          TEXT NOT NULL,
+                remote_key         TEXT,
+                size_bytes         INTEGER NOT NULL,
+                position           INTEGER NOT NULL DEFAULT 0,
+                created_at         TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_field_media_flashcard_field_id ON field_media(flashcard_field_id);
+            CREATE INDEX idx_field_media_sha256 ON field_media(sha256);
 
             -- All timestamps are UTC text in the 'YYYY-MM-DD HH:MM:SS' format of datetime('now').
 
@@ -120,6 +156,62 @@ pub fn migrations() -> Migrations<'static> {
                 total_duration_ms INTEGER NOT NULL DEFAULT 0,
                 last_rating       INTEGER CHECK (last_rating IS NULL OR last_rating BETWEEN 1 AND 4)
             );
+
+            -- Seed data: common languages. The first variant listed for a language is its default.
+            INSERT INTO languages (iso_639_1, iso_639_3, name) VALUES
+                ('en', 'eng', 'English'),
+                ('pt', 'por', 'Portuguese'),
+                ('es', 'spa', 'Spanish'),
+                ('fr', 'fra', 'French'),
+                ('it', 'ita', 'Italian'),
+                ('de', 'deu', 'German'),
+                ('ja', 'jpn', 'Japanese'),
+                ('zh', 'zho', 'Chinese'),
+                ('ko', 'kor', 'Korean');
+
+            INSERT INTO language_variants (language_id, bcp47_code, variant_name, country_code)
+            SELECT l.id, v.bcp47_code, v.variant_name, v.country_code
+            FROM (
+                SELECT 'eng' AS iso, 'en-US' AS bcp47_code, 'English (United States)' AS variant_name, 'US' AS country_code
+                UNION ALL SELECT 'eng', 'en-GB', 'English (United Kingdom)', 'GB'
+                UNION ALL SELECT 'por', 'pt-BR', 'Portuguese (Brazil)', 'BR'
+                UNION ALL SELECT 'por', 'pt-PT', 'Portuguese (Portugal)', 'PT'
+                UNION ALL SELECT 'spa', 'es-ES', 'Spanish (Spain)', 'ES'
+                UNION ALL SELECT 'spa', 'es-MX', 'Spanish (Mexico)', 'MX'
+                UNION ALL SELECT 'fra', 'fr-FR', 'French (France)', 'FR'
+                UNION ALL SELECT 'fra', 'fr-CA', 'French (Canada)', 'CA'
+                UNION ALL SELECT 'ita', 'it-IT', 'Italian (Italy)', 'IT'
+                UNION ALL SELECT 'deu', 'de-DE', 'German (Germany)', 'DE'
+                UNION ALL SELECT 'jpn', 'ja-JP', 'Japanese (Japan)', 'JP'
+                UNION ALL SELECT 'zho', 'zh-CN', 'Chinese (China)', 'CN'
+                UNION ALL SELECT 'zho', 'zh-TW', 'Chinese (Taiwan)', 'TW'
+                UNION ALL SELECT 'kor', 'ko-KR', 'Korean (South Korea)', 'KR'
+            ) AS v
+            JOIN languages l ON l.iso_639_3 = v.iso;
+
+            UPDATE languages SET default_variant_id = (
+                SELECT lv.id FROM language_variants lv
+                WHERE lv.language_id = languages.id ORDER BY lv.id LIMIT 1
+            );
+
+            -- Seed data: flashcard types and their language-agnostic fields.
+            INSERT INTO flashcard_types (slug, name, description) VALUES
+                ('vocabulary',   'Vocabulary',   'A phrase on the front, the word or expression and its meaning on the back'),
+                ('phonetic',     'Phonetic',     'A phrase on the front, its IPA phonetics on the back'),
+                ('orthographic', 'Orthographic', 'A phrase to practice spelling, with optional dictation audio');
+
+            INSERT INTO field_definitions
+                (flashcard_type_id, language_id, side, key, label, position, is_required, media_allowed, is_rich)
+            SELECT t.id, NULL, d.side, d.key, d.label, d.position, d.is_required, d.media_allowed, d.is_rich
+            FROM (
+                SELECT 'vocabulary' AS slug, 'FRONT' AS side, 'phrase' AS key, 'Phrase' AS label, 0 AS position, 1 AS is_required, 1 AS media_allowed, 1 AS is_rich
+                UNION ALL SELECT 'vocabulary', 'BACK', 'word_or_expression', 'Word or expression', 0, 1, 0, 0
+                UNION ALL SELECT 'vocabulary', 'BACK', 'meaning', 'Meaning', 1, 1, 0, 0
+                UNION ALL SELECT 'phonetic', 'FRONT', 'phrase', 'Phrase', 0, 1, 0, 0
+                UNION ALL SELECT 'phonetic', 'BACK', 'ipa_phonetics', 'IPA phonetics', 0, 1, 0, 1
+                UNION ALL SELECT 'orthographic', 'FRONT', 'phrase', 'Phrase', 0, 1, 1, 0
+            ) AS d
+            JOIN flashcard_types t ON t.slug = d.slug;
             "#,
         ),
     ])

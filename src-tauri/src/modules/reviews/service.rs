@@ -125,8 +125,8 @@ mod tests {
         }
     }
 
-    /// A database with two flashcards (ids 1 and 2), seeded with raw SQL because this module
-    /// does not own those tables.
+    /// A database with two flashcards (ids 1 and 2). They are seeded with raw SQL because this
+    /// module does not own those tables. The languages and card types come from the migration.
     fn fixture() -> Fixture {
         let path = std::env::temp_dir().join(format!(
             "verbvm-reviews-{}-{:?}.db",
@@ -137,11 +137,9 @@ mod tests {
         let db = Arc::new(SqliteHandle::new(&path).unwrap());
         db.with_connection(|conn| {
             conn.execute_batch(
-                "INSERT INTO languages (iso_639_3, name) VALUES ('jpn', 'Japanese');
-                 INSERT INTO language_variants (language_id, bcp47_code, variant_name) VALUES (1, 'ja-JP', 'Japan');
-                 INSERT INTO decks (name, language_variant_id) VALUES ('Deck', 1);
-                 INSERT INTO flashcard_types (slug, name) VALUES ('vocabulary', 'Vocabulary');
-                 INSERT INTO flashcards (deck_id, flashcard_type_id) VALUES (1, 1), (1, 1);",
+                "INSERT INTO decks (name, language_variant_id) VALUES ('Deck', 1);
+                 INSERT INTO flashcards (uuid, deck_id, flashcard_type_id)
+                 VALUES ('card-1', 1, 1), ('card-2', 1, 1);",
             )
         })
         .unwrap();
