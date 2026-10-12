@@ -12,7 +12,7 @@ mod review_session;
 pub use deck_overview::{DeckOverview, DeckOverviewOrchestrator};
 pub use error::{OrchestratorError, OrchestratorResult};
 pub use review_session::{
-    CardState, DeckReview, ReviewCardView, ReviewCounts, ReviewField, ReviewNext, ReviewSessionOrchestrator,
+    CardState, DeckReview, Intervals, ReviewCardView, ReviewCounts, ReviewField, ReviewNext, ReviewSessionOrchestrator,
     TypeReview,
 };
 pub use flashcard_editor::{

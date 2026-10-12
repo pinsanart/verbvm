@@ -77,11 +77,26 @@ pub struct ReviewCardView {
     pub fields: Vec<ReviewField>,
 }
 
+/// How long until a flashcard comes back for each answer, in seconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Intervals {
+    pub again: i64,
+    pub hard: i64,
+    pub good: i64,
+    pub easy: i64,
+}
+
 /// The next flashcard of a session, if any, and what is still waiting in the type.
 #[derive(Debug, Clone)]
 pub struct ReviewNext {
     pub card: Option<ReviewCardView>,
     pub counts: ReviewCounts,
+    /// BCP 47 code of the deck's accent, for the language of the text on the card.
+    pub language_tag: String,
+    /// What each answer would schedule for the card, when there is a card.
+    pub intervals: Option<Intervals>,
+    /// When there is no card: seconds until the next one of the type is due, if any is scheduled.
+    pub next_due_in_seconds: Option<i64>,
 }
 
 /// Reviews the flashcards of a deck, one type at a time.
@@ -105,6 +120,8 @@ struct Queues<'a> {
     learning: Vec<&'a Flashcard>,
     review: Vec<&'a Flashcard>,
     new: Vec<&'a Flashcard>,
+    /// The soonest due time among the flashcards that are scheduled but not due yet.
+    next_due: Option<DateTime<Utc>>,
 }
 
 impl Queues<'_> {
@@ -178,7 +195,16 @@ impl ReviewSessionOrchestrator {
             .map(|c| (*c, CardState::Learning))
             .or_else(|| queues.review.first().map(|c| (*c, CardState::Review)))
             .or_else(|| queues.new.first().map(|c| (*c, CardState::New)));
-        let Some((card, state)) = next else { return Ok(ReviewNext { card: None, counts }) };
+        let language_tag = variant.bcp47_code().to_owned();
+        let Some((card, state)) = next else {
+            return Ok(ReviewNext {
+                card: None,
+                counts,
+                language_tag,
+                intervals: None,
+                next_due_in_seconds: queues.next_due.map(|due| (due - now).num_seconds().max(0)),
+            });
+        };
 
         let definitions = self.card_types.fields_for(flashcard_type.slug(), language.id())?;
         let mut fields = Vec::new();
@@ -209,9 +235,13 @@ impl ReviewSessionOrchestrator {
             });
         }
 
+        let intervals = self.intervals_for(card, now)?;
         Ok(ReviewNext {
             card: Some(ReviewCardView { uuid: card.uuid().to_owned(), flashcard_type, state, fields }),
             counts,
+            language_tag,
+            intervals: Some(intervals),
+            next_due_in_seconds: None,
         })
     }
 
@@ -226,6 +256,28 @@ impl ReviewSessionOrchestrator {
     /// Where a stored media file is on disk, for the view to preview.
     pub fn media_path(&self, file_name: &str) -> Option<PathBuf> {
         self.media.path_of(file_name)
+    }
+
+    /// What each answer would schedule for a flashcard if it were answered now.
+    fn intervals_for(&self, card: &Flashcard, now: DateTime<Utc>) -> OrchestratorResult<Intervals> {
+        let id = card_id(card)?;
+        let state = self
+            .reviews
+            .states_for(&[id])?
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| Sm2State::initial(id, now));
+        let seconds = |rating: Rating| {
+            let mut next = state.clone();
+            next.review(rating, now);
+            (next.due_at() - now).num_seconds().max(0)
+        };
+        Ok(Intervals {
+            again: seconds(Rating::Again),
+            hard: seconds(Rating::Hard),
+            good: seconds(Rating::Good),
+            easy: seconds(Rating::Easy),
+        })
     }
 
     /// Splits flashcards of one type by state. Flashcards that are not due are left out.
@@ -248,7 +300,9 @@ impl ReviewSessionOrchestrator {
                         review.push(entry);
                     }
                 }
-                Some(_) => {}
+                Some(state) => {
+                    queues.next_due = Some(queues.next_due.map_or(state.due_at(), |due| due.min(state.due_at())));
+                }
             }
         }
         learning.sort_by_key(|(due, id, _)| (*due, *id));

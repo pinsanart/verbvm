@@ -283,3 +283,45 @@ fn each_type_of_a_deck_is_reviewed_on_its_own() {
     assert_eq!(counts(&f, "Deck", "phonetic"), counts_of(2, 0, 0), "the other type is untouched");
     assert_eq!(next(&f, "Deck", "phonetic").unwrap().flashcard_type.slug(), "phonetic");
 }
+
+#[test]
+fn each_card_says_how_long_every_answer_would_schedule_it() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "fra", None, None).unwrap();
+    add_cards(&f, "Deck", "vocabulary", 1);
+
+    let new = f.review.next_card("Deck", "vocabulary").unwrap();
+    assert_eq!(new.language_tag, "fr-FR");
+    let day = 86_400;
+    let intervals = new.intervals.unwrap();
+    assert_eq!(
+        (intervals.again, intervals.hard, intervals.good, intervals.easy),
+        (600, day, day, day * 13 / 10),
+        "a new card: ten minutes, a day, a day, 1.3 days"
+    );
+
+    f.review.answer(&new.card.unwrap().uuid, 3, None).unwrap();
+    f.clock.set("2026-10-13 08:00:00");
+    let again = f.review.next_card("Deck", "vocabulary").unwrap().intervals.unwrap();
+    assert_eq!(again.good, day * 6, "the second good answer waits six days");
+}
+
+#[test]
+fn when_nothing_is_due_the_session_says_when_the_next_card_comes() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    add_cards(&f, "Deck", "vocabulary", 2);
+
+    let first = next(&f, "Deck", "vocabulary").unwrap();
+    f.review.answer(&first.uuid, 3, None).unwrap(); // due in a day
+    let second = next(&f, "Deck", "vocabulary").unwrap();
+    f.review.answer(&second.uuid, 1, None).unwrap(); // due in ten minutes
+
+    let waiting = f.review.next_card("Deck", "vocabulary").unwrap();
+    assert!(waiting.card.is_none() && waiting.intervals.is_none());
+    assert_eq!(waiting.next_due_in_seconds, Some(600), "the soonest one counts");
+    assert_eq!(waiting.language_tag, "en-US");
+
+    f.clock.set("2026-10-12 08:05:00");
+    assert_eq!(f.review.next_card("Deck", "vocabulary").unwrap().next_due_in_seconds, Some(300));
+}

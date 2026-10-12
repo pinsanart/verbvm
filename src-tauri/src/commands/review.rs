@@ -9,7 +9,7 @@ use super::languages::{variant_dto, LanguageVariantDto};
 use super::media::{media_dto, MediaDto};
 use crate::modules::card_types::Side;
 use crate::orchestrators::{
-    CardState, DeckReview, ReviewCardView, ReviewCounts, ReviewNext, ReviewSessionOrchestrator,
+    CardState, DeckReview, Intervals, ReviewCardView, ReviewCounts, ReviewNext, ReviewSessionOrchestrator,
 };
 
 type Api<'a> = State<'a, Arc<ReviewSessionOrchestrator>>;
@@ -125,18 +125,41 @@ fn card_dto(api: &ReviewSessionOrchestrator, card: &ReviewCardView) -> ReviewCar
     }
 }
 
+/// How long until the card comes back for each answer, in seconds.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IntervalsDto {
+    pub again: i64,
+    pub hard: i64,
+    pub good: i64,
+    pub easy: i64,
+}
+
+fn intervals_dto(i: Intervals) -> IntervalsDto {
+    IntervalsDto { again: i.again, hard: i.hard, good: i.good, easy: i.easy }
+}
+
 /// The next flashcard of a session, if any, and what is still waiting in the type.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NextReviewCardDto {
     pub card: Option<ReviewCardDto>,
     pub counts: ReviewCountsDto,
+    /// BCP 47 code of the deck's accent, for the `lang` of the text on the card.
+    pub language_tag: String,
+    /// What each answer schedules for the card. Present when there is a card.
+    pub intervals: Option<IntervalsDto>,
+    /// When there is no card: seconds until the next one is due, if any is scheduled.
+    pub next_due_in_seconds: Option<i64>,
 }
 
 fn next_dto(api: &ReviewSessionOrchestrator, next: &ReviewNext) -> NextReviewCardDto {
     NextReviewCardDto {
         card: next.card.as_ref().map(|c| card_dto(api, c)),
         counts: counts_dto(next.counts),
+        language_tag: next.language_tag.clone(),
+        intervals: next.intervals.map(intervals_dto),
+        next_due_in_seconds: next.next_due_in_seconds,
     }
 }
 
@@ -218,6 +241,9 @@ mod tests {
                 }],
             }),
             counts: ReviewCountsDto { new: 0, learning: 1, review: 0 },
+            language_tag: "fr-FR".into(),
+            intervals: Some(IntervalsDto { again: 600, hard: 86400, good: 86400, easy: 112320 }),
+            next_due_in_seconds: None,
         };
         assert_eq!(
             serde_json::to_value(next).unwrap(),
@@ -229,17 +255,29 @@ mod tests {
                         "media": [{"sha256": "ab", "kind": "AUDIO", "mimeType": "audio/mpeg", "path": "/m/ab.mp3"}]
                     }]
                 },
-                "counts": {"new": 0, "learning": 1, "review": 0}
+                "counts": {"new": 0, "learning": 1, "review": 0},
+                "languageTag": "fr-FR",
+                "intervals": {"again": 600, "hard": 86400, "good": 86400, "easy": 112320},
+                "nextDueInSeconds": null
             })
         );
     }
 
     #[test]
     fn no_next_card_is_a_null_card() {
-        let none = NextReviewCardDto { card: None, counts: ReviewCountsDto { new: 0, learning: 0, review: 0 } };
+        let none = NextReviewCardDto {
+            card: None,
+            counts: ReviewCountsDto { new: 0, learning: 0, review: 0 },
+            language_tag: "en-US".into(),
+            intervals: None,
+            next_due_in_seconds: Some(600),
+        };
         assert_eq!(
             serde_json::to_value(none).unwrap(),
-            json!({"card": null, "counts": {"new": 0, "learning": 0, "review": 0}})
+            json!({
+                "card": null, "counts": {"new": 0, "learning": 0, "review": 0},
+                "languageTag": "en-US", "intervals": null, "nextDueInSeconds": 600
+            })
         );
     }
 }
