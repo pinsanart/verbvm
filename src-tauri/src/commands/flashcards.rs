@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -41,21 +41,24 @@ fn field_dto(field: &FieldDefinition) -> FieldDefinitionDto {
     }
 }
 
+/// A flashcard type with its fields in the deck's language.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FlashcardTypeDto {
+pub struct TypeFormDto {
     pub slug: String,
     pub name: String,
+    pub fields: Vec<FieldDefinitionDto>,
 }
 
+/// The deck's language and accent plus the form of every flashcard type, since a deck has one
+/// list of drafts that mixes types.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FlashcardFormDto {
     pub deck_name: String,
     pub language: LanguageSummaryDto,
     pub variant: LanguageVariantDto,
-    pub flashcard_type: FlashcardTypeDto,
-    pub fields: Vec<FieldDefinitionDto>,
+    pub types: Vec<TypeFormDto>,
 }
 
 fn form_dto(form: &EditorForm) -> FlashcardFormDto {
@@ -66,11 +69,15 @@ fn form_dto(form: &EditorForm) -> FlashcardFormDto {
             iso_639_3: form.language.iso_639_3().to_owned(),
         },
         variant: variant_dto(&form.variant),
-        flashcard_type: FlashcardTypeDto {
-            slug: form.flashcard_type.slug().to_owned(),
-            name: form.flashcard_type.name().to_owned(),
-        },
-        fields: form.fields.iter().map(field_dto).collect(),
+        types: form
+            .types
+            .iter()
+            .map(|t| TypeFormDto {
+                slug: t.flashcard_type.slug().to_owned(),
+                name: t.flashcard_type.name().to_owned(),
+                fields: t.fields.iter().map(field_dto).collect(),
+            })
+            .collect(),
     }
 }
 
@@ -105,14 +112,21 @@ fn media_dto(api: &FlashcardEditorOrchestrator, media: &MediaAttachment) -> Medi
 #[serde(rename_all = "camelCase")]
 pub struct DraftDto {
     pub uuid: String,
+    /// The slug of the draft's flashcard type.
+    pub type_slug: String,
     pub position: i64,
     pub values: BTreeMap<String, String>,
     pub media: BTreeMap<String, Vec<MediaDto>>,
 }
 
-fn draft_dto(api: &FlashcardEditorOrchestrator, draft: &FlashcardDraft) -> DraftDto {
+fn draft_dto(
+    api: &FlashcardEditorOrchestrator,
+    slugs: &HashMap<i64, String>,
+    draft: &FlashcardDraft,
+) -> DraftDto {
     DraftDto {
         uuid: draft.uuid().to_owned(),
+        type_slug: slugs.get(&draft.flashcard_type_id()).cloned().unwrap_or_default(),
         position: draft.position(),
         values: draft.values().clone(),
         media: draft
@@ -123,8 +137,13 @@ fn draft_dto(api: &FlashcardEditorOrchestrator, draft: &FlashcardDraft) -> Draft
     }
 }
 
-fn draft_dtos(api: &FlashcardEditorOrchestrator, drafts: &[FlashcardDraft]) -> Vec<DraftDto> {
-    drafts.iter().map(|d| draft_dto(api, d)).collect()
+fn draft_dtos(api: &FlashcardEditorOrchestrator, drafts: &[FlashcardDraft]) -> CommandResult<Vec<DraftDto>> {
+    let slugs = api.type_slugs()?;
+    Ok(drafts.iter().map(|d| draft_dto(api, &slugs, d)).collect())
+}
+
+fn single_draft_dto(api: &FlashcardEditorOrchestrator, draft: &FlashcardDraft) -> CommandResult<DraftDto> {
+    Ok(draft_dto(api, &api.type_slugs()?, draft))
 }
 
 #[derive(Debug, Serialize)]
@@ -175,21 +194,13 @@ impl From<DirectionInput> for Direction {
 }
 
 #[tauri::command]
-pub async fn get_flashcard_form(
-    api: Api<'_>,
-    deck_name: String,
-    type_slug: String,
-) -> CommandResult<FlashcardFormDto> {
-    Ok(form_dto(&api.form(&deck_name, &type_slug)?))
+pub async fn get_flashcard_form(api: Api<'_>, deck_name: String) -> CommandResult<FlashcardFormDto> {
+    Ok(form_dto(&api.form(&deck_name)?))
 }
 
 #[tauri::command]
-pub async fn list_drafts(
-    api: Api<'_>,
-    deck_name: String,
-    type_slug: String,
-) -> CommandResult<Vec<DraftDto>> {
-    Ok(draft_dtos(&api, &api.drafts(&deck_name, &type_slug)?))
+pub async fn list_drafts(api: Api<'_>, deck_name: String) -> CommandResult<Vec<DraftDto>> {
+    draft_dtos(&api, &api.drafts(&deck_name)?)
 }
 
 #[tauri::command]
@@ -198,7 +209,7 @@ pub async fn create_draft(
     deck_name: String,
     type_slug: String,
 ) -> CommandResult<Vec<DraftDto>> {
-    Ok(draft_dtos(&api, &api.add_draft(&deck_name, &type_slug)?))
+    draft_dtos(&api, &api.add_draft(&deck_name, &type_slug)?)
 }
 
 #[tauri::command]
@@ -207,12 +218,12 @@ pub async fn update_draft(
     draft_uuid: String,
     values: BTreeMap<String, String>,
 ) -> CommandResult<DraftDto> {
-    Ok(draft_dto(&api, &api.update_draft(&draft_uuid, values)?))
+    single_draft_dto(&api, &api.update_draft(&draft_uuid, values)?)
 }
 
 #[tauri::command]
 pub async fn duplicate_draft(api: Api<'_>, draft_uuid: String) -> CommandResult<Vec<DraftDto>> {
-    Ok(draft_dtos(&api, &api.duplicate_draft(&draft_uuid)?))
+    draft_dtos(&api, &api.duplicate_draft(&draft_uuid)?)
 }
 
 #[tauri::command]
@@ -221,12 +232,12 @@ pub async fn move_draft(
     draft_uuid: String,
     direction: DirectionInput,
 ) -> CommandResult<Vec<DraftDto>> {
-    Ok(draft_dtos(&api, &api.move_draft(&draft_uuid, direction.into())?))
+    draft_dtos(&api, &api.move_draft(&draft_uuid, direction.into())?)
 }
 
 #[tauri::command]
 pub async fn delete_draft(api: Api<'_>, draft_uuid: String) -> CommandResult<Vec<DraftDto>> {
-    Ok(draft_dtos(&api, &api.delete_draft(&draft_uuid)?))
+    draft_dtos(&api, &api.delete_draft(&draft_uuid)?)
 }
 
 /// Attaches a file picked on disk to a field of a draft. The backend copies it into its own
@@ -239,7 +250,7 @@ pub async fn attach_media(
     source_path: String,
 ) -> CommandResult<DraftDto> {
     let draft = api.attach_media(&draft_uuid, &field_key, std::path::Path::new(&source_path))?;
-    Ok(draft_dto(&api, &draft))
+    single_draft_dto(&api, &draft)
 }
 
 #[tauri::command]
@@ -250,16 +261,12 @@ pub async fn remove_media(
     sha256: String,
 ) -> CommandResult<DraftDto> {
     let draft = api.remove_media(&draft_uuid, &field_key, &sha256)?;
-    Ok(draft_dto(&api, &draft))
+    single_draft_dto(&api, &draft)
 }
 
 #[tauri::command]
-pub async fn publish_drafts(
-    api: Api<'_>,
-    deck_name: String,
-    type_slug: String,
-) -> CommandResult<PublishResultDto> {
-    Ok(publish_dto(&api.publish_drafts(&deck_name, &type_slug)?))
+pub async fn publish_drafts(api: Api<'_>, deck_name: String) -> CommandResult<PublishResultDto> {
+    Ok(publish_dto(&api.publish_drafts(&deck_name)?))
 }
 
 #[cfg(test)]
@@ -296,11 +303,11 @@ mod tests {
                 path: Some("/data/media/ab.png".into()),
             }],
         );
-        let draft = DraftDto { uuid: "u".into(), position: 1, values, media };
+        let draft = DraftDto { uuid: "u".into(), type_slug: "vocabulary".into(), position: 1, values, media };
         assert_eq!(
             serde_json::to_value(draft).unwrap(),
             json!({
-                "uuid": "u", "position": 1, "values": {"phrase": "hi"},
+                "uuid": "u", "typeSlug": "vocabulary", "position": 1, "values": {"phrase": "hi"},
                 "media": {"phrase": [{"sha256": "ab", "kind": "IMAGE", "mimeType": "image/png", "path": "/data/media/ab.png"}]}
             })
         );

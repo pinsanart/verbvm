@@ -11,7 +11,7 @@ mod flashcard_editor;
 pub use deck_overview::{DeckOverview, DeckOverviewOrchestrator};
 pub use error::{OrchestratorError, OrchestratorResult};
 pub use flashcard_editor::{
-    DraftIssue, EditorForm, FlashcardEditorOrchestrator, PublishOutcome,
+    DraftIssue, EditorForm, FlashcardEditorOrchestrator, PublishOutcome, TypeForm,
 };
 
 #[cfg(test)]

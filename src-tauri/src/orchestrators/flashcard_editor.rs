@@ -12,15 +12,22 @@ use crate::modules::flashcards::{
 };
 use crate::modules::languages::{Language, LanguageApi, LanguageVariant};
 
-/// What the editor needs to show the form of a flashcard type in a deck.
+/// A flashcard type with the fields it has in a deck's language.
+#[derive(Debug, Clone)]
+pub struct TypeForm {
+    pub flashcard_type: FlashcardType,
+    /// The type's fields for the deck's language, front before back.
+    pub fields: Vec<FieldDefinition>,
+}
+
+/// What the editor needs to show a deck: its language and accent, and the form of every
+/// flashcard type, since the deck has one list of drafts that mixes types.
 #[derive(Debug, Clone)]
 pub struct EditorForm {
     pub deck: Deck,
     pub language: Language,
     pub variant: LanguageVariant,
-    pub flashcard_type: FlashcardType,
-    /// The type's fields for the deck's language, front before back.
-    pub fields: Vec<FieldDefinition>,
+    pub types: Vec<TypeForm>,
 }
 
 /// A problem that stopped a draft from being published.
@@ -32,20 +39,21 @@ pub struct DraftIssue {
     pub message: String,
 }
 
-/// Result of publishing the drafts of a deck and type. When `issues` is not empty nothing was
-/// saved and `published` is 0.
+/// Result of publishing the drafts of a deck. When `issues` is not empty nothing was saved and
+/// `published` is 0.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublishOutcome {
     pub published: usize,
     pub issues: Vec<DraftIssue>,
 }
 
-/// Edits the drafts of a deck and type and publishes them as flashcards.
+/// Edits the drafts of a deck and publishes them as flashcards.
 ///
+/// A deck has one list of drafts, in the order they were created, and each draft has a type.
 /// Rules enforced here, because they need the card type, the language and the deck together:
-/// only fields of the type (for the deck's language) can be filled, rich fields are sanitized
-/// before they are stored, media can only be attached to fields that allow it, and required
-/// fields must have text or media to be published.
+/// only fields of the draft's type (for the deck's language) can be filled, rich fields are
+/// sanitized before they are stored, media can only be attached to fields that allow it, and
+/// required fields must have text or media for the drafts to be published.
 pub struct FlashcardEditorOrchestrator {
     decks: Arc<dyn DeckApi>,
     languages: Arc<dyn LanguageApi>,
@@ -58,14 +66,34 @@ pub struct FlashcardEditorOrchestrator {
 /// The most media files one field can hold.
 const MAX_MEDIA_PER_FIELD: usize = 10;
 
+struct TypeContext {
+    flashcard_type: FlashcardType,
+    type_id: i64,
+    fields: Vec<FieldDefinition>,
+}
+
 struct Context {
     deck: Deck,
     deck_id: i64,
     language: Language,
     variant: LanguageVariant,
-    flashcard_type: FlashcardType,
-    type_id: i64,
-    fields: Vec<FieldDefinition>,
+    types: Vec<TypeContext>,
+}
+
+impl Context {
+    fn type_by_slug(&self, slug: &str) -> OrchestratorResult<&TypeContext> {
+        self.types
+            .iter()
+            .find(|t| t.flashcard_type.slug() == slug)
+            .ok_or_else(|| OrchestratorError::NotFound("flashcard type not found".into()))
+    }
+
+    fn type_by_id(&self, id: i64) -> OrchestratorResult<&TypeContext> {
+        self.types
+            .iter()
+            .find(|t| t.type_id == id)
+            .ok_or_else(|| OrchestratorError::NotFound("flashcard type not found".into()))
+    }
 }
 
 fn saved_id(id: Option<i64>, what: &str) -> OrchestratorResult<i64> {
@@ -84,27 +112,32 @@ impl FlashcardEditorOrchestrator {
         Self { decks, languages, card_types, flashcards, sanitizer, media }
     }
 
-    pub fn form(&self, deck_name: &str, type_slug: &str) -> OrchestratorResult<EditorForm> {
-        let ctx = self.context(deck_name, type_slug)?;
+    pub fn form(&self, deck_name: &str) -> OrchestratorResult<EditorForm> {
+        let ctx = self.context(deck_name)?;
         Ok(EditorForm {
             deck: ctx.deck,
             language: ctx.language,
             variant: ctx.variant,
-            flashcard_type: ctx.flashcard_type,
-            fields: ctx.fields,
+            types: ctx
+                .types
+                .into_iter()
+                .map(|t| TypeForm { flashcard_type: t.flashcard_type, fields: t.fields })
+                .collect(),
         })
     }
 
-    pub fn drafts(&self, deck_name: &str, type_slug: &str) -> OrchestratorResult<Vec<FlashcardDraft>> {
-        let ctx = self.context(deck_name, type_slug)?;
-        Ok(self.flashcards.list_drafts(ctx.deck_id, ctx.type_id)?)
+    /// The deck's drafts, of every type, in order.
+    pub fn drafts(&self, deck_name: &str) -> OrchestratorResult<Vec<FlashcardDraft>> {
+        let deck = self.decks.get_deck_by_name(deck_name)?;
+        Ok(self.flashcards.list_drafts(saved_id(deck.id(), "deck")?)?)
     }
 
-    /// Adds an empty draft and returns the updated list.
+    /// Adds an empty draft of a type at the end of the deck's list and returns the updated list.
     pub fn add_draft(&self, deck_name: &str, type_slug: &str) -> OrchestratorResult<Vec<FlashcardDraft>> {
-        let ctx = self.context(deck_name, type_slug)?;
-        self.flashcards.create_draft(ctx.deck_id, ctx.type_id)?;
-        Ok(self.flashcards.list_drafts(ctx.deck_id, ctx.type_id)?)
+        let ctx = self.context(deck_name)?;
+        let flashcard_type = ctx.type_by_slug(type_slug)?;
+        self.flashcards.create_draft(ctx.deck_id, flashcard_type.type_id)?;
+        Ok(self.flashcards.list_drafts(ctx.deck_id)?)
     }
 
     /// Replaces the values of a draft. Keys must be fields of the draft's type for its deck's
@@ -116,9 +149,10 @@ impl FlashcardEditorOrchestrator {
     ) -> OrchestratorResult<FlashcardDraft> {
         let draft = self.flashcards.get_draft(draft_uuid)?;
         let ctx = self.context_of(&draft)?;
+        let fields = &ctx.type_by_id(draft.flashcard_type_id())?.fields;
         let mut cleaned = BTreeMap::new();
         for (key, content) in values {
-            let definition = ctx.fields.iter().find(|f| f.key() == key).ok_or_else(|| {
+            let definition = fields.iter().find(|f| f.key() == key).ok_or_else(|| {
                 OrchestratorError::Invalid(format!("'{key}' is not a field of this flashcard type"))
             })?;
             let content = if definition.is_rich() { self.sanitizer.sanitize_html(&content) } else { content };
@@ -138,7 +172,8 @@ impl FlashcardEditorOrchestrator {
     ) -> OrchestratorResult<FlashcardDraft> {
         let draft = self.flashcards.get_draft(draft_uuid)?;
         let ctx = self.context_of(&draft)?;
-        let definition = ctx.fields.iter().find(|f| f.key() == field_key).ok_or_else(|| {
+        let fields = &ctx.type_by_id(draft.flashcard_type_id())?.fields;
+        let definition = fields.iter().find(|f| f.key() == field_key).ok_or_else(|| {
             OrchestratorError::Invalid(format!("'{field_key}' is not a field of this flashcard type"))
         })?;
         if !definition.media_allowed() {
@@ -173,12 +208,23 @@ impl FlashcardEditorOrchestrator {
         Ok(self.flashcards.remove_draft_media(draft_uuid, field_key, sha256)?)
     }
 
+    /// The slug of each flashcard type, by the id drafts and flashcards hold. For building the
+    /// view's types, which are identified by slug.
+    pub fn type_slugs(&self) -> OrchestratorResult<std::collections::HashMap<i64, String>> {
+        Ok(self
+            .card_types
+            .list_types()?
+            .into_iter()
+            .filter_map(|t| t.id().map(|id| (id, t.slug().to_owned())))
+            .collect())
+    }
+
     /// Where a stored media file is on disk, for the view to preview.
     pub fn media_path(&self, file_name: &str) -> Option<PathBuf> {
         self.media.path_of(file_name)
     }
 
-    /// Copies a draft right after itself and returns the updated list.
+    /// Copies a draft right after itself and returns the deck's updated list.
     pub fn duplicate_draft(&self, draft_uuid: &str) -> OrchestratorResult<Vec<FlashcardDraft>> {
         let draft = self.flashcards.get_draft(draft_uuid)?;
         self.flashcards.duplicate_draft(draft_uuid)?;
@@ -197,18 +243,19 @@ impl FlashcardEditorOrchestrator {
         self.list_like(&draft)
     }
 
-    /// Publishes every draft of a deck and type. All of them are checked first. If any has a
-    /// problem nothing is saved and the problems are returned.
-    pub fn publish_drafts(&self, deck_name: &str, type_slug: &str) -> OrchestratorResult<PublishOutcome> {
-        let ctx = self.context(deck_name, type_slug)?;
-        let drafts = self.flashcards.list_drafts(ctx.deck_id, ctx.type_id)?;
+    /// Publishes every draft of a deck. All of them are checked first, each against the fields of
+    /// its own type. If any has a problem nothing is saved and the problems are returned.
+    pub fn publish_drafts(&self, deck_name: &str) -> OrchestratorResult<PublishOutcome> {
+        let ctx = self.context(deck_name)?;
+        let drafts = self.flashcards.list_drafts(ctx.deck_id)?;
 
         let mut issues = Vec::new();
         let mut ready = Vec::with_capacity(drafts.len());
         for draft in &drafts {
+            let type_context = ctx.type_by_id(draft.flashcard_type_id())?;
             let mut fields = Vec::new();
             let mut media = Vec::new();
-            for definition in &ctx.fields {
+            for definition in &type_context.fields {
                 let attached = if definition.media_allowed() {
                     draft.media().get(definition.key()).map(Vec::as_slice).unwrap_or(&[])
                 } else {
@@ -250,44 +297,53 @@ impl FlashcardEditorOrchestrator {
                     }),
                 }
             }
-            ready.push(PublishedDraft { draft_uuid: draft.uuid().to_owned(), fields, media });
+            ready.push(PublishedDraft {
+                draft_uuid: draft.uuid().to_owned(),
+                flashcard_type_id: type_context.type_id,
+                fields,
+                media,
+            });
         }
 
         if !issues.is_empty() || ready.is_empty() {
             return Ok(PublishOutcome { published: 0, issues });
         }
-        let published = self.flashcards.publish_drafts(ctx.deck_id, ctx.type_id, ready)?;
+        let published = self.flashcards.publish_drafts(ctx.deck_id, ready)?;
         Ok(PublishOutcome { published: published.len(), issues })
     }
 
     fn list_like(&self, draft: &FlashcardDraft) -> OrchestratorResult<Vec<FlashcardDraft>> {
-        Ok(self.flashcards.list_drafts(draft.deck_id(), draft.flashcard_type_id())?)
+        Ok(self.flashcards.list_drafts(draft.deck_id())?)
     }
 
-    fn context(&self, deck_name: &str, type_slug: &str) -> OrchestratorResult<Context> {
+    fn context(&self, deck_name: &str) -> OrchestratorResult<Context> {
         let deck = self.decks.get_deck_by_name(deck_name)?;
-        let flashcard_type = self.card_types.get_type_by_slug(type_slug)?;
-        self.build(deck, flashcard_type)
+        self.build(deck)
     }
 
     fn context_of(&self, draft: &FlashcardDraft) -> OrchestratorResult<Context> {
         let deck = self.decks.get_deck(draft.deck_id())?;
-        let flashcard_type = self.card_types.get_type(draft.flashcard_type_id())?;
-        self.build(deck, flashcard_type)
+        self.build(deck)
     }
 
-    fn build(&self, deck: Deck, flashcard_type: FlashcardType) -> OrchestratorResult<Context> {
+    fn build(&self, deck: Deck) -> OrchestratorResult<Context> {
         let variant = self.languages.get_variant(deck.language_variant_id())?;
         let language = self.languages.get_language(variant.language_id())?;
-        let fields = self.card_types.fields_for(flashcard_type.slug(), language.id())?;
+        let mut types = Vec::new();
+        for flashcard_type in self.card_types.list_types()? {
+            let fields = self.card_types.fields_for(flashcard_type.slug(), language.id())?;
+            types.push(TypeContext {
+                type_id: saved_id(flashcard_type.id(), "flashcard type")?,
+                flashcard_type,
+                fields,
+            });
+        }
         Ok(Context {
             deck_id: saved_id(deck.id(), "deck")?,
-            type_id: saved_id(flashcard_type.id(), "flashcard type")?,
             deck,
             language,
             variant,
-            flashcard_type,
-            fields,
+            types,
         })
     }
 }

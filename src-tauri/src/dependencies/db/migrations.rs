@@ -90,8 +90,9 @@ pub fn migrations() -> Migrations<'static> {
             );
             CREATE INDEX idx_flashcard_fields_field_definition_id ON flashcard_fields(field_definition_id);
 
-            -- Unsaved flashcards being edited. `values_json` maps a field key to its content and is
-            -- never queried by field.
+            -- Unsaved flashcards being edited. A deck has one list of drafts, in `position` order,
+            -- mixing every flashcard type. `values_json` maps a field key to its content and is never
+            -- queried by field.
             CREATE TABLE flashcard_drafts (
                 id                INTEGER PRIMARY KEY,
                 uuid              TEXT NOT NULL UNIQUE,
@@ -101,8 +102,8 @@ pub fn migrations() -> Migrations<'static> {
                 values_json       TEXT NOT NULL DEFAULT '{}',
                 updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
             );
-            CREATE INDEX idx_flashcard_drafts_deck_type_position
-                ON flashcard_drafts(deck_id, flashcard_type_id, position);
+            CREATE INDEX idx_flashcard_drafts_deck_position
+                ON flashcard_drafts(deck_id, position);
 
             -- Media files are kept in S3 and cached in a local folder. `file_name` is
             -- `<sha256>.<ext>` inside that folder. `remote_key` is the S3 object key, NULL until the

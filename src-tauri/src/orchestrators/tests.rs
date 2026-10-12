@@ -67,8 +67,9 @@ fn values(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
     pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
 }
 
-fn keys(form: &EditorForm) -> Vec<&str> {
-    form.fields.iter().map(|f| f.key()).collect()
+fn keys<'a>(form: &'a EditorForm, type_slug: &str) -> Vec<&'a str> {
+    let type_form = form.types.iter().find(|t| t.flashcard_type.slug() == type_slug).unwrap();
+    type_form.fields.iter().map(|f| f.key()).collect()
 }
 
 // ---- deck overview ----
@@ -115,11 +116,11 @@ fn the_list_has_counts_by_type_and_delete_removes_the_deck() {
     f.overview.create("B deck".into(), "eng", None, None).unwrap();
     f.overview.create("A deck".into(), "jpn", None, None).unwrap();
     f.editor.add_draft("A deck", "vocabulary").unwrap();
-    let draft = f.editor.drafts("A deck", "vocabulary").unwrap().remove(0);
+    let draft = f.editor.drafts("A deck").unwrap().remove(0);
     f.editor
         .update_draft(draft.uuid(), values(&[("phrase", "hi"), ("word_or_expression", "hi"), ("meaning", "greeting")]))
         .unwrap();
-    f.editor.publish_drafts("A deck", "vocabulary").unwrap();
+    f.editor.publish_drafts("A deck").unwrap();
 
     let list = f.overview.list().unwrap();
     let names: Vec<_> = list.iter().map(|o| o.deck.name().to_owned()).collect();
@@ -136,7 +137,7 @@ fn the_list_has_counts_by_type_and_delete_removes_the_deck() {
 // ---- flashcard editor ----
 
 #[test]
-fn the_form_follows_the_deck_language() {
+fn the_form_has_every_type_and_follows_the_deck_language() {
     let f = fixture();
     f.overview.create("English".into(), "eng", None, None).unwrap();
     f.overview.create("Japanese".into(), "jpn", None, None).unwrap();
@@ -145,22 +146,27 @@ fn the_form_follows_the_deck_language() {
         .add_field_definition("vocabulary", japanese.id(), Side::Back, "romaji".into(), "Romaji".into(), 2, false, false, false)
         .unwrap();
 
-    let english = f.editor.form("English", "vocabulary").unwrap();
-    assert_eq!(keys(&english), vec!["phrase", "word_or_expression", "meaning"]);
+    let english = f.editor.form("English").unwrap();
+    let slugs: Vec<_> = english.types.iter().map(|t| t.flashcard_type.slug()).collect();
+    assert_eq!(slugs, vec!["vocabulary", "phonetic", "orthographic"]);
+    assert_eq!(keys(&english, "vocabulary"), vec!["phrase", "word_or_expression", "meaning"]);
+    assert_eq!(keys(&english, "phonetic"), vec!["phrase", "ipa_phonetics"]);
     assert_eq!(english.language.iso_639_3(), "eng");
     assert_eq!(english.variant.bcp47_code(), "en-US");
 
-    let form = f.editor.form("Japanese", "vocabulary").unwrap();
-    assert_eq!(keys(&form), vec!["phrase", "word_or_expression", "meaning", "romaji"]);
-    assert_eq!(form.flashcard_type.slug(), "vocabulary");
+    let form = f.editor.form("Japanese").unwrap();
+    assert_eq!(keys(&form, "vocabulary"), vec!["phrase", "word_or_expression", "meaning", "romaji"]);
+    assert_eq!(keys(&form, "phonetic"), vec!["phrase", "ipa_phonetics"], "other types are not affected");
 }
 
 #[test]
 fn unknown_decks_and_types_are_not_found() {
     let f = fixture();
     f.overview.create("Deck".into(), "eng", None, None).unwrap();
-    assert!(matches!(f.editor.form("Nope", "vocabulary"), Err(OrchestratorError::NotFound(_))));
-    assert!(matches!(f.editor.form("Deck", "nope"), Err(OrchestratorError::NotFound(_))));
+    assert!(matches!(f.editor.form("Nope"), Err(OrchestratorError::NotFound(_))));
+    assert!(matches!(f.editor.drafts("Nope"), Err(OrchestratorError::NotFound(_))));
+    assert!(matches!(f.editor.add_draft("Nope", "vocabulary"), Err(OrchestratorError::NotFound(_))));
+    assert!(matches!(f.editor.add_draft("Deck", "nope"), Err(OrchestratorError::NotFound(_))));
 }
 
 #[test]
@@ -218,12 +224,12 @@ fn publishing_reports_missing_required_fields_and_saves_nothing() {
     // The second draft only has a phrase made of an empty tag.
     f.editor.update_draft(list[1].uuid(), values(&[("phrase", "<br>")])).unwrap();
 
-    let outcome = f.editor.publish_drafts("Deck", "vocabulary").unwrap();
+    let outcome = f.editor.publish_drafts("Deck").unwrap();
     assert_eq!(outcome.published, 0);
     let missing: Vec<_> = outcome.issues.iter().map(|i| i.field_key.clone().unwrap()).collect();
     assert_eq!(missing, vec!["phrase", "word_or_expression", "meaning"]);
     assert!(outcome.issues.iter().all(|i| i.draft_uuid == list[1].uuid()));
-    assert_eq!(f.editor.drafts("Deck", "vocabulary").unwrap().len(), 2, "drafts are kept");
+    assert_eq!(f.editor.drafts("Deck").unwrap().len(), 2, "drafts are kept");
     let deck = f.overview.get("Deck").unwrap();
     assert_eq!(deck.total_cards(), 0);
 }
@@ -240,9 +246,9 @@ fn publishing_valid_drafts_creates_flashcards_and_clears_the_list() {
             .unwrap();
     }
 
-    let outcome = f.editor.publish_drafts("Deck", "vocabulary").unwrap();
+    let outcome = f.editor.publish_drafts("Deck").unwrap();
     assert_eq!((outcome.published, outcome.issues.len()), (2, 0));
-    assert!(f.editor.drafts("Deck", "vocabulary").unwrap().is_empty());
+    assert!(f.editor.drafts("Deck").unwrap().is_empty());
 
     let deck = f.overview.get("Deck").unwrap();
     assert_eq!(deck.total_cards(), 2);
@@ -255,7 +261,7 @@ fn publishing_valid_drafts_creates_flashcards_and_clears_the_list() {
 fn publishing_with_no_drafts_does_nothing() {
     let f = fixture();
     f.overview.create("Deck".into(), "eng", None, None).unwrap();
-    let outcome = f.editor.publish_drafts("Deck", "vocabulary").unwrap();
+    let outcome = f.editor.publish_drafts("Deck").unwrap();
     assert_eq!((outcome.published, outcome.issues.len()), (0, 0));
 }
 
@@ -316,15 +322,77 @@ fn a_required_field_with_only_media_can_be_published() {
     let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
     f.editor.update_draft(draft.uuid(), values(&[("word_or_expression", "cat"), ("meaning", "an animal")])).unwrap();
 
-    let blocked = f.editor.publish_drafts("Deck", "vocabulary").unwrap();
+    let blocked = f.editor.publish_drafts("Deck").unwrap();
     assert_eq!(blocked.issues.len(), 1, "the phrase has neither text nor media");
 
     f.editor.attach_media(draft.uuid(), "phrase", &source_file(&f, "cat.png", PNG)).unwrap();
-    let outcome = f.editor.publish_drafts("Deck", "vocabulary").unwrap();
+    let outcome = f.editor.publish_drafts("Deck").unwrap();
     assert_eq!((outcome.published, outcome.issues.len()), (1, 0));
 
     let deck_id = f.overview.get("Deck").unwrap().deck.id().unwrap();
     let cards = f.flashcards.list_flashcards(deck_id).unwrap();
     assert_eq!(cards[0].media().len(), 1);
     assert_eq!(cards[0].fields().len(), 3);
+}
+
+// ---- one list for every type ----
+
+#[test]
+fn a_deck_mixes_types_in_one_list_and_each_draft_uses_its_own_fields() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.editor.add_draft("Deck", "vocabulary").unwrap();
+    let list = f.editor.add_draft("Deck", "phonetic").unwrap();
+    let kinds = |l: &[crate::modules::flashcards::FlashcardDraft]| -> Vec<i64> {
+        l.iter().map(|d| d.flashcard_type_id()).collect()
+    };
+    assert_eq!(list.len(), 2);
+    assert_ne!(kinds(&list)[0], kinds(&list)[1]);
+
+    let (vocabulary, phonetic) = (list[0].uuid().to_owned(), list[1].uuid().to_owned());
+    // ipa_phonetics belongs to phonetic only, meaning to vocabulary only.
+    assert!(f.editor.update_draft(&phonetic, values(&[("ipa_phonetics", "/hi/")])).is_ok());
+    assert!(matches!(
+        f.editor.update_draft(&phonetic, values(&[("meaning", "x")])),
+        Err(OrchestratorError::Invalid(_))
+    ));
+    assert!(f.editor.update_draft(&vocabulary, values(&[("meaning", "x")])).is_ok());
+    assert!(matches!(
+        f.editor.update_draft(&vocabulary, values(&[("ipa_phonetics", "x")])),
+        Err(OrchestratorError::Invalid(_))
+    ));
+
+    let moved = f.editor.move_draft(&phonetic, Direction::Up).unwrap();
+    assert_eq!(moved[0].uuid(), phonetic, "moving works across types");
+}
+
+#[test]
+fn publishing_a_mixed_list_creates_cards_of_each_type_or_nothing() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.editor.add_draft("Deck", "vocabulary").unwrap();
+    let list = f.editor.add_draft("Deck", "phonetic").unwrap();
+    f.editor
+        .update_draft(list[0].uuid(), values(&[("phrase", "Hi"), ("word_or_expression", "hi"), ("meaning", "greeting")]))
+        .unwrap();
+
+    // The phonetic draft still lacks its required fields, so the whole publish is blocked.
+    let blocked = f.editor.publish_drafts("Deck").unwrap();
+    assert_eq!(blocked.published, 0);
+    let keys: Vec<_> = blocked.issues.iter().map(|i| i.field_key.clone().unwrap()).collect();
+    assert_eq!(keys, vec!["phrase", "ipa_phonetics"]);
+    assert!(blocked.issues.iter().all(|i| i.draft_uuid == list[1].uuid()));
+    assert_eq!(f.overview.get("Deck").unwrap().total_cards(), 0);
+
+    f.editor.update_draft(list[1].uuid(), values(&[("phrase", "Hi"), ("ipa_phonetics", "/haɪ/")])).unwrap();
+    let outcome = f.editor.publish_drafts("Deck").unwrap();
+    assert_eq!((outcome.published, outcome.issues.len()), (2, 0));
+
+    let deck = f.overview.get("Deck").unwrap();
+    let counts: Vec<_> = deck.counts.iter().map(|(t, n)| (t.slug().to_owned(), *n)).collect();
+    assert_eq!(
+        counts,
+        vec![("vocabulary".to_string(), 1), ("phonetic".to_string(), 1), ("orthographic".to_string(), 0)]
+    );
+    assert!(f.editor.drafts("Deck").unwrap().is_empty());
 }

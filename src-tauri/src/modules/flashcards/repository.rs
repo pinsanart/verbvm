@@ -22,7 +22,7 @@ pub trait FlashcardRepository: Send + Sync {
     fn delete_flashcard(&self, uuid: &str) -> Result<bool, DbError>;
     fn count_by_type(&self, deck_id: i64) -> Result<Vec<TypeCount>, DbError>;
 
-    /// Stores an unsaved draft at the end of its list (deck and type).
+    /// Stores an unsaved draft at the end of its deck's list.
     fn insert_draft(&self, draft: &FlashcardDraft) -> Result<FlashcardDraft, DbError>;
     /// Stores an unsaved draft right after the draft `source_uuid`, moving the later ones down.
     /// Returns `None` when the source does not exist.
@@ -32,8 +32,8 @@ pub trait FlashcardRepository: Send + Sync {
         draft: &FlashcardDraft,
     ) -> Result<Option<FlashcardDraft>, DbError>;
     fn find_draft(&self, uuid: &str) -> Result<Option<FlashcardDraft>, DbError>;
-    /// The drafts of a deck and type, by position.
-    fn find_drafts(&self, deck_id: i64, flashcard_type_id: i64) -> Result<Vec<FlashcardDraft>, DbError>;
+    /// The drafts of a deck, of every type, by position.
+    fn find_drafts(&self, deck_id: i64) -> Result<Vec<FlashcardDraft>, DbError>;
     fn update_draft_values(
         &self,
         uuid: &str,
@@ -362,7 +362,7 @@ impl FlashcardRepository for SqliteFlashcardRepository {
                     "INSERT INTO flashcard_drafts (uuid, deck_id, flashcard_type_id, position, values_json)
                      VALUES (?1, ?2, ?3,
                              (SELECT COALESCE(MAX(position) + 1, 0) FROM flashcard_drafts
-                              WHERE deck_id = ?2 AND flashcard_type_id = ?3),
+                              WHERE deck_id = ?2),
                              ?4)
                      RETURNING {DRAFT_COLUMNS}"
                 ),
@@ -394,9 +394,8 @@ impl FlashcardRepository for SqliteFlashcardRepository {
             let Some((deck_id, type_id, position)) = source else { return Ok(None) };
 
             tx.execute(
-                "UPDATE flashcard_drafts SET position = position + 1
-                 WHERE deck_id = ?1 AND flashcard_type_id = ?2 AND position > ?3",
-                params![deck_id, type_id, position],
+                "UPDATE flashcard_drafts SET position = position + 1 WHERE deck_id = ?1 AND position > ?2",
+                params![deck_id, position],
             )?;
             let saved = tx.query_row(
                 &format!(
@@ -438,14 +437,14 @@ impl FlashcardRepository for SqliteFlashcardRepository {
         })
     }
 
-    fn find_drafts(&self, deck_id: i64, flashcard_type_id: i64) -> Result<Vec<FlashcardDraft>, DbError> {
+    fn find_drafts(&self, deck_id: i64) -> Result<Vec<FlashcardDraft>, DbError> {
         self.db.with_connection(|conn| {
             let drafts: Vec<FlashcardDraft> = conn
                 .prepare(&format!(
                     "SELECT {DRAFT_COLUMNS} FROM flashcard_drafts
-                     WHERE deck_id = ?1 AND flashcard_type_id = ?2 ORDER BY position, id"
+                     WHERE deck_id = ?1 ORDER BY position, id"
                 ))?
-                .query_map(params![deck_id, flashcard_type_id], draft_from_row)?
+                .query_map([deck_id], draft_from_row)?
                 .collect::<rusqlite::Result<_>>()?;
             let ids: Vec<i64> = drafts.iter().filter_map(FlashcardDraft::id).collect();
             let mut media = load_draft_media(conn, &ids)?;
