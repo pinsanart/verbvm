@@ -1,6 +1,7 @@
 mod commands;
 mod dependencies;
 mod modules;
+mod orchestrators;
 
 use std::sync::Arc;
 
