@@ -12,8 +12,8 @@ export default function Review() {
         title="Nothing to review yet"
         description="Reviews are built from your flashcards. Add some to a deck and they will show up here."
         action={
-          <Link to="/create" className={buttonClass("outline")}>
-            Create flashcards
+          <Link to="/decks" className={buttonClass("outline")}>
+            Go to Decks
           </Link>
         }
       />

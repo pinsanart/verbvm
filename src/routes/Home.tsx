@@ -10,10 +10,10 @@ export default function Home() {
       <EmptyState
         icon={House}
         title="Your study overview will live here"
-        description="Create a deck and add flashcards to get started."
+        description="Create a deck and add flashcards to it to get started."
         action={
-          <Link to="/create" className={buttonClass("primary")}>
-            Create flashcards
+          <Link to="/decks" className={buttonClass("primary")}>
+            Go to Decks
           </Link>
         }
       />

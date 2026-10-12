@@ -21,14 +21,14 @@ src/
 
 | Route | Screen |
 |---|---|
-| `/create` | `Create`: the deck list, with a "+" tile at the end to add a deck and an edit button on each deck |
-| `/create/:deckName` | `CreateFlashcards`: the editor of a deck, with its flashcards of any type in one list and the type buttons at the bottom |
+| `/decks` | `Decks`: the deck list, with a "+" tile at the end to add a deck and an edit button on each deck |
+| `/decks/:deckName` | `DeckEditor`: the editor of a deck, with its flashcards of any type in one list and the type buttons at the bottom |
 | `/`, `/review`, `/dashboard`, `/settings` | Placeholders |
 
-## The create flow
+## The decks flow
 
-1. **Deck list** (`Create`, `DeckCard`, `DeckEditForm`, `NewDeckTile`, `NewDeckForm`, `useDecksViewModel`): each deck shows its flag, name, language and accent, description and card counts by type. A dashed **"+" tile after the last deck** adds a deck: it opens the form in that place (name, language, accent preselected with the language's default, and an optional description). The pencil on a deck turns its card into a form for the name and the description. The language and accent are fixed once a deck exists, because the fields of its cards depend on the language. Creating and editing happen in place, not in a modal.
-2. **Editor** (`CreateFlashcards`, `FlashcardInput`, `TypePicker`, `useFlashcardEditorViewModel`): clicking a deck opens **one screen** with the deck's flashcards in a single list that mixes types. The **type buttons are at the bottom** of the screen: pressing an enabled one adds a card of that type to the end of the list. Stack, Phonetic and Orthographic show a "Soon" badge, and only vocabulary is enabled (`ENABLED_TYPE_SLUGS` in `data/FlashcardTypeStyles.ts`). The control bar of each card moves it up or down, duplicates it or deletes it, whatever its type. "Save all" publishes every card. Drafts are stored by the backend, so closing the app loses nothing. A deck with no cards shows an empty state.
+1. **Deck list** (`Decks`, `DeckCard`, `DeckEditForm`, `NewDeckTile`, `NewDeckForm`, `useDecksViewModel`): each deck shows its flag, name, language and accent, description and card counts by type. A dashed **"+" tile after the last deck** adds a deck: it opens the form in that place (name, language, accent preselected with the language's default, and an optional description). The pencil on a deck turns its card into a form for the name and the description. The language and accent are fixed once a deck exists, because the fields of its cards depend on the language. Creating and editing happen in place, not in a modal.
+2. **Editor** (`DeckEditor`, `FlashcardInput`, `TypePicker`, `useFlashcardEditorViewModel`): clicking a deck opens **one screen** with the deck's flashcards in a single list that mixes types. The **type buttons are at the bottom** of the screen: pressing an enabled one adds a card of that type to the end of the list. Stack, Phonetic and Orthographic show a "Soon" badge, and only vocabulary is enabled (`ENABLED_TYPE_SLUGS` in `data/FlashcardTypeStyles.ts`). The control bar of each card moves it up or down, duplicates it or deletes it, whatever its type. "Save all" publishes every card. Drafts are stored by the backend, so closing the app loses nothing. A deck with no cards shows an empty state.
 
 Each card has two **faces**: the front is a raised surface with a solid light tag ("Shown first, as the prompt"), the back is a sunken surface with an outlined tag ("Revealed after, as the answer"), with a flip mark between them, so the difference does not depend on color. The text people write is 18px.
 
@@ -52,7 +52,7 @@ The tokens live in `index.css` (Tailwind `@theme`). Use them instead of ad hoc v
 
 ### Page frame and common components
 
-- **`Page`** is the frame of every screen: a slim sticky bar with a breadcrumb (`Create / Travel phrases`) whose last step is the page's `h1`, set in uppercase, with optional meta (the deck's accent) and page actions at its end. On a phone the title is 20px, uppercase and centered, with a back arrow to the closest parent on one side and the actions on the other. There is no large heading, so the content starts right below. Screens that have nothing yet use **`EmptyState`**, which says what the place is for and what to do next.
+- **`Page`** is the frame of every screen: a slim sticky bar with a breadcrumb (`Decks / Travel phrases`) whose last step is the page's `h1`, set in uppercase, with optional meta (the deck's accent) and page actions at its end. On a phone the title is 20px, uppercase and centered, with a back arrow to the closest parent on one side and the actions on the other. There is no large heading, so the content starts right below. Screens that have nothing yet use **`EmptyState`**, which says what the place is for and what to do next.
 - **No modals for tasks that need neither interruption nor trapped focus.** Creating and editing a deck happen in place.
 - **No system dialogs for confirmations.** `ConfirmDeleteButton` replaces the trash button with **Keep** and **Delete** buttons inside the view. Keep takes focus first, and Keep, Escape, clicking elsewhere and a 5 second timeout go back to the trash button. It is used for decks and flashcards. `window.confirm` does nothing in the Tauri webview, and the file picker is the only native dialog.
 - **`Select`** is a dark dropdown (ARIA select-only combobox, with keyboard support) used instead of the native `<select>`, whose list the system draws and cannot be themed.

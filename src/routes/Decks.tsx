@@ -9,8 +9,8 @@ import { Notice } from "../components/Notice";
 import { Page } from "../components/Page";
 import { useDecksViewModel } from "../viewmodels/useDecksViewModel";
 
-/** The first step of creating flashcards: pick a deck, edit one, or add a new one at the end. */
-export default function Create() {
+/** Every deck: open one to write its flashcards, edit or delete it, or add a new one at the end. */
+export default function Decks() {
   const vm = useDecksViewModel();
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
@@ -24,13 +24,13 @@ export default function Create() {
     requestAnimationFrame(() => newDeckTile.current?.focus());
   };
 
-  const openDeck = (name: string) => navigate(`/create/${encodeURIComponent(name)}`);
+  const openDeck = (name: string) => navigate(`/decks/${encodeURIComponent(name)}`);
   const formOpen = creating || editing !== null;
 
   return (
-    <Page title="Create" width="wide">
+    <Page title="Decks" width="wide">
       <p className="max-w-prose text-ui text-muted">
-        Pick a deck to write flashcards in, or add a new one at the end.
+        Open a deck to write its flashcards, or add a new deck at the end.
       </p>
 
       <AnimatePresence initial={false}>

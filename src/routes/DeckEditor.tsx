@@ -12,14 +12,14 @@ import { TRANSITION_BASE } from "../lib/motion";
 import { useFlashcardEditorViewModel } from "../viewmodels/useFlashcardEditorViewModel";
 
 /** The editor of a deck: one list of flashcards of any type, with the type buttons at the bottom. */
-export default function CreateFlashcards() {
+export default function DeckEditor() {
   const { deckName = "" } = useParams();
   const vm = useFlashcardEditorViewModel(deckName);
 
   return (
     <Page
       title={deckName}
-      parents={[{ to: "/create", label: "Create" }]}
+      parents={[{ to: "/decks", label: "Decks" }]}
       meta={
         vm.form && (
           <>

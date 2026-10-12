@@ -8,8 +8,8 @@ import "./index.css";
 import Root from "./routes/Root";
 import Home from "./routes/Home";
 import Review from "./routes/Review";
-import Create from "./routes/Create";
-import CreateFlashcards from "./routes/CreateFlashcards";
+import Decks from "./routes/Decks";
+import DeckEditor from "./routes/DeckEditor";
 import Dashboard from "./routes/Dashboard";
 import Settings from "./routes/Settings";
 
@@ -20,8 +20,8 @@ const router = createHashRouter([
     children: [
       { index: true, Component: Home },
       { path: "review", Component: Review },
-      { path: "create", Component: Create },
-      { path: "create/:deckName", Component: CreateFlashcards },
+      { path: "decks", Component: Decks },
+      { path: "decks/:deckName", Component: DeckEditor },
       { path: "dashboard", Component: Dashboard },
       { path: "settings", Component: Settings },
     ],
