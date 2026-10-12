@@ -54,6 +54,9 @@
   /* The text people write in the flashcard editor, one step above body. */
   --text-lead: 1.125rem;
   --text-lead--line-height: 1.75rem;
+  /* The word being studied in a review. It is the point of the screen, so it is large. */
+  --text-card: clamp(2.5rem, 7vw, 4rem);
+  --text-card--line-height: 1.15;
   --text-heading: 1.25rem;
   --text-heading--line-height: 1.75rem;
   --text-title: 1.5rem;
@@ -101,6 +104,15 @@ html {
 
   a {
     text-underline-offset: 0.2em;
+  }
+
+  /* Scripts without spaces or case do not want the extra tracking used for light text on dark,
+     and tall characters want more room between lines. */
+  :lang(ja),
+  :lang(zh),
+  :lang(ko) {
+    letter-spacing: 0;
+    line-height: 1.7;
   }
 
   /* Rich flashcard content is sanitized HTML with a few formatting tags. Preflight removes their

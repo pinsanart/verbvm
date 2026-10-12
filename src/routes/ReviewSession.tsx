@@ -1,13 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { PartyPopper } from "lucide-react";
-import { Link, useParams } from "react-router";
-import { buttonClass } from "../components/Button";
-import { EmptyState } from "../components/EmptyState";
+import { useParams } from "react-router";
 import { Notice } from "../components/Notice";
 import { Page } from "../components/Page";
 import { RatingBar } from "../components/RatingBar";
 import { ReviewCardFace } from "../components/ReviewCardFace";
+import { ReviewSummary } from "../components/ReviewSummary";
 import { TRANSITION_BASE, TRANSITION_FAST } from "../lib/motion";
 import { styleForType } from "../data/FlashcardTypeStyles";
 import type { Rating } from "../types/Review";
@@ -15,7 +13,15 @@ import { useReviewSessionViewModel } from "../viewmodels/useReviewSessionViewMod
 
 /** Keys that press the focused control themselves, so the shortcuts must leave them alone. */
 const isTypingOrPressing = (target: EventTarget | null) =>
-  target instanceof HTMLElement && target.closest("input, textarea, select, button, a, [role=menuitem]") !== null;
+  target instanceof HTMLElement && target.closest("input, textarea, select, button, a") !== null;
+
+/** Plays the first audio of the card from the start. */
+const replayAudio = () => {
+  const audio = document.querySelector<HTMLAudioElement>("audio[data-review-audio]");
+  if (!audio) return;
+  audio.currentTime = 0;
+  audio.play().catch(() => undefined);
+};
 
 /** Reviews the flashcards of one type in a deck, one card at a time. */
 export default function ReviewSession() {
@@ -24,18 +30,21 @@ export default function ReviewSession() {
   const title = vm.card?.typeName ?? styleForType(typeSlug).label;
   const front = vm.card?.fields.filter((field) => field.side === "FRONT") ?? [];
   const back = vm.card?.fields.filter((field) => field.side === "BACK") ?? [];
+  const cardRef = useRef<HTMLElement>(null);
 
-  // Space or Enter shows the response and 1 to 4 answer, so a review can run without the mouse.
+  // Space or Enter shows the response, 1 to 4 answer and R plays the audio again, so a review can
+  // run without the mouse.
   const { showResponse, answer, revealed, card } = vm;
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!card || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (!revealed) {
-        if ((e.key === " " || e.key === "Enter") && !isTypingOrPressing(e.target)) {
-          e.preventDefault();
-          showResponse();
-        }
-      } else if (["1", "2", "3", "4"].includes(e.key) && !isTypingOrPressing(e.target)) {
+      if (!card || e.metaKey || e.ctrlKey || e.altKey || isTypingOrPressing(e.target)) return;
+      if (e.key.toLowerCase() === "r") {
+        e.preventDefault();
+        replayAudio();
+      } else if (!revealed && (e.key === " " || e.key === "Enter")) {
+        e.preventDefault();
+        showResponse();
+      } else if (revealed && ["1", "2", "3", "4"].includes(e.key)) {
         e.preventDefault();
         answer(Number(e.key) as Rating);
       }
@@ -43,6 +52,12 @@ export default function ReviewSession() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [card, revealed, showResponse, answer]);
+
+  // The button that was pressed goes away when the answers replace it, which would drop the focus
+  // to the page. The card takes it instead, so the next Tab goes to the first answer.
+  useEffect(() => {
+    if (card) cardRef.current?.focus({ preventScroll: true });
+  }, [card?.uuid, revealed]);
 
   return (
     <Page title={title} parents={[{ to: "/review", label: "Review" }]} meta={deckName}>
@@ -59,19 +74,13 @@ export default function ReviewSession() {
       )}
 
       {vm.done && (
-        <EmptyState
-          icon={PartyPopper}
-          title={vm.answered > 0 ? "All done for now" : `Nothing to review in ${title}`}
-          description={
-            vm.answered > 0
-              ? `You answered ${vm.answered} ${vm.answered === 1 ? "card" : "cards"}. Cards you missed come back in a few minutes.`
-              : "Everything here is up to date. Cards come back when they are due."
-          }
-          action={
-            <Link to="/review" className={buttonClass("primary")}>
-              Back to Review
-            </Link>
-          }
+        <ReviewSummary
+          typeName={title}
+          deckName={deckName}
+          answered={vm.answered}
+          again={vm.again}
+          nextDueInSeconds={vm.nextDueInSeconds}
+          siblings={vm.siblings}
         />
       )}
 
@@ -80,14 +89,17 @@ export default function ReviewSession() {
           <AnimatePresence mode="wait" initial={false}>
             <motion.article
               key={vm.card.uuid}
+              ref={cardRef}
+              tabIndex={-1}
+              lang={vm.languageTag || undefined}
               aria-label="Flashcard"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={TRANSITION_FAST}
-              className="mx-auto flex w-full max-w-2xl flex-col gap-6 rounded-2xl border border-line bg-panel p-6 md:p-10"
+              className="mx-auto flex min-h-[18rem] w-full max-w-3xl flex-col justify-center gap-8 rounded-2xl border border-line bg-panel p-8 outline-none md:p-14"
             >
-              <ReviewCardFace fields={front} />
+              <ReviewCardFace fields={front} size="front" />
 
               <AnimatePresence initial={false}>
                 {vm.revealed && back.length > 0 && (
@@ -98,9 +110,9 @@ export default function ReviewSession() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={TRANSITION_BASE}
-                    className="border-t border-line-strong pt-6"
+                    className="border-t border-line-strong pt-8"
                   >
-                    <ReviewCardFace fields={back} />
+                    <ReviewCardFace fields={back} size="back" />
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -109,6 +121,7 @@ export default function ReviewSession() {
 
           <RatingBar
             counts={vm.counts}
+            intervals={vm.intervals}
             revealed={vm.revealed}
             busy={vm.busy}
             onShowResponse={vm.showResponse}
