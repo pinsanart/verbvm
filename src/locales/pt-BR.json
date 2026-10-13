@@ -15,7 +15,6 @@
     "home": "Início",
     "review": "Revisão",
     "decks": "Baralhos",
-    "dashboard": "Painel",
     "settings": "Configurações",
     "login": "Entrar"
   },
@@ -33,10 +32,6 @@
     "emptyTitle": "Sua visão geral de estudo ficará aqui",
     "emptyDescription": "Crie um baralho e adicione cartões a ele para começar.",
     "goToDecks": "Ir para Baralhos"
-  },
-  "dashboard": {
-    "emptyTitle": "Nenhum progresso para mostrar ainda",
-    "emptyDescription": "Seu histórico de revisões e suas estatísticas aparecerão aqui assim que você começar a revisar."
   },
   "settings": {
     "languageLabel": "Idioma",

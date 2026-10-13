@@ -12,7 +12,6 @@ import Review from "./routes/Review";
 import ReviewSession from "./routes/ReviewSession";
 import Decks from "./routes/Decks";
 import DeckEditor from "./routes/DeckEditor";
-import Dashboard from "./routes/Dashboard";
 import Settings from "./routes/Settings";
 
 const router = createHashRouter([
@@ -25,7 +24,6 @@ const router = createHashRouter([
       { path: "review/:deckName/:typeSlug", Component: ReviewSession },
       { path: "decks", Component: Decks },
       { path: "decks/:deckName", Component: DeckEditor },
-      { path: "dashboard", Component: Dashboard },
       { path: "settings", Component: Settings },
     ],
   },

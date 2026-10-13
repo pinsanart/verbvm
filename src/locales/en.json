@@ -15,7 +15,6 @@
     "home": "Home",
     "review": "Review",
     "decks": "Decks",
-    "dashboard": "Dashboard",
     "settings": "Settings",
     "login": "Login"
   },
@@ -33,10 +32,6 @@
     "emptyTitle": "Your study overview will live here",
     "emptyDescription": "Create a deck and add flashcards to it to get started.",
     "goToDecks": "Go to Decks"
-  },
-  "dashboard": {
-    "emptyTitle": "No progress to show yet",
-    "emptyDescription": "Your review history and statistics will appear here once you start reviewing."
   },
   "settings": {
     "languageLabel": "Language",

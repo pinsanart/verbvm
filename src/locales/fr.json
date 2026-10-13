@@ -15,7 +15,6 @@
     "home": "Accueil",
     "review": "Révision",
     "decks": "Paquets",
-    "dashboard": "Tableau de bord",
     "settings": "Réglages",
     "login": "Connexion"
   },
@@ -33,10 +32,6 @@
     "emptyTitle": "Votre aperçu d'étude apparaîtra ici",
     "emptyDescription": "Créez un paquet et ajoutez-y des cartes pour commencer.",
     "goToDecks": "Aller aux paquets"
-  },
-  "dashboard": {
-    "emptyTitle": "Aucune progression à afficher pour l'instant",
-    "emptyDescription": "Votre historique de révision et vos statistiques apparaîtront ici dès que vous commencerez à réviser."
   },
   "settings": {
     "languageLabel": "Langue",

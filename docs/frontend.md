@@ -25,7 +25,7 @@ src/
 | `/decks/:deckName` | `DeckEditor`: the editor of a deck, with two tabs: New cards (drafts, with the type buttons at the bottom) and Saved cards (list and edit panel) |
 | `/review` | `Review`: the decks with the types each has and what is waiting in them, with a Review button per type |
 | `/review/:deckName/:typeSlug` | `ReviewSession`: one card at a time, Show response, then Again, Hard, Good and Easy |
-| `/`, `/dashboard`, `/settings` | Placeholders with an empty state |
+| `/`, `/settings` | Placeholders with an empty state |
 
 ## The decks flow
 
