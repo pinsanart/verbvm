@@ -252,22 +252,5 @@
     "imported": "O dicionário foi importado.",
     "empty": "Nada está instalado ainda, então os botões de pronúncia vão avisar que falta o dicionário.",
     "licenseNote": "As listas de palavras têm licenças diferentes. Leia as notas em docs/development.md antes de compartilhar o app."
-  },
-  "anki": {
-    "title": "Importar do Anki",
-    "intro": "Traz o conteúdo de uma coleção do Anki (collection.anki2) para decks novos: um deck por idioma, com uma pilha para cada frase que tem uma nota de vocabulário e uma de pronúncia. Revisões, datas e etiquetas ficam no Anki. Um deck cujo nome já existe é pulado, então nada é duplicado. Feche o Anki antes, para não faltar nada.",
-    "import": "Importar do Anki…",
-    "importing": "Importando…",
-    "importingHint": "Criando os cards. Leva alguns segundos.",
-    "imported": "A coleção foi importada.",
-    "skipped": "Pulado: {{reason}}",
-    "partial": "O Anki estava com a coleção aberta, então mudanças que ele ainda não gravou no arquivo podem estar faltando.",
-    "pickerFilter": "Coleção do Anki",
-    "stacks_one": "{{count}} pilha",
-    "stacks_many": "{{count}} de pilhas",
-    "stacks_other": "{{count}} pilhas",
-    "images_one": "{{count}} imagem",
-    "images_many": "{{count}} de imagens",
-    "images_other": "{{count}} imagens"
   }
 }

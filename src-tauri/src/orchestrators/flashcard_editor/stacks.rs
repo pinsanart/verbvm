@@ -77,25 +77,13 @@ impl FlashcardEditorOrchestrator {
     /// Adds a stack of drafts (vocabulary, phonetic and orthographic) at the end of the deck's
     /// list and returns the updated list.
     pub fn add_stack(&self, deck_name: &str) -> OrchestratorResult<Vec<FlashcardDraft>> {
-        self.add_stack_of(deck_name, &STACK_TYPES)?;
-        let ctx = self.context(deck_name)?;
-        Ok(self.flashcards.list_drafts(ctx.deck_id)?)
-    }
-
-    /// Adds a stack of drafts of the given types (at least two) at the end of the deck's list and
-    /// returns just the drafts of that stack, in the order of the types.
-    pub fn add_stack_of(&self, deck_name: &str, type_slugs: &[&str]) -> OrchestratorResult<Vec<FlashcardDraft>> {
-        if type_slugs.len() < 2 {
-            return Err(OrchestratorError::Invalid("a stack needs at least two cards".into()));
-        }
         let ctx = self.context(deck_name)?;
         let stack_uuid = uuid::Uuid::new_v4().to_string();
-        let mut drafts = Vec::with_capacity(type_slugs.len());
-        for slug in type_slugs {
+        for slug in STACK_TYPES {
             let type_context = ctx.type_by_slug(slug)?;
-            drafts.push(self.flashcards.create_draft_in_stack(ctx.deck_id, type_context.type_id, &stack_uuid)?);
+            self.flashcards.create_draft_in_stack(ctx.deck_id, type_context.type_id, &stack_uuid)?;
         }
-        Ok(drafts)
+        Ok(self.flashcards.list_drafts(ctx.deck_id)?)
     }
 
     /// Adds a draft of a type the stack does not have yet, with the shared phrase copied in.

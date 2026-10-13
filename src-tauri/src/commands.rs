@@ -1,4 +1,3 @@
-pub mod anki;
 pub mod decks;
 pub mod error;
 pub mod flashcards;

@@ -163,14 +163,6 @@ impl FlashcardEditorOrchestrator {
         Ok(self.flashcards.list_drafts(saved_id(deck.id(), "deck")?)?)
     }
 
-    /// Adds an empty draft of a type at the end of the deck's list and returns just that draft, for
-    /// callers that make many (the list of a big deck is not cheap to build each time).
-    pub fn new_draft(&self, deck_name: &str, type_slug: &str) -> OrchestratorResult<FlashcardDraft> {
-        let ctx = self.context(deck_name)?;
-        let flashcard_type = ctx.type_by_slug(type_slug)?;
-        Ok(self.flashcards.create_draft(ctx.deck_id, flashcard_type.type_id)?)
-    }
-
     /// Adds an empty draft of a type at the end of the deck's list and returns the updated list.
     pub fn add_draft(&self, deck_name: &str, type_slug: &str) -> OrchestratorResult<Vec<FlashcardDraft>> {
         let ctx = self.context(deck_name)?;

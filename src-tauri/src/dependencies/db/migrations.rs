@@ -41,8 +41,7 @@ pub fn migrations() -> Migrations<'static> {
                 description TEXT
             );
 
-            -- The study options of a deck, one row per flashcard type of the deck (like the subdecks of
-            -- Anki). A type with no row uses the defaults. Daily limits are counted per UTC day: a new
+            -- The study options of a deck, one row per flashcard type of the deck (like subdecks). A type with no row uses the defaults. Daily limits are counted per UTC day: a new
             -- card is one seen for the first time, a review is an answer to a card that had been
             -- recalled before. `autoplay_audio` is whether the audio plays by itself in a review.
             CREATE TABLE deck_type_settings (
