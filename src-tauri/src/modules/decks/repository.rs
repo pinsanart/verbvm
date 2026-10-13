@@ -99,11 +99,14 @@ impl DeckRepository for SqliteDeckRepository {
     fn type_settings(&self, deck_id: i64) -> Result<Vec<(i64, DeckSettings)>, DbError> {
         self.db.with_connection(|conn| {
             conn.prepare(
-                "SELECT flashcard_type_id, new_cards_per_day, max_reviews_per_day, autoplay_audio
+                "SELECT flashcard_type_id, new_cards_per_day, max_reviews_per_day, autoplay_audio,
+                        day_starts_at_minute
                  FROM deck_type_settings WHERE deck_id = ?1 ORDER BY flashcard_type_id",
             )?
             .query_map([deck_id], |row| {
-                let settings = DeckSettings::new(row.get(1)?, row.get(2)?, row.get(3)?).map_err(|e| {
+                let minute: i64 = row.get(4)?;
+                let settings = DeckSettings::new(row.get(1)?, row.get(2)?, row.get(3)?)
+                    .and_then(|s| s.with_day_starts_at(minute)).map_err(|e| {
                     rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Integer, e.to_string().into())
                 })?;
                 Ok((row.get(0)?, settings))
@@ -116,18 +119,21 @@ impl DeckRepository for SqliteDeckRepository {
         self.db.with_connection(|conn| {
             conn.execute(
                 "INSERT INTO deck_type_settings
-                     (deck_id, flashcard_type_id, new_cards_per_day, max_reviews_per_day, autoplay_audio)
-                 VALUES (?1, ?2, ?3, ?4, ?5)
+                     (deck_id, flashcard_type_id, new_cards_per_day, max_reviews_per_day, autoplay_audio,
+                      day_starts_at_minute)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
                  ON CONFLICT (deck_id, flashcard_type_id) DO UPDATE SET
                      new_cards_per_day = excluded.new_cards_per_day,
                      max_reviews_per_day = excluded.max_reviews_per_day,
-                     autoplay_audio = excluded.autoplay_audio",
+                     autoplay_audio = excluded.autoplay_audio,
+                     day_starts_at_minute = excluded.day_starts_at_minute",
                 params![
                     deck_id,
                     type_id,
                     settings.new_cards_per_day(),
                     settings.max_reviews_per_day(),
-                    settings.autoplay_audio()
+                    settings.autoplay_audio(),
+                    settings.day_starts_at_minute()
                 ],
             )?;
             Ok(())

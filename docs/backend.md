@@ -31,7 +31,7 @@ The database file is `verbvm.db` in the app data folder. On Linux that is `~/.lo
 The database stores in the file itself which migration version has been applied. This has two consequences:
 
 - **In production**, never edit a migration that already ran. Append a new `M::up(...)` to the end of the list.
-- **During development**, while the schema is still changing, the owner edits v1.0 directly. A development database that already applied v1.0 will not apply it again, so delete `verbvm.db` and the `verbvm.db-wal` and `verbvm.db-shm` files next to it and reopen the app.
+- **Now that the real database holds data**, the owner no longer edits v1.0 or deletes the database: every change is a new `M::up(...)` (v1.1 adds `deck_type_settings.day_starts_at_minute` with a default, so existing rows keep working). `migrations.rs` has a test that migrates a v1.0 database with a row to the latest version and checks the data and the new column.
 
 ## Time (UTC)
 
@@ -52,7 +52,7 @@ The database stores in the file itself which migration version has been applied.
 
 ## Deck settings and daily limits
 
-`DeckSettings` (`modules/decks/model.rs`) groups the study options of one flashcard type of a deck: `new_cards_per_day`, `max_reviews_per_day` (both 0 to 9999, validated in the constructor) and `autoplay_audio`. They are stored in `deck_type_settings` and reached through `DeckApi::type_settings` (defaults when none were stored), `list_type_settings` and `set_type_settings`; `Deck` itself has no settings. `DeckOverview.settings` lists them for every type, and `update_deck` takes `typeSettings` for the types to change (all validated before anything is written). Adding an option changes one struct and not every signature. `ReviewSessionOrchestrator::queues` applies the limits: `ReviewApi::activity_since(ids, start of the UTC day)` counts the reviews of the deck's cards by `review_logs.phase`, the new queue is cut to `new_cards_per_day` minus the cards started today, and the review queue to `max_reviews_per_day` minus the `REVIEW` answers given today. Cards being learned are never limited, so a new card already started finishes its first wave. The cards that were cut are counted, and when nothing can be shown `ReviewNext.daily_limit_reached` is true. `ReviewNext.autoplay_audio` carries the type's audio setting to the view. Days are UTC because the whole app is.
+`DeckSettings` (`modules/decks/model.rs`) groups the study options of one flashcard type of a deck: `new_cards_per_day`, `max_reviews_per_day` (both 0 to 9999, validated in the constructor) and `autoplay_audio`. They are stored in `deck_type_settings` (with `day_starts_at_minute`, the rollover of the study day, set with `DeckSettings::with_day_starts_at`; 360 by default) and reached through `DeckApi::type_settings` (defaults when none were stored), `list_type_settings` and `set_type_settings`; `Deck` itself has no settings. `DeckOverview.settings` lists them for every type, and `update_deck` takes `typeSettings` for the types to change (all validated before anything is written). Adding an option changes one struct and not every signature. `ReviewSessionOrchestrator::queues` applies the limits: `ReviewApi::activity_since(ids, start of the UTC day)` counts the reviews of the deck's cards by `review_logs.phase`, the new queue is cut to `new_cards_per_day` minus the cards started today, and the review queue to `max_reviews_per_day` minus the `REVIEW` answers given today. Cards being learned are never limited, so a new card already started finishes its first wave. The cards that were cut are counted, and when nothing can be shown `ReviewNext.daily_limit_reached` is true. `ReviewNext.autoplay_audio` carries the type's audio setting to the view. Days are UTC because the whole app is.
 
 ## HTTP and text to speech
 
@@ -80,7 +80,7 @@ The other modules follow the same layout. `flashcards` has one repository trait 
 ### Adding a module
 
 1. Create `modules/<name>.rs` (`//!` docs and `pub use`) and `modules/<name>/{model,repository,service,error}.rs`. Declare `pub mod <name>;` in `modules.rs`.
-2. Add the module's tables to the v1.0 migration (see "Evolving the schema").
+2. Add the module's tables in a new migration (see "Evolving the schema").
 3. In the model, entities with private fields, a validating `new` and a `pub(super)` `restore`.
 4. In the repository, a `Send + Sync` trait and the `Sqlite*` implementation. CRUD only.
 5. In the service, the `*Api` trait (the only thing other modules may use) and the implementation with the rules. Time comes from a `Clock`.

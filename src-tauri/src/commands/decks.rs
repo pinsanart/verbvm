@@ -45,6 +45,24 @@ pub struct TypeSettingsDto {
     pub max_reviews_per_day: i64,
     /// Whether the audio of a card plays by itself in a review.
     pub autoplay_audio: bool,
+    /// When the study day starts, `HH:MM` in UTC.
+    pub day_starts_at: String,
+}
+
+/// Minutes after midnight as `HH:MM`.
+fn format_minute(minute: i64) -> String {
+    format!("{:02}:{:02}", minute / 60, minute % 60)
+}
+
+/// `HH:MM` as minutes after midnight.
+fn parse_minute(text: &str) -> Option<i64> {
+    let (hours, minutes) = text.split_once(':')?;
+    let digits = |part: &str| part.len() == 2 && part.bytes().all(|b| b.is_ascii_digit());
+    if !digits(hours) || !digits(minutes) {
+        return None;
+    }
+    let (hours, minutes): (i64, i64) = (hours.parse().ok()?, minutes.parse().ok()?);
+    (hours < 24 && minutes < 60).then_some(hours * 60 + minutes)
 }
 
 #[derive(Debug, Serialize)]
@@ -74,6 +92,7 @@ pub fn deck_dto(overview: &DeckOverview) -> DeckDto {
                 new_cards_per_day: settings.new_cards_per_day(),
                 max_reviews_per_day: settings.max_reviews_per_day(),
                 autoplay_audio: settings.autoplay_audio(),
+                day_starts_at: format_minute(settings.day_starts_at_minute()),
             })
             .collect(),
         language: LanguageSummaryDto {
@@ -141,6 +160,8 @@ pub struct TypeSettingsInput {
     new_cards_per_day: i64,
     max_reviews_per_day: i64,
     autoplay_audio: bool,
+    /// `HH:MM` in UTC.
+    day_starts_at: String,
 }
 
 #[tauri::command]
@@ -149,7 +170,11 @@ pub async fn update_deck(api: Api<'_>, name: String, input: UpdateDeckInput) -> 
         .type_settings
         .into_iter()
         .map(|t| {
+            let minute = parse_minute(&t.day_starts_at).ok_or_else(|| {
+                crate::orchestrators::OrchestratorError::Invalid("the time the day starts at must be HH:MM".into())
+            })?;
             DeckSettings::new(t.new_cards_per_day, t.max_reviews_per_day, t.autoplay_audio)
+                .and_then(|settings| settings.with_day_starts_at(minute))
                 .map(|settings| (t.type_slug, settings))
                 .map_err(crate::orchestrators::OrchestratorError::from)
         })
@@ -178,6 +203,7 @@ mod tests {
                 new_cards_per_day: 20,
                 max_reviews_per_day: 200,
                 autoplay_audio: true,
+                day_starts_at: "06:00".into(),
             }],
             language: LanguageSummaryDto { name: "English".into(), iso_639_3: "eng".into() },
             variant: LanguageVariantDto {
@@ -201,7 +227,7 @@ mod tests {
                 "description": null,
                 "createdAt": "2026-10-12 08:00:00",
                 "typeSettings": [
-                    {"typeSlug": "vocabulary", "newCardsPerDay": 20, "maxReviewsPerDay": 200, "autoplayAudio": true}
+                    {"typeSlug": "vocabulary", "newCardsPerDay": 20, "maxReviewsPerDay": 200, "autoplayAudio": true, "dayStartsAt": "06:00"}
                 ],
                 "language": {"name": "English", "iso6393": "eng"},
                 "variant": {"bcp47Code": "en-US", "variantName": "English (United States)", "countryCode": "US"},
@@ -221,18 +247,28 @@ mod tests {
     }
 
     #[test]
+    fn the_time_the_day_starts_at_is_written_and_read_as_hh_mm() {
+        assert_eq!((format_minute(360), format_minute(0), format_minute(1_439)), ("06:00".into(), "00:00".into(), "23:59".into()));
+        assert_eq!((parse_minute("06:00"), parse_minute("23:59"), parse_minute("00:05")), (Some(360), Some(1_439), Some(5)));
+        for bad in ["", "6:00", "24:00", "12:60", "12-30", "ab:cd", "12:3", "+1:00"] {
+            assert_eq!(parse_minute(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
     fn update_deck_input_is_read_from_the_typescript_shape() {
         let input: UpdateDeckInput =
             serde_json::from_value(json!({
                 "name": "Trips", "description": null,
                 "typeSettings": [
-                    {"typeSlug": "phonetic", "newCardsPerDay": 10, "maxReviewsPerDay": 100, "autoplayAudio": false}
+                    {"typeSlug": "phonetic", "newCardsPerDay": 10, "maxReviewsPerDay": 100, "autoplayAudio": false, "dayStartsAt": "03:30"}
                 ]
             }))
             .unwrap();
         assert_eq!((input.name.as_str(), input.description), ("Trips", None));
         let t = &input.type_settings[0];
         assert_eq!((t.type_slug.as_str(), t.new_cards_per_day, t.max_reviews_per_day, t.autoplay_audio), ("phonetic", 10, 100, false));
+        assert_eq!(t.day_starts_at, "03:30");
 
         let without: UpdateDeckInput = serde_json::from_value(json!({"name": "T", "description": null})).unwrap();
         assert!(without.type_settings.is_empty(), "the types that are left out keep their options");

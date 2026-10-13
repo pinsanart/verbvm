@@ -57,7 +57,10 @@
     "newCardsPerDayHint": "Cards seen for the first time. 0 adds none.",
     "maxReviewsPerDay": "Maximum reviews per day",
     "maxReviewsPerDayHint": "Answers to cards you have recalled before. Cards you are still learning are not limited.",
-    "noAutoplay": "Don't play audio automatically"
+    "noAutoplay": "Don't play audio automatically",
+    "dayStartsAt": "Day starts at (UTC)",
+    "dayStartsAtLocal": "That is {{local}} on this computer.",
+    "dayStartsAtHint": "After this time, the review cards due that day all appear at once, whatever hour they were scheduled for. The daily limits start over then too."
   },
   "deckEditor": {
     "loading": "Loading flashcards",

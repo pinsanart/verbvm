@@ -43,7 +43,8 @@ pub fn migrations() -> Migrations<'static> {
 
             -- The study options of a deck, one row per flashcard type of the deck (like subdecks). A type with no row uses the defaults. Daily limits are counted per UTC day: a new
             -- card is one seen for the first time, a review is an answer to a card that had been
-            -- recalled before. `autoplay_audio` is whether the audio plays by itself in a review.
+            -- recalled before. `autoplay_audio` is whether the audio plays by itself in a review. The time
+            -- the study day starts at is added by v1.1.
             CREATE TABLE deck_type_settings (
                 deck_id             INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
                 flashcard_type_id   INTEGER NOT NULL REFERENCES flashcard_types(id) ON DELETE RESTRICT,
@@ -256,5 +257,45 @@ pub fn migrations() -> Migrations<'static> {
             JOIN flashcard_types t ON t.slug = d.slug;
             "#,
         ),
+        // v1.1: the time the study day starts, per deck and flashcard type. After it, the review
+        // cards due that day are all offered, whatever hour they were scheduled for. Minutes after
+        // UTC midnight: 360 is 06:00 UTC, which is 03:00 in São Paulo.
+        M::up(
+            "ALTER TABLE deck_type_settings ADD COLUMN day_starts_at_minute INTEGER NOT NULL DEFAULT 360
+                 CHECK (day_starts_at_minute BETWEEN 0 AND 1439);",
+        ),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    #[test]
+    fn v1_1_adds_the_rollover_to_existing_settings_and_keeps_the_data() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", true).unwrap();
+        migrations().to_version(&mut conn, 1).unwrap();
+        conn.execute_batch(
+            "INSERT INTO decks (name, language_variant_id) VALUES ('Old', 1);
+             INSERT INTO deck_type_settings (deck_id, flashcard_type_id, new_cards_per_day, max_reviews_per_day, autoplay_audio)
+             VALUES (1, 1, 5, 50, 0);",
+        )
+        .unwrap();
+
+        migrations().to_latest(&mut conn).unwrap();
+
+        let row: (i64, i64, i64, i64) = conn
+            .query_row(
+                "SELECT new_cards_per_day, max_reviews_per_day, autoplay_audio, day_starts_at_minute FROM deck_type_settings",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(row, (5, 50, 0, 360), "the old row keeps its options and starts the day at 06:00 UTC");
+        assert!(conn
+            .execute("UPDATE deck_type_settings SET day_starts_at_minute = 1440", [])
+            .is_err(), "the minute is checked by the database too");
+    }
 }

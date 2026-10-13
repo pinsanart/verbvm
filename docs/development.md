@@ -16,7 +16,7 @@ There is no linter and no frontend test runner.
 
 ## Development database
 
-The schema is still being edited directly in v1.0. After changing `migrations.rs`, delete `~/.local/share/verbvm/verbvm.db` and the `verbvm.db-wal` and `verbvm.db-shm` files, and reopen the app. You lose the test data. The `media/` folder next to it is not touched, so delete it too if you want a clean slate. See [backend.md](backend.md).
+The database in `~/.local/share/verbvm/` holds real data, so a schema change is a **new migration** (never an edit of v1.0, never a deleted database), and it should be tried on a copy first: `sqlite3 verbvm.db ".backup /tmp/copy.db"`. The migration applies when the app opens the database, including the hot rebuild of `npm run tauri dev`. See [backend.md](backend.md). To start from nothing anyway, delete `verbvm.db` with its `-wal` and `-shm` files (and the `media/` folder next to it).
 
 ## Known limitations
 

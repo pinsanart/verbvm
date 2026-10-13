@@ -72,7 +72,7 @@ An orthographic card has no back: its audio field (generated or uploaded) and it
 
 ### Daily limits and audio
 
-Each flashcard type of a deck has its own `new_cards_per_day` (20 by default), `max_reviews_per_day` (200) and `autoplay_audio`, editable on the deck (a type never set uses the defaults, and the options of one type do not reach the others). A **new** card counts against the first limit when it is reviewed for the first time. A **review** counts against the second when a card that had been recalled before is answered. Both are counted per UTC day from `review_logs.phase`, and they cut the New and Review counts and queues: when a limit is reached the counts drop to what is still allowed and the session ends with a note that the rest comes back tomorrow. Cards being learned (Learning) are never limited, so a card already started always finishes its first wave. A limit of 0 offers none of that kind. The audio of a card plays by itself **every time the card is shown** (the first audio of the front, and of the back when the response appears), including a card that comes back at once after Again or its first pass: each showing is a new presentation (`presentation` in the viewmodel, part of the card element's key) and `MediaPlayer` starts playback itself once its file is loaded. It does not play when the type of the deck turns it off with **Don't play audio automatically**; R still replays it.
+Each flashcard type of a deck has its own `new_cards_per_day` (20 by default), `max_reviews_per_day` (200) and `autoplay_audio`, editable on the deck (a type never set uses the defaults, and the options of one type do not reach the others). A **new** card counts against the first limit when it is reviewed for the first time. A **review** counts against the second when a card that had been recalled before is answered. Both are counted per **study day** (see below) from `review_logs.phase`, and they cut the New and Review counts and queues: when a limit is reached the counts drop to what is still allowed and the session ends with a note that the rest comes back tomorrow. Cards being learned (Learning) are never limited, so a card already started always finishes its first wave. A limit of 0 offers none of that kind. The audio of a card plays by itself **every time the card is shown** (the first audio of the front, and of the back when the response appears), including a card that comes back at once after Again or its first pass: each showing is a new presentation (`presentation` in the viewmodel, part of the card element's key) and `MediaPlayer` starts playback itself once its file is loaded. It does not play when the type of the deck turns it off with **Don't play audio automatically**; R still replays it.
 
 ### Counts and the queue
 
@@ -81,7 +81,7 @@ For one type in a deck:
 | Count | Which flashcards |
 |---|---|
 | **New** | Never reviewed (no `sm2_states` row). Every one is counted, since there is no daily limit yet |
-| **Learning** | Due now (`due_at <= now`) and not recalled yet (`repetitions == 0`): the last answer was Again, or it is a new card waiting for its second review |
+| **Learning** | Due now (`due_at <= now`, learning cards follow the clock) and not recalled yet (`repetitions == 0`): the last answer was Again, or it is a new card waiting for its second review |
 | **Review** | Due now and recalled before (`repetitions >= 1`) |
 
 A flashcard that is not due yet is in none of them. A type is **Completed** when all three are 0. The overview only lists the types a deck has flashcards of, so its columns change with the deck.
@@ -107,3 +107,13 @@ Implementation options (from memory, confirm versions and APIs before adopting):
 - **LSTM**: the network reads a card's sequence of reviews (rating, log of the interval since the previous one and, optionally, type and language) and predicts the memory **stability** `s`. Retention `R(t) = 0.9^(t/s)` is then monotonic and the ideal interval comes out directly. Training minimizes binary cross-entropy (recalled or not). In Rust, Burn has `nn::Lstm`, autodiff and a CPU backend, and can train and infer inside the app. `ort` (ONNX Runtime) only infers, so training would stay in Python. Training should run on a background thread, never in the commands.
 - **Little data**: a per-user LSTM needs thousands of reviews to beat a simple model. The options are to pretrain on a public dataset and fine-tune locally, or to start from FSRS.
 - **Evaluation**: compare the algorithms by log-loss on a held-out set split by date.
+
+## The study day
+
+Each flashcard type of a deck has a **rollover** (`day_starts_at_minute`, shown as "Day starts at (UTC)" in the deck's study options): 06:00 UTC by default, which is 03:00 in São Paulo (UTC-3, no daylight saving). A **study day** runs from one rollover to the next, and `study_day_start(now, rollover)` is the latest rollover that has passed.
+
+- **Review cards** (recalled before, `repetitions > 0`) are due when `due_at` falls **before the end of the current study day**, not when its hour arrives. So after the rollover every review card of that day is offered at once, whatever hour it was scheduled for, and the whole day's reviews can be done in one sitting. Their order is still oldest `due_at` first. The stored `due_at` of a card is not changed: only the test "is it due now" is.
+- **Learning cards** (new cards in their first wave, and cards answered Again) are minutes long, so they still follow the clock and the learn-ahead window.
+- When nothing is due, "next card in ..." for a review card is the start of the study day it belongs to (the next rollover for a card due tomorrow at any hour), not its own hour.
+- The **daily limits** (new cards and reviews) count from the start of the study day, so they start over at the rollover and not at UTC midnight.
+- The rollover is per type, so vocabulary and phonetic can turn the day at different times. Everything is UTC: the field shows the same time on this machine as a hint.

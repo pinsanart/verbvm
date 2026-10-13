@@ -58,7 +58,10 @@
     "newCardsPerDayHint": "Cartes vues pour la première fois. 0 n'en ajoute aucune.",
     "maxReviewsPerDay": "Maximum de révisions par jour",
     "maxReviewsPerDayHint": "Réponses aux cartes déjà retenues. Les cartes en cours d'apprentissage ne sont pas limitées.",
-    "noAutoplay": "Ne pas lire l'audio automatiquement"
+    "noAutoplay": "Ne pas lire l'audio automatiquement",
+    "dayStartsAt": "Début de la journée (UTC)",
+    "dayStartsAtLocal": "Il est {{local}} sur cet ordinateur.",
+    "dayStartsAtHint": "Après cette heure, les cartes de révision du jour apparaissent toutes d'un coup, quelle que soit l'heure prévue. Les limites quotidiennes repartent aussi à ce moment."
   },
   "deckEditor": {
     "loading": "Chargement des cartes",

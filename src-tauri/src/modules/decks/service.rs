@@ -198,7 +198,7 @@ mod tests {
         assert_eq!(svc.type_settings(id, 1).unwrap(), custom);
         assert_eq!(svc.type_settings(id, 2).unwrap(), DeckSettings::default(), "other types are not affected");
 
-        let again = DeckSettings::new(0, 10, true).unwrap();
+        let again = DeckSettings::new(0, 10, true).unwrap().with_day_starts_at(90).unwrap();
         svc.set_type_settings(id, 1, again).unwrap();
         assert_eq!(svc.list_type_settings(id).unwrap(), vec![(1, again)], "it replaces, not adds");
 

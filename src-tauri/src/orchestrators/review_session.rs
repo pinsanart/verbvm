@@ -128,6 +128,18 @@ pub struct ReviewSessionOrchestrator {
 /// ending it. It covers the 10 minute steps.
 const LEARN_AHEAD: Duration = Duration::minutes(20);
 
+/// When the study day that holds `at` started: the latest rollover (the minute after UTC midnight
+/// the deck's study day starts at) that is not after `at`.
+fn study_day_start(at: DateTime<Utc>, rollover_minute: i64) -> DateTime<Utc> {
+    let rollover = Duration::minutes(rollover_minute);
+    let today = at.date_naive().and_time(NaiveTime::MIN).and_utc() + rollover;
+    if today <= at {
+        today
+    } else {
+        today - Duration::days(1)
+    }
+}
+
 /// The flashcards of one type split by state, each queue already in the order they are shown.
 #[derive(Default)]
 struct Queues<'a> {
@@ -355,7 +367,7 @@ impl ReviewSessionOrchestrator {
 
     /// Splits flashcards of one type by state. Flashcards that are not due are left out.
     ///
-    /// The daily limits of the deck for this type cut the new and review queues: a limit counts what was already
+    /// The daily limits of the deck for this type (counted from the start of the study day) cut the new and review queues: a limit counts what was already
     /// done since the start of the UTC day. Cards being learned are never limited.
     fn queues<'a>(
         &self,
@@ -367,6 +379,11 @@ impl ReviewSessionOrchestrator {
         let states: HashMap<i64, Sm2State> =
             self.reviews.states_for(&ids)?.into_iter().map(|s| (s.flashcard_id(), s)).collect();
 
+        // The study day: from the rollover to the next one. Review cards due any time before it ends
+        // are offered now, and the daily limits count from its start.
+        let day_start = study_day_start(now, settings.day_starts_at_minute());
+        let day_end = day_start + Duration::days(1);
+
         let mut queues = Queues::default();
         let mut learning = Vec::new();
         let mut review = Vec::new();
@@ -374,19 +391,25 @@ impl ReviewSessionOrchestrator {
         for (card, id) in cards.iter().zip(&ids) {
             match states.get(id) {
                 None => queues.new.push(*card),
-                Some(state) if state.due_at() <= now => {
-                    let entry = (state.due_at(), *id, *card);
-                    if state.repetitions() == 0 {
-                        learning.push(entry);
-                    } else {
-                        review.push(entry);
-                    }
+                // A card being learned is a matter of minutes, so it follows the clock.
+                Some(state) if state.repetitions() == 0 && state.due_at() <= now => {
+                    learning.push((state.due_at(), *id, *card));
+                }
+                // A review card is a matter of days: all of the study day's are due once it starts.
+                Some(state) if state.repetitions() > 0 && state.due_at() < day_end => {
+                    review.push((state.due_at(), *id, *card));
                 }
                 Some(state) => {
                     if state.repetitions() == 0 && state.due_at() <= now + LEARN_AHEAD {
                         learn_ahead.push((state.due_at(), *id, *card));
                     }
-                    queues.next_due = Some(queues.next_due.map_or(state.due_at(), |due| due.min(state.due_at())));
+                    // A review card comes back when its study day starts, not at its own hour.
+                    let comes_back = if state.repetitions() == 0 {
+                        state.due_at()
+                    } else {
+                        study_day_start(state.due_at(), settings.day_starts_at_minute())
+                    };
+                    queues.next_due = Some(queues.next_due.map_or(comes_back, |due| due.min(comes_back)));
                 }
             }
         }
@@ -397,7 +420,6 @@ impl ReviewSessionOrchestrator {
         queues.learning = learning.into_iter().map(|(_, _, c)| c).collect();
         queues.review = review.into_iter().map(|(_, _, c)| c).collect();
 
-        let day_start = now.date_naive().and_time(NaiveTime::MIN).and_utc();
         let done = self.reviews.activity_since(&ids, day_start)?;
         let allowed = |limit: i64, done: i64| usize::try_from((limit - done).max(0)).unwrap_or(0);
         let new_allowed = allowed(settings.new_cards_per_day(), done.new_started);
@@ -406,5 +428,31 @@ impl ReviewSessionOrchestrator {
         queues.new.truncate(new_allowed);
         queues.review.truncate(review_allowed);
         Ok(queues)
+    }
+}
+
+#[cfg(test)]
+mod study_day_tests {
+    use super::*;
+
+    fn at(text: &str) -> DateTime<Utc> {
+        chrono::NaiveDateTime::parse_from_str(text, "%Y-%m-%d %H:%M:%S").unwrap().and_utc()
+    }
+
+    #[test]
+    fn the_study_day_starts_at_the_latest_rollover_that_has_passed() {
+        let six = 6 * 60;
+        assert_eq!(study_day_start(at("2026-10-13 07:00:00"), six), at("2026-10-13 06:00:00"));
+        assert_eq!(study_day_start(at("2026-10-13 06:00:00"), six), at("2026-10-13 06:00:00"), "exactly at it");
+        assert_eq!(study_day_start(at("2026-10-13 05:59:59"), six), at("2026-10-12 06:00:00"), "still yesterday's");
+        assert_eq!(study_day_start(at("2026-10-13 00:00:00"), six), at("2026-10-12 06:00:00"));
+        assert_eq!(study_day_start(at("2026-10-13 23:59:59"), six), at("2026-10-13 06:00:00"));
+    }
+
+    #[test]
+    fn a_rollover_at_midnight_or_the_last_minute_still_gives_a_day_of_24_hours() {
+        assert_eq!(study_day_start(at("2026-10-13 12:00:00"), 0), at("2026-10-13 00:00:00"));
+        assert_eq!(study_day_start(at("2026-10-13 23:58:00"), 1_439), at("2026-10-12 23:59:00"));
+        assert_eq!(study_day_start(at("2026-10-13 23:59:00"), 1_439), at("2026-10-13 23:59:00"));
     }
 }

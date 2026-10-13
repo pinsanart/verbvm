@@ -1,6 +1,6 @@
 # Data model
 
-One migration (v1.0) defines the schema and the seed data, in `src-tauri/src/dependencies/db/migrations.rs`.
+Migration v1.0 defines the schema and the seed data, and later migrations change it (v1.1: `deck_type_settings.day_starts_at_minute`), in `src-tauri/src/dependencies/db/migrations.rs`.
 
 ## Conventions
 
@@ -43,7 +43,7 @@ erDiagram
 
 ## Decks
 
-`decks`: a unique `name`, `language_variant_id` (`ON DELETE RESTRICT`, so a variant in use by a deck cannot be deleted), `description` and `created_at`. The study options are not on the deck but on `deck_type_settings`, one row per (deck, flashcard type) (`ON DELETE CASCADE` with the deck, `RESTRICT` with the type). A type with no row uses the defaults, so a deck starts with none. The options are `new_cards_per_day` (default 20, 0 to 9999), `max_reviews_per_day` (default 200, 0 to 9999) and `autoplay_audio` (default 1, whether the audio of a card plays by itself in a review). Both limits are counted per **UTC day**.
+`decks`: a unique `name`, `language_variant_id` (`ON DELETE RESTRICT`, so a variant in use by a deck cannot be deleted), `description` and `created_at`. The study options are not on the deck but on `deck_type_settings`, one row per (deck, flashcard type) (`ON DELETE CASCADE` with the deck, `RESTRICT` with the type). A type with no row uses the defaults, so a deck starts with none. The options include `day_starts_at_minute` (0 to 1439, default 360: the study day starts at 06:00 UTC, which is 03:00 in São Paulo), added by v1.1. The others are `new_cards_per_day` (default 20, 0 to 9999), `max_reviews_per_day` (default 200, 0 to 9999) and `autoplay_audio` (default 1, whether the audio of a card plays by itself in a review). Both limits are counted per **UTC day**.
 
 ## Flashcards
 

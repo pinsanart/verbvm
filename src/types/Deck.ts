@@ -24,6 +24,8 @@ export interface DeckSettings {
     maxReviewsPerDay: number;
     /** The audio of a card plays by itself in a review. */
     autoplayAudio: boolean;
+    /** When the study day starts, `HH:MM` in UTC. From then on the review cards due that day are all offered. */
+    dayStartsAt: string;
 }
 
 /** The study options of one flashcard type of a deck. */

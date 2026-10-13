@@ -352,7 +352,8 @@ fn when_nothing_is_due_the_session_says_when_the_next_card_comes() {
 
     let waiting = f.review.next_card("Deck", "vocabulary").unwrap();
     assert!(waiting.card.is_none() && waiting.intervals.is_none());
-    let soonest = 86_400 * 13 / 10;
+    // Due on 10-13 at 15:12, but a review card comes back when its study day starts: 06:00 UTC.
+    let soonest = 22 * 3_600;
     assert_eq!(waiting.next_due_in_seconds, Some(soonest), "the soonest one counts");
     assert_eq!(waiting.language_tag, "en-US");
 
@@ -384,8 +385,11 @@ fn the_daily_limit_of_new_cards_holds_the_rest_until_tomorrow() {
     assert!(done.daily_limit_reached, "cards are waiting, held back by the limit");
     assert_eq!(counts(&f, "Deck", "vocabulary"), counts_of(0, 0, 0));
 
-    f.clock.set("2026-10-13 00:00:00");
-    assert_eq!(counts(&f, "Deck", "vocabulary"), counts_of(2, 0, 0), "a new UTC day lets in two more");
+    f.clock.set("2026-10-13 05:59:00");
+    assert_eq!(counts(&f, "Deck", "vocabulary"), counts_of(0, 0, 0), "UTC midnight is not the turn of the day");
+    f.clock.set("2026-10-13 06:00:00");
+    // The two cards answered Easy are due at 15:12 that day, so the new day also offers them.
+    assert_eq!(counts(&f, "Deck", "vocabulary"), counts_of(2, 0, 2), "a new study day lets in two more");
     assert!(!f.review.next_card("Deck", "vocabulary").unwrap().daily_limit_reached);
 }
 
@@ -510,4 +514,61 @@ fn undoing_gives_the_daily_limit_back() {
     f.review.undo_answer("Deck", "vocabulary", &card.uuid).unwrap();
     let again = f.review.next_card("Deck", "vocabulary").unwrap();
     assert!(!again.daily_limit_reached && again.card.is_some());
+}
+
+/// Answers one new card Easy at the current clock and returns when its review comes.
+fn graduate_one(f: &Fixture) {
+    let card = next(f, "Deck", "vocabulary").unwrap();
+    f.review.answer(&card.uuid, 4, None).unwrap(); // Easy: due in 1.3 days
+}
+
+#[test]
+fn the_review_cards_of_the_day_are_all_offered_once_the_study_day_starts() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    add_cards(&f, "Deck", "vocabulary", 1);
+    f.clock.set("2026-10-12 09:00:00");
+    graduate_one(&f); // due on 10-13 at 16:12 UTC
+
+    f.clock.set("2026-10-13 05:59:00");
+    assert!(next(&f, "Deck", "vocabulary").is_none(), "the study day has not started");
+    f.clock.set("2026-10-13 06:00:00");
+    let card = next(&f, "Deck", "vocabulary").expect("after the rollover the card is offered, 10 hours early");
+    assert_eq!(card.state, CardState::Review);
+    assert_eq!(counts(&f, "Deck", "vocabulary"), counts_of(0, 0, 1));
+}
+
+#[test]
+fn a_review_card_due_after_the_end_of_the_study_day_waits_for_the_next_one() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    add_cards(&f, "Deck", "vocabulary", 1);
+    f.clock.set("2026-10-12 09:00:00");
+    graduate_one(&f); // due on 10-13 at 16:12, which belongs to the study day that starts 10-13 06:00
+
+    f.clock.set("2026-10-12 20:00:00");
+    let waiting = f.review.next_card("Deck", "vocabulary").unwrap();
+    assert!(waiting.card.is_none());
+    assert_eq!(waiting.next_due_in_seconds, Some(10 * 3_600), "it comes back at 06:00, not at 16:12");
+}
+
+#[test]
+fn each_type_turns_the_day_at_its_own_time() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    let noon = DeckSettings::default().with_day_starts_at(12 * 60).unwrap();
+    f.overview.update("Deck", "Deck".into(), None, &[("vocabulary".to_owned(), noon)]).unwrap();
+    add_cards(&f, "Deck", "vocabulary", 1);
+    add_cards(&f, "Deck", "phonetic", 1);
+    f.clock.set("2026-10-12 09:00:00");
+    for slug in ["vocabulary", "phonetic"] {
+        let card = next(&f, "Deck", slug).unwrap();
+        f.review.answer(&card.uuid, 4, None).unwrap(); // due on 10-13 at 16:12
+    }
+
+    f.clock.set("2026-10-13 07:00:00");
+    assert!(next(&f, "Deck", "vocabulary").is_none(), "its day starts at 12:00");
+    assert!(next(&f, "Deck", "phonetic").is_some(), "the other type keeps the default 06:00");
+    f.clock.set("2026-10-13 12:00:00");
+    assert!(next(&f, "Deck", "vocabulary").is_some());
 }

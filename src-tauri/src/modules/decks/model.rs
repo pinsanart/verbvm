@@ -11,6 +11,7 @@ pub struct DeckSettings {
     new_cards_per_day: i64,
     max_reviews_per_day: i64,
     autoplay_audio: bool,
+    day_starts_at_minute: i64,
 }
 
 impl DeckSettings {
@@ -18,6 +19,10 @@ impl DeckSettings {
     pub const MAX_PER_DAY: i64 = 9_999;
     pub const DEFAULT_NEW_CARDS_PER_DAY: i64 = 20;
     pub const DEFAULT_MAX_REVIEWS_PER_DAY: i64 = 200;
+    /// The study day starts at 06:00 UTC, which is 03:00 in São Paulo.
+    pub const DEFAULT_DAY_STARTS_AT_MINUTE: i64 = 6 * 60;
+    /// The last minute of a UTC day, 23:59.
+    pub const MAX_DAY_STARTS_AT_MINUTE: i64 = 24 * 60 - 1;
 
     /// Both limits must be between 0 and 9999.
     pub fn new(new_cards_per_day: i64, max_reviews_per_day: i64, autoplay_audio: bool) -> DecksResult<Self> {
@@ -28,7 +33,21 @@ impl DeckSettings {
         if !in_range(max_reviews_per_day) {
             return Err(DecksError::Invalid { field: "max_reviews_per_day", reason: "must be between 0 and 9999" });
         }
-        Ok(Self { new_cards_per_day, max_reviews_per_day, autoplay_audio })
+        Ok(Self {
+            new_cards_per_day,
+            max_reviews_per_day,
+            autoplay_audio,
+            day_starts_at_minute: Self::DEFAULT_DAY_STARTS_AT_MINUTE,
+        })
+    }
+
+    /// The same settings with the study day starting at this many minutes after UTC midnight
+    /// (0 to 1439).
+    pub fn with_day_starts_at(self, minute: i64) -> DecksResult<Self> {
+        if !(0..=Self::MAX_DAY_STARTS_AT_MINUTE).contains(&minute) {
+            return Err(DecksError::Invalid { field: "day_starts_at_minute", reason: "must be between 0 and 1439" });
+        }
+        Ok(Self { day_starts_at_minute: minute, ..self })
     }
 
     /// How many cards seen for the first time a day lets in.
@@ -45,6 +64,12 @@ impl DeckSettings {
     pub fn autoplay_audio(&self) -> bool {
         self.autoplay_audio
     }
+
+    /// When the study day starts, in minutes after UTC midnight. From then on, the review cards due
+    /// that day are all offered, and the daily limits count from it.
+    pub fn day_starts_at_minute(&self) -> i64 {
+        self.day_starts_at_minute
+    }
 }
 
 impl Default for DeckSettings {
@@ -53,6 +78,7 @@ impl Default for DeckSettings {
             new_cards_per_day: Self::DEFAULT_NEW_CARDS_PER_DAY,
             max_reviews_per_day: Self::DEFAULT_MAX_REVIEWS_PER_DAY,
             autoplay_audio: true,
+            day_starts_at_minute: Self::DEFAULT_DAY_STARTS_AT_MINUTE,
         }
     }
 }
@@ -165,6 +191,18 @@ mod tests {
         assert!(DeckSettings::new(9_999, 9_999, true).is_ok());
         assert!(DeckSettings::new(-1, 10, true).is_err());
         assert!(DeckSettings::new(10, 10_000, true).is_err());
+    }
+
+    #[test]
+    fn the_study_day_starts_at_six_utc_by_default_and_the_minute_is_checked() {
+        let settings = DeckSettings::default();
+        assert_eq!(settings.day_starts_at_minute(), 360, "03:00 in São Paulo");
+        assert_eq!(DeckSettings::new(1, 1, true).unwrap().day_starts_at_minute(), 360);
+        assert_eq!(settings.with_day_starts_at(0).unwrap().day_starts_at_minute(), 0);
+        assert_eq!(settings.with_day_starts_at(1_439).unwrap().day_starts_at_minute(), 1_439);
+        assert!(settings.with_day_starts_at(-1).is_err());
+        assert!(settings.with_day_starts_at(1_440).is_err());
+        assert_eq!(settings.with_day_starts_at(90).unwrap().new_cards_per_day(), 20, "the rest is kept");
     }
 
     #[test]
