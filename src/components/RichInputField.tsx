@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { CodeXml, Paperclip } from "lucide-react";
+import { CodeXml, LoaderCircle, Paperclip, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { errorClass } from "./formStyles";
 import { IconButton } from "./IconButton";
@@ -19,6 +19,13 @@ export interface RichInputFieldProps {
     onRemoveMedia?: (sha256: string) => void;
     required?: boolean;
     error?: string;
+    /** The text is IPA: it is set in the IPA typeface. */
+    ipa?: boolean;
+    /** Generates the text of the field. Resolves when the attempt is over. */
+    onGenerate?: () => Promise<unknown>;
+    /** What the generate button says, and the reason it is off when `canGenerate` is false. */
+    generateLabel?: string;
+    canGenerate?: boolean;
 }
 
 function escapeHtml(value: string) {
@@ -44,9 +51,24 @@ export function RichInputField({
     onRemoveMedia,
     required,
     error,
+    ipa,
+    onGenerate,
+    generateLabel,
+    canGenerate,
 }: RichInputFieldProps) {
     const { t } = useTranslation();
     const [showHtml, setShowHtml] = useState(false);
+    const [generating, setGenerating] = useState(false);
+
+    const generate = async () => {
+        if (!onGenerate) return;
+        setGenerating(true);
+        try {
+            await onGenerate();
+        } finally {
+            setGenerating(false);
+        }
+    };
     const id = useId();
     const labelId = `${id}-label`;
     const errorId = `${id}-error`;
@@ -93,7 +115,7 @@ export function RichInputField({
 
     return (
         <div>
-            <div className="mb-2 flex min-h-10 items-center justify-between md:min-h-9">
+            <div className="mb-1 flex min-h-10 items-center justify-between md:min-h-9">
                 <span id={labelId} className="text-ui font-medium text-muted">
                     {label}
                     {required && (
@@ -103,6 +125,16 @@ export function RichInputField({
                     )}
                 </span>
                 <div className="flex items-center gap-0.5">
+                    {onGenerate && (
+                        <IconButton
+                            label={generating ? t("media.generating") : (generateLabel ?? t("media.generate"))}
+                            icon={generating ? LoaderCircle : Sparkles}
+                            iconSize={16}
+                            className={generating ? "[&>svg]:animate-spin" : undefined}
+                            onClick={generate}
+                            disabled={!canGenerate || generating}
+                        />
+                    )}
                     <IconButton label={t("rich.editHtml")} icon={CodeXml} iconSize={16} pressed={showHtml} onClick={() => setShowHtml((v) => !v)} />
                     {allowMedia && (
                         <IconButton label={t("media.attach")} icon={Paperclip} iconSize={16} onClick={onAttachMedia} />
@@ -132,7 +164,8 @@ export function RichInputField({
                     aria-describedby={error ? errorId : undefined}
                     onInput={handleRichInput}
                     suppressContentEditableWarning
-                    className="min-h-24 w-full bg-transparent px-4 py-3 text-lead text-ink outline-none"
+                    aria-busy={generating || undefined}
+                    className={`min-h-24 w-full bg-transparent px-4 py-3 text-lead text-ink outline-none ${ipa ? "ipa" : ""}`}
                 />
 
                 {showHtml && (

@@ -14,7 +14,7 @@ export const editorControlClass = `${controlBase} px-4 py-3 text-lead`;
 export const labelClass = "mb-1.5 block text-meta font-medium text-muted";
 
 /** The label above a field of a flashcard. */
-export const editorLabelClass = "mb-2 block text-ui font-medium text-muted";
+export const editorLabelClass = "mb-1 block text-ui font-medium text-muted";
 
 /** The message under an invalid control. */
 export const errorClass = "mt-1.5 text-meta text-stack-ink";

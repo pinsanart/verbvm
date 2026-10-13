@@ -49,7 +49,7 @@ Integer ids stay inside Rust. Orchestrators resolve natural keys into ids, and m
 
 | Module | Tables | Status |
 |---|---|---|
-| `languages` | `languages`, `language_variants` | Implemented. Seeded with four accents (en-US, en-GB, fr-FR, pt-BR). Only the lists are exposed to the view |
+| `languages` | `languages`, `language_variants` | Implemented. Seeded with English (en-US, en-GB), French (fr-FR), Portuguese (pt-BR), Spanish (es-ES, es-MX) and German (de-DE). Only the lists are exposed to the view |
 | `decks` | `decks` | Implemented |
 | `card_types` | `flashcard_types`, `field_definitions` | Implemented. Seeded with vocabulary, phonetic and orthographic |
 | `flashcards` | `flashcards`, `flashcard_fields`, `flashcard_drafts`, `flashcard_draft_media`, `field_media` | Implemented: flashcards, drafts, media |
@@ -69,7 +69,7 @@ Orchestrators:
 |---|---|---|
 | `DeckOverviewOrchestrator` | decks, languages, card types, flashcards | List decks with language, accent and card counts by type. Create a deck from a language and an optional accent. Rename a deck and change its description (its language and accent are fixed). Delete a deck |
 | `ReviewSessionOrchestrator` | decks, languages, card types, flashcards, reviews, clock, media store | The review overview (each deck with the types it has cards of and their New, Learning and Review counts), the next card of a session in queue order, and recording an answer |
-| `FlashcardEditorOrchestrator` | decks, languages, card types, flashcards, sanitizer, media store, speech synthesizer | The form of every type in a deck. Add a draft of a type, edit, move, duplicate and delete drafts in the deck's single mixed list. Attach and remove media, and generate the audio of an audio field with text to speech. Publish all the drafts, each against the fields of its own type |
+| `FlashcardEditorOrchestrator` | decks, languages, card types, flashcards, sanitizer, media store, speech synthesizer, pronunciation source | The form of every type in a deck. Add a draft of a type, edit, move, duplicate and delete drafts in the deck's single mixed list. Attach and remove media, and generate the audio of an audio field with text to speech and the pronunciation of an IPA field from the dictionary. Stacks: add a stack of three drafts, add or take out a card, generate a whole stack, edit the saved cards of a stack together. Publish all the drafts, each against the fields of its own type |
 
 ## How the view logic is organized
 

@@ -10,6 +10,7 @@ use tauri::Manager;
 use dependencies::clock::{Clock, SystemClock};
 use dependencies::db::connection::SqliteHandle;
 use dependencies::media_store::{LocalMediaStore, MediaStorage};
+use dependencies::pronunciation::{IpaDictionary, PronunciationSource};
 use dependencies::sanitizer::{AmmoniaSanitizer, HtmlSanitizer};
 use dependencies::speech::{GoogleTranslateSynthesizer, SpeechSynthesizer};
 use modules::card_types::{CardTypeApi, CardTypeService};
@@ -40,6 +41,12 @@ pub fn run() {
             // Google Translate is the only provider for now. Another one only needs to implement
             // `SpeechSynthesizer` and be built here.
             let speech: Arc<dyn SpeechSynthesizer> = Arc::new(GoogleTranslateSynthesizer::new());
+            // The pronunciation dictionary is built by an import from the `ipa-dict` word lists and
+            // lives in its own file. The same instance is the source for the editor and what the
+            // import command fills.
+            let dictionary = Arc::new(IpaDictionary::new(data_dir.join("ipa.db")));
+            let pronunciation: Arc<dyn PronunciationSource> = dictionary.clone();
+            app.manage(dictionary);
 
             app.manage(languages.clone());
             app.manage(Arc::new(DeckOverviewOrchestrator::new(
@@ -56,6 +63,7 @@ pub fn run() {
                 sanitizer,
                 media.clone(),
                 speech,
+                pronunciation,
             )));
             app.manage(Arc::new(ReviewSessionOrchestrator::new(
                 decks, languages, card_types, flashcards, reviews, clock, media,
@@ -79,6 +87,12 @@ pub fn run() {
             commands::flashcards::delete_draft,
             commands::flashcards::attach_media,
             commands::flashcards::generate_media,
+            commands::flashcards::generate_pronunciation,
+            commands::flashcards::add_stack,
+            commands::flashcards::add_stack_member,
+            commands::flashcards::unstack_draft,
+            commands::flashcards::delete_stack,
+            commands::flashcards::generate_stack,
             commands::flashcards::remove_media,
             commands::flashcards::publish_drafts,
             commands::media::read_media,
@@ -86,6 +100,13 @@ pub fn run() {
             commands::flashcards::update_saved_card,
             commands::flashcards::attach_saved_card_media,
             commands::flashcards::generate_saved_card_media,
+            commands::flashcards::generate_saved_card_pronunciation,
+            commands::flashcards::update_saved_cards,
+            commands::flashcards::unstack_saved_card,
+            commands::flashcards::delete_saved_stack,
+            commands::flashcards::generate_saved_stack,
+            commands::pronunciation::pronunciation_status,
+            commands::pronunciation::import_pronunciation_dictionary,
             commands::flashcards::remove_saved_card_media,
             commands::flashcards::delete_saved_card,
             commands::review::list_review_overview,

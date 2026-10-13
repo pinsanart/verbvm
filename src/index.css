@@ -5,6 +5,10 @@
      The CJK fonts are fallbacks for the languages Inter does not cover. */
   --font-sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
     "Noto Sans CJK SC", "Hiragino Sans", "Yu Gothic UI", "Microsoft YaHei UI", "Malgun Gothic", sans-serif;
+  /* IPA symbols: the interface font may lack some, and a browser falls back one glyph at a time, so
+     the fallbacks are fonts that cover the IPA Extensions block. */
+  --font-ipa: "Inter Variable", Inter, "Noto Sans", "DejaVu Sans", "Segoe UI", "Lucida Sans Unicode",
+    "Arial Unicode MS", system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 
   /* Surfaces, from the page outward: the canvas the content sits on, the panels (sidebar, cards)
@@ -136,6 +140,15 @@ html {
   .rich u {
     text-decoration: underline;
     text-underline-offset: 0.2em;
+  }
+
+  /* The pronunciation of a word: the word is bold and the symbols get a little room. */
+  .ipa {
+    font-family: var(--font-ipa);
+    letter-spacing: 0.01em;
+  }
+  .ipa b {
+    font-weight: 600;
   }
 
   /* The parts of the browser that are not drawn by the app still belong to it. */

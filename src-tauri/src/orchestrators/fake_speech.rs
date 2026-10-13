@@ -6,7 +6,7 @@ use async_trait::async_trait;
 
 use crate::dependencies::speech::{SpeechError, SpeechSynthesizer, SynthesizedAudio};
 
-/// A minimal MP3 header the media store accepts.
+/// A minimal MP3 header the media store accepts. Generated audio starts with it.
 pub const FAKE_MP3: &[u8] = b"ID3\x03\x00\x00\x00\x00\x00\x00audio-bytes";
 
 #[derive(Default)]
@@ -23,6 +23,9 @@ impl SpeechSynthesizer for FakeSpeech {
         if self.fail {
             return Err(SpeechError::Unavailable("offline".into()));
         }
-        Ok(SynthesizedAudio { bytes: FAKE_MP3.to_vec() })
+        // The text is appended, so different phrases give different files, as a real voice would.
+        let mut bytes = FAKE_MP3.to_vec();
+        bytes.extend_from_slice(text.as_bytes());
+        Ok(SynthesizedAudio { bytes })
     }
 }

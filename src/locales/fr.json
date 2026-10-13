@@ -111,7 +111,8 @@
     "generateHint": "Écrivez la phrase, puis générez son audio ou joignez un fichier.",
     "replay": "Rejouer",
     "loadingAudio": "Chargement de l'audio",
-    "autoplayBlocked": "L'audio n'a pas pu démarrer tout seul. Appuyez sur lecture pour l'entendre."
+    "autoplayBlocked": "L'audio n'a pas pu démarrer tout seul. Appuyez sur lecture pour l'entendre.",
+    "generatePronunciation": "Générer la prononciation à partir du texte"
   },
   "rich": {
     "editHtml": "Modifier le HTML",
@@ -167,7 +168,7 @@
     "dailyLimitReached": "La limite quotidienne de ce paquet est atteinte. Le reste des cartes revient dans {{interval}}.",
     "remembered": "Réponses justes",
     "missed": "Réponses ratées",
-    "undoAria": "Annuler la dernière réponse (Z)",
+    "undoAria": "Annuler la dernière réponse",
     "reloadFailed": "Votre réponse est enregistrée, mais la carte suivante n'a pas pu être chargée.",
     "retry": "Réessayer",
     "diffBoth": "{{extra}} lettres en trop et {{missing}} manquantes",
@@ -177,7 +178,7 @@
     "diffMissing_one": "{{count}} lettre manquante",
     "diffMissing_many": "{{count}} de lettres manquantes",
     "diffMissing_other": "{{count}} lettres manquantes",
-    "dictationHint": "Alt+R rejoue l'audio",
+    "dictationHint": "Alt+R rejoue l'audio, Alt+Espace affiche la réponse",
     "waitingLabel": "Cartes en attente",
     "cardAria": "Carte {{type}}, {{state}}"
   },
@@ -201,7 +202,11 @@
     "count_other": "{{count}} cartes enregistrées",
     "countOf": "{{shown}} sur {{total}} cartes enregistrées",
     "noMatch": "Aucune carte enregistrée ne correspond à cette recherche.",
-    "mediaOnly": "Média uniquement"
+    "mediaOnly": "Média uniquement",
+    "stackRow": "Pile",
+    "expandAria": "Afficher les cartes de cette pile",
+    "collapseAria": "Masquer les cartes de cette pile",
+    "openStackAria": "Modifier toute la pile : {{phrase}}"
   },
   "panel": {
     "editAria": "Modifier la carte {{type}}",
@@ -209,7 +214,9 @@
     "saved": "Modifications enregistrées. L'historique de révision de cette carte est conservé.",
     "discardPrompt": "Abandonner vos modifications non enregistrées ?",
     "keepEditing": "Continuer à modifier",
-    "discard": "Abandonner"
+    "discard": "Abandonner",
+    "stackTitle": "Modifier la pile",
+    "stackAria": "Modifier la pile"
   },
   "errors": {
     "tauriUnavailable": "Tauri n'est pas disponible ici. Lancez l'application avec `npm run tauri dev`."
@@ -220,5 +227,35 @@
     "meaning": "Signification",
     "ipa_phonetics": "Phonétique API",
     "audio": "Audio"
+  },
+  "stack": {
+    "aria": "Pile",
+    "phrase": "Phrase",
+    "sharedHint": "Partagée par les cartes de cette pile. Chaque carte peut avoir la sienne.",
+    "generate": "Générer l'audio et la prononciation",
+    "generating": "Génération de l'audio et de la prononciation",
+    "settingsLink": "Réglages du dictionnaire de prononciation",
+    "linkedAria": "Phrase liée à la pile. Appuyez pour donner à cette carte sa propre phrase.",
+    "unlinkedAria": "Cette carte a sa propre phrase. Appuyez pour la lier à la pile.",
+    "useStackPhrase": "Utiliser la phrase de la pile",
+    "takeOutAria": "Sortir cette carte de la pile",
+    "addBack": "Ajouter {{type}}",
+    "deleteAria": "Supprimer la pile et toutes ses cartes",
+    "confirmDeleteAria": "Confirmer la suppression de la pile et de toutes ses cartes"
+  },
+  "dictionary": {
+    "title": "Dictionnaire de prononciation",
+    "intro": "Les prononciations (API) viennent des listes de mots d'ipa-dict, qui ne font pas partie de l'application. Importez leur dossier une fois et il reste sur cet ordinateur.",
+    "installed": "Installé",
+    "notInstalled": "Non installé",
+    "words_one": "{{count}} mot",
+    "words_many": "{{count}} de mots",
+    "words_other": "{{count}} mots",
+    "import": "Importer depuis un dossier…",
+    "importing": "Importation…",
+    "importingHint": "Lecture d'environ 2,5 millions de mots. Cela peut prendre une minute.",
+    "imported": "Le dictionnaire a été importé.",
+    "empty": "Rien n'est installé pour l'instant : les boutons de prononciation indiqueront que le dictionnaire manque.",
+    "licenseNote": "Les listes de mots ont des licences différentes. Lisez les notes de docs/development.md avant de partager l'application."
   }
 }

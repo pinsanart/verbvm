@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use super::error::{OrchestratorError, OrchestratorResult};
+use super::pronunciation_text;
 use crate::dependencies::media_store::{MediaStorage, StoredMedia};
+use crate::dependencies::pronunciation::PronunciationSource;
 use crate::dependencies::sanitizer::HtmlSanitizer;
 use crate::dependencies::speech::SpeechSynthesizer;
 use crate::modules::card_types::{CardTypeApi, FieldDefinition, FlashcardType};
@@ -31,6 +33,16 @@ pub struct EditorForm {
     pub types: Vec<TypeForm>,
 }
 
+/// What a generation produced, with the problems that did not stop it (for example the words that
+/// had no pronunciation, or one of the two things a stack generates failing).
+#[derive(Debug, Clone)]
+pub struct Generated<T> {
+    pub value: T,
+    pub warnings: Vec<String>,
+}
+
+mod stacks;
+
 /// A saved flashcard in the shape the editor works with: its values and media by field key, the
 /// same as a draft, so one form edits both.
 #[derive(Debug, Clone)]
@@ -41,6 +53,8 @@ pub struct SavedCard {
     pub media: BTreeMap<String, Vec<MediaAttachment>>,
     pub created_at: Option<chrono::DateTime<chrono::Utc>>,
     pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// The stack that links this card to the others made with it, if any.
+    pub stack_uuid: Option<String>,
 }
 
 /// A problem that stopped a draft from being published.
@@ -75,6 +89,7 @@ pub struct FlashcardEditorOrchestrator {
     sanitizer: Arc<dyn HtmlSanitizer>,
     media: Arc<dyn MediaStorage>,
     speech: Arc<dyn SpeechSynthesizer>,
+    pronunciation: Arc<dyn PronunciationSource>,
 }
 
 /// The most media files one field can hold.
@@ -123,8 +138,9 @@ impl FlashcardEditorOrchestrator {
         sanitizer: Arc<dyn HtmlSanitizer>,
         media: Arc<dyn MediaStorage>,
         speech: Arc<dyn SpeechSynthesizer>,
+        pronunciation: Arc<dyn PronunciationSource>,
     ) -> Self {
-        Self { decks, languages, card_types, flashcards, sanitizer, media, speech }
+        Self { decks, languages, card_types, flashcards, sanitizer, media, speech, pronunciation }
     }
 
     pub fn form(&self, deck_name: &str) -> OrchestratorResult<EditorForm> {
@@ -230,7 +246,23 @@ impl FlashcardEditorOrchestrator {
 
         let audio = self.speech.synthesize(&text, &language_tag).await?;
         let attachment = Self::attachment_of(self.media.import_bytes(&audio.bytes)?)?;
-        Ok(self.flashcards.attach_draft_media(draft_uuid, field_key, attachment)?)
+        let keep = attachment.sha256().to_owned();
+        let draft = self.flashcards.attach_draft_media(draft_uuid, field_key, attachment)?;
+        // Generating makes the audio of the phrase as it is now, so the audio of an older phrase
+        // is replaced.
+        let mut draft = draft;
+        let stale: Vec<String> = draft
+            .media()
+            .get(field_key)
+            .into_iter()
+            .flatten()
+            .filter(|m| m.sha256() != keep)
+            .map(|m| m.sha256().to_owned())
+            .collect();
+        for sha256 in stale {
+            draft = self.flashcards.remove_draft_media(draft_uuid, field_key, &sha256)?;
+        }
+        Ok(draft)
     }
 
     /// Detaches a file (by its hash) from a field of a draft. The file stays in the media store.
@@ -270,12 +302,24 @@ impl FlashcardEditorOrchestrator {
         card_uuid: &str,
         values: BTreeMap<String, String>,
     ) -> OrchestratorResult<SavedCard> {
+        let (ctx, _, fields) = self.prepare_saved_update(card_uuid, &values)?;
+        let updated = self.flashcards.update_flashcard_fields(card_uuid, fields)?;
+        Self::saved_card(&ctx, &updated)
+    }
+
+    /// Checks the new text of a saved flashcard against the rules of its type and returns what
+    /// would be stored, without storing it.
+    fn prepare_saved_update(
+        &self,
+        card_uuid: &str,
+        values: &BTreeMap<String, String>,
+    ) -> OrchestratorResult<(Context, Flashcard, Vec<FieldValue>)> {
         let card = self.flashcards.get_flashcard(card_uuid)?;
         let ctx = self.context_of_deck(card.deck_id())?;
         let type_context = ctx.type_by_id(card.flashcard_type_id())?;
 
         let mut fields = Vec::new();
-        for (key, raw) in &values {
+        for (key, raw) in values {
             let definition = type_context.fields.iter().find(|f| f.key() == key).ok_or_else(|| {
                 OrchestratorError::Invalid(format!("'{key}' is not a field of this flashcard type"))
             })?;
@@ -301,8 +345,7 @@ impl FlashcardEditorOrchestrator {
                 return Err(OrchestratorError::Invalid(format!("{} is required", definition.label())));
             }
         }
-        let updated = self.flashcards.update_flashcard_fields(card_uuid, fields)?;
-        Self::saved_card(&ctx, &updated)
+        Ok((ctx, card, fields))
     }
 
     /// Copies a file into the media store and attaches it to a field of a saved flashcard, under
@@ -370,9 +413,20 @@ impl FlashcardEditorOrchestrator {
 
         let audio = self.speech.synthesize(&text, &language_tag).await?;
         let attachment = Self::attachment_of(self.media.import_bytes(&audio.bytes)?)?;
-        let updated = self
+        let keep = attachment.sha256().to_owned();
+        let mut updated = self
             .flashcards
             .attach_flashcard_media(card_uuid, FieldMedia { field_definition_id: definition_id, attachment })?;
+        // Generating makes the audio of the phrase as it is now, so older audio is replaced.
+        let stale: Vec<String> = updated
+            .media()
+            .iter()
+            .filter(|m| m.field_definition_id == definition_id && m.attachment.sha256() != keep)
+            .map(|m| m.attachment.sha256().to_owned())
+            .collect();
+        for sha256 in stale {
+            updated = self.flashcards.remove_flashcard_media(card_uuid, definition_id, &sha256)?;
+        }
         let ctx = self.context_of_deck(updated.deck_id())?;
         Self::saved_card(&ctx, &updated)
     }
@@ -412,6 +466,35 @@ impl FlashcardEditorOrchestrator {
             OrchestratorError::Invalid(format!("{} cannot be generated", definition.label()))
         })?;
         Self::field_by_key(fields, source_key)
+    }
+
+    /// The field an IPA field is generated from. Only IPA fields can be generated this way.
+    fn ipa_source<'a>(
+        fields: &'a [FieldDefinition],
+        definition: &FieldDefinition,
+    ) -> OrchestratorResult<&'a FieldDefinition> {
+        let source_key = definition.source_key().filter(|_| definition.is_ipa()).ok_or_else(|| {
+            OrchestratorError::Invalid(format!("{} cannot be generated", definition.label()))
+        })?;
+        Self::field_by_key(fields, source_key)
+    }
+
+    /// The pronunciation of the words of `text` in the deck's language, as the HTML of an IPA
+    /// field, and a warning naming the words that had none.
+    fn pronunciation_html(&self, text: &str, language_tag: &str) -> OrchestratorResult<(String, Vec<String>)> {
+        let result = pronunciation_text::transcribe(text, language_tag, self.pronunciation.as_ref())?;
+        if result.html.is_empty() {
+            return Err(OrchestratorError::Invalid(format!(
+                "no pronunciation was found for the words of the phrase ({})",
+                result.missing.join(", ")
+            )));
+        }
+        let warnings = if result.missing.is_empty() {
+            Vec::new()
+        } else {
+            vec![format!("No pronunciation found for: {}", result.missing.join(", "))]
+        };
+        Ok((self.sanitizer.sanitize_html(&result.html), warnings))
     }
 
     /// The plain text of a source field's value, ready to be spoken.
@@ -476,6 +559,7 @@ impl FlashcardEditorOrchestrator {
             media,
             created_at: card.created_at(),
             updated_at: card.updated_at(),
+            stack_uuid: card.stack_uuid().map(str::to_owned),
         })
     }
 
@@ -562,6 +646,7 @@ impl FlashcardEditorOrchestrator {
                 flashcard_type_id: type_context.type_id,
                 fields,
                 media,
+                stack_uuid: draft.stack_uuid().map(str::to_owned),
             });
         }
 

@@ -46,7 +46,7 @@ export function ReviewCountsInline({ counts, current }: ReviewCountsInlineProps)
             <p
                 id={legendId}
                 role="tooltip"
-                className="absolute right-0 top-full z-30 mt-2 hidden w-72 rounded-lg border border-line-strong bg-raised p-3 text-ui text-muted shadow-lg shadow-black/30 group-focus-within:block group-hover:block"
+                className="absolute right-0 top-full z-30 mt-2 hidden w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-line-strong bg-raised p-3 text-ui text-muted shadow-lg shadow-black/30 group-focus-within:block group-hover:block"
             >
                 <Trans i18nKey="review.legend" components={{ b: <b className="font-medium text-ink" /> }} />
             </p>

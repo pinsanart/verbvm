@@ -111,7 +111,8 @@
     "generateHint": "Escreva a frase e gere o áudio dela ou anexe um arquivo.",
     "replay": "Repetir",
     "loadingAudio": "Carregando o áudio",
-    "autoplayBlocked": "O áudio não conseguiu começar sozinho. Aperte play para ouvir."
+    "autoplayBlocked": "O áudio não conseguiu começar sozinho. Aperte play para ouvir.",
+    "generatePronunciation": "Gerar a pronúncia a partir do texto"
   },
   "rich": {
     "editHtml": "Editar HTML",
@@ -167,7 +168,7 @@
     "dailyLimitReached": "O limite diário deste deck foi atingido. O restante dos cards volta em {{interval}}.",
     "remembered": "Respostas certas",
     "missed": "Respostas erradas",
-    "undoAria": "Desfazer a última resposta (Z)",
+    "undoAria": "Desfazer a última resposta",
     "reloadFailed": "Sua resposta foi salva, mas não foi possível carregar o próximo card.",
     "retry": "Tentar de novo",
     "diffBoth": "{{extra}} letras a mais e {{missing}} faltando",
@@ -177,7 +178,7 @@
     "diffMissing_one": "{{count}} letra faltando",
     "diffMissing_many": "{{count}} de letras faltando",
     "diffMissing_other": "{{count}} letras faltando",
-    "dictationHint": "Alt+R toca o áudio de novo",
+    "dictationHint": "Alt+R toca o áudio de novo, Alt+Espaço mostra a resposta",
     "waitingLabel": "Cards pendentes",
     "cardAria": "Card de {{type}}, {{state}}"
   },
@@ -201,7 +202,11 @@
     "count_other": "{{count}} cartões salvos",
     "countOf": "{{shown}} de {{total}} cartões salvos",
     "noMatch": "Nenhum cartão salvo corresponde a esta pesquisa.",
-    "mediaOnly": "Somente mídia"
+    "mediaOnly": "Somente mídia",
+    "stackRow": "Pilha",
+    "expandAria": "Mostrar os cards desta pilha",
+    "collapseAria": "Esconder os cards desta pilha",
+    "openStackAria": "Editar a pilha inteira: {{phrase}}"
   },
   "panel": {
     "editAria": "Editar cartão {{type}}",
@@ -209,7 +214,9 @@
     "saved": "Alterações salvas. O histórico de revisão deste cartão foi mantido.",
     "discardPrompt": "Descartar suas alterações não salvas?",
     "keepEditing": "Continuar editando",
-    "discard": "Descartar"
+    "discard": "Descartar",
+    "stackTitle": "Editar pilha",
+    "stackAria": "Editar a pilha"
   },
   "errors": {
     "tauriUnavailable": "O Tauri não está disponível aqui. Execute o aplicativo com `npm run tauri dev`."
@@ -220,5 +227,35 @@
     "meaning": "Significado",
     "ipa_phonetics": "Fonética IPA",
     "audio": "Áudio"
+  },
+  "stack": {
+    "aria": "Pilha",
+    "phrase": "Frase",
+    "sharedHint": "Compartilhada pelos cards desta pilha. Cada card pode ter a sua.",
+    "generate": "Gerar áudio e pronúncia",
+    "generating": "Gerando áudio e pronúncia",
+    "settingsLink": "Configurações do dicionário de pronúncia",
+    "linkedAria": "Frase vinculada à pilha. Aperte para dar a este card uma frase própria.",
+    "unlinkedAria": "Este card tem uma frase própria. Aperte para vinculá-lo à pilha.",
+    "useStackPhrase": "Usar a frase da pilha",
+    "takeOutAria": "Tirar este card da pilha",
+    "addBack": "Adicionar {{type}}",
+    "deleteAria": "Excluir a pilha e todos os seus cards",
+    "confirmDeleteAria": "Confirmar a exclusão da pilha e de todos os seus cards"
+  },
+  "dictionary": {
+    "title": "Dicionário de pronúncia",
+    "intro": "As pronúncias (IPA) vêm das listas de palavras do ipa-dict, que não fazem parte do app. Importe a pasta uma vez e ela fica neste computador.",
+    "installed": "Instalado",
+    "notInstalled": "Não instalado",
+    "words_one": "{{count}} palavra",
+    "words_many": "{{count}} de palavras",
+    "words_other": "{{count}} palavras",
+    "import": "Importar de uma pasta…",
+    "importing": "Importando…",
+    "importingHint": "Lendo cerca de 2,5 milhões de palavras. Pode levar um minuto.",
+    "imported": "O dicionário foi importado.",
+    "empty": "Nada está instalado ainda, então os botões de pronúncia vão avisar que falta o dicionário.",
+    "licenseNote": "As listas de palavras têm licenças diferentes. Leia as notas em docs/development.md antes de compartilhar o app."
   }
 }

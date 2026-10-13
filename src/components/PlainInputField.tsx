@@ -36,7 +36,7 @@ export function PlainInputField({
 
     return (
         <div>
-            <div className="mb-2 flex min-h-10 items-center justify-between md:min-h-9">
+            <div className={`mb-1 flex items-center justify-between ${allowMedia ? "min-h-10 md:min-h-9" : ""}`}>
                 <label htmlFor={id} className={`${editorLabelClass} mb-0`}>
                     {label}
                     {required && (
@@ -54,7 +54,7 @@ export function PlainInputField({
                 aria-required={required || undefined}
                 aria-invalid={error ? true : undefined}
                 aria-describedby={error ? errorId : undefined}
-                className={`${editorControlClass} min-h-24 resize-y`}
+                className={`${editorControlClass} min-h-20 resize-y`}
             />
             {error && (
                 <p id={errorId} className={errorClass}>

@@ -20,6 +20,16 @@ pub trait FlashcardRepository: Send + Sync {
     fn find_flashcards_by_deck(&self, deck_id: i64) -> Result<Vec<Flashcard>, DbError>;
     /// Cascades to the flashcard's field values.
     fn delete_flashcard(&self, uuid: &str) -> Result<bool, DbError>;
+    /// The flashcards linked by a stack, with their values, oldest first.
+    fn find_flashcards_by_stack(&self, stack_uuid: &str) -> Result<Vec<Flashcard>, DbError>;
+    /// Links a flashcard to the stack with this uuid (creating the stack when it is new), or
+    /// unlinks it with `None`. Returns `false` when the flashcard does not exist.
+    fn set_flashcard_stack(&self, uuid: &str, stack_uuid: Option<&str>) -> Result<bool, DbError>;
+    /// Deletes every flashcard of a stack and the stack. Returns how many cards were deleted.
+    fn delete_flashcards_in_stack(&self, stack_uuid: &str) -> Result<usize, DbError>;
+    /// A stack with fewer than two flashcards is not a stack: unlinks the one that is left and
+    /// deletes the stack.
+    fn dissolve_stack_if_small(&self, stack_uuid: &str) -> Result<(), DbError>;
     fn count_by_type(&self, deck_id: i64) -> Result<Vec<TypeCount>, DbError>;
     /// Replaces the text of a saved flashcard: the given fields are written and the others are
     /// cleared (a field that still has media stays, with empty text). The flashcard keeps its id,
@@ -44,6 +54,17 @@ pub trait FlashcardRepository: Send + Sync {
         &self,
         source_uuid: &str,
         draft: &FlashcardDraft,
+    ) -> Result<Option<FlashcardDraft>, DbError> {
+        self.insert_draft_copy(source_uuid, source_uuid, draft)
+    }
+    /// Stores an unsaved draft right after the draft `after_uuid`, as a copy of `copy_of_uuid`
+    /// (same type, and its media is copied), moving the later ones down. Returns `None` when
+    /// either does not exist.
+    fn insert_draft_copy(
+        &self,
+        copy_of_uuid: &str,
+        after_uuid: &str,
+        draft: &FlashcardDraft,
     ) -> Result<Option<FlashcardDraft>, DbError>;
     fn find_draft(&self, uuid: &str) -> Result<Option<FlashcardDraft>, DbError>;
     /// The drafts of a deck, of every type, by position.
@@ -53,8 +74,15 @@ pub trait FlashcardRepository: Send + Sync {
         uuid: &str,
         values: &BTreeMap<String, String>,
     ) -> Result<bool, DbError>;
-    /// Exchanges the positions of two drafts. Returns `false` if either does not exist.
-    fn swap_draft_positions(&self, uuid_a: &str, uuid_b: &str) -> Result<bool, DbError>;
+    /// The drafts of a stack, by position.
+    fn find_drafts_by_stack(&self, stack_uuid: &str) -> Result<Vec<FlashcardDraft>, DbError>;
+    /// Puts a deck's drafts in this order (positions 0, 1, 2...). Drafts not listed keep their
+    /// relative order after the listed ones.
+    fn reorder_drafts(&self, deck_id: i64, ordered_uuids: &[String]) -> Result<(), DbError>;
+    /// Sets or clears the stack of a draft. Returns `false` when the draft does not exist.
+    fn set_draft_stack(&self, uuid: &str, stack_uuid: Option<&str>) -> Result<bool, DbError>;
+    /// Deletes every draft of a stack. Returns how many were deleted.
+    fn delete_drafts_in_stack(&self, stack_uuid: &str) -> Result<usize, DbError>;
     fn delete_draft(&self, uuid: &str) -> Result<bool, DbError>;
     /// Attaches media to a field of a draft, after the media already there. Attaching the same
     /// file to the same field again changes nothing. Returns `false` when the draft does not exist.
@@ -83,8 +111,11 @@ pub trait FlashcardRepository: Send + Sync {
 }
 
 const CARD_COLUMNS: &str = "id, uuid, deck_id, flashcard_type_id, created_at, updated_at";
+/// The same plus the uuid of the flashcard's stack, for reading (not for `RETURNING`).
+const CARD_SELECT: &str = "id, uuid, deck_id, flashcard_type_id, created_at, updated_at,
+     (SELECT s.uuid FROM stacks s WHERE s.id = flashcards.stack_id)";
 const DRAFT_COLUMNS: &str =
-    "id, uuid, deck_id, flashcard_type_id, position, values_json, updated_at";
+    "id, uuid, deck_id, flashcard_type_id, position, values_json, stack_uuid, updated_at";
 
 fn conversion_error(idx: usize, message: String) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(idx, Type::Text, message.into())
@@ -168,6 +199,7 @@ fn card_from_row(row: &Row, fields: Vec<FieldValue>, media: Vec<FieldMedia>) -> 
         optional_utc_column(row, 5)?,
         fields,
         media,
+        row.get(6)?,
     ))
 }
 
@@ -183,7 +215,8 @@ fn draft_from_row(row: &Row) -> rusqlite::Result<FlashcardDraft> {
         row.get(4)?,
         values,
         BTreeMap::new(),
-        utc_column(row, 6)?,
+        row.get(6)?,
+        utc_column(row, 7)?,
     ))
 }
 
@@ -222,6 +255,10 @@ fn insert_flashcard_in(tx: &Transaction, flashcard: &Flashcard) -> rusqlite::Res
             ))
         },
     )?;
+
+    if let Some(stack_uuid) = flashcard.stack_uuid() {
+        link_to_stack(tx, id, stack_uuid)?;
+    }
 
     let mut fields = flashcard.fields().to_vec();
     for field in &fields {
@@ -262,7 +299,45 @@ fn insert_flashcard_in(tx: &Transaction, flashcard: &Flashcard) -> rusqlite::Res
         )?;
     }
 
-    Ok(Flashcard::restore(id, uuid, deck_id, type_id, created, updated, fields, flashcard.media().to_vec()))
+    Ok(Flashcard::restore(
+        id,
+        uuid,
+        deck_id,
+        type_id,
+        created,
+        updated,
+        fields,
+        flashcard.media().to_vec(),
+        flashcard.stack_uuid().map(str::to_owned),
+    ))
+}
+
+/// Links a flashcard to the stack with this uuid, creating the stack when it does not exist.
+fn link_to_stack(conn: &Connection, flashcard_id: i64, stack_uuid: &str) -> rusqlite::Result<()> {
+    conn.execute("INSERT OR IGNORE INTO stacks (uuid) VALUES (?1)", [stack_uuid])?;
+    conn.execute(
+        "UPDATE flashcards SET stack_id = (SELECT id FROM stacks WHERE uuid = ?1) WHERE id = ?2",
+        params![stack_uuid, flashcard_id],
+    )?;
+    Ok(())
+}
+
+/// Unlinks the flashcards of a stack and deletes the stack when fewer than two are left.
+fn dissolve_if_small(conn: &Connection, stack_uuid: &str) -> rusqlite::Result<()> {
+    let members: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM flashcards f JOIN stacks s ON s.id = f.stack_id WHERE s.uuid = ?1",
+        [stack_uuid],
+        |row| row.get(0),
+    )?;
+    if members < 2 {
+        conn.execute(
+            "UPDATE flashcards SET stack_id = NULL
+             WHERE stack_id = (SELECT id FROM stacks WHERE uuid = ?1)",
+            [stack_uuid],
+        )?;
+        conn.execute("DELETE FROM stacks WHERE uuid = ?1", [stack_uuid])?;
+    }
+    Ok(())
 }
 
 pub struct SqliteFlashcardRepository {
@@ -289,7 +364,7 @@ impl FlashcardRepository for SqliteFlashcardRepository {
         self.db.with_connection(|conn| {
             let card = conn
                 .query_row(
-                    &format!("SELECT {CARD_COLUMNS} FROM flashcards WHERE uuid = ?1"),
+                    &format!("SELECT {CARD_SELECT} FROM flashcards WHERE uuid = ?1"),
                     [uuid],
                     |row| card_from_row(row, Vec::new(), Vec::new()),
                 )
@@ -307,6 +382,7 @@ impl FlashcardRepository for SqliteFlashcardRepository {
                 card.updated_at(),
                 fields,
                 media,
+                card.stack_uuid().map(str::to_owned),
             )))
         })
     }
@@ -336,7 +412,7 @@ impl FlashcardRepository for SqliteFlashcardRepository {
             let mut media = load_card_media(conn, &card_ids)?;
 
             conn.prepare(&format!(
-                "SELECT {CARD_COLUMNS} FROM flashcards WHERE deck_id = ?1 ORDER BY created_at, id"
+                "SELECT {CARD_SELECT} FROM flashcards WHERE deck_id = ?1 ORDER BY created_at, id"
             ))?
             .query_map([deck_id], |row| {
                 let id: i64 = row.get(0)?;
@@ -352,8 +428,80 @@ impl FlashcardRepository for SqliteFlashcardRepository {
 
     fn delete_flashcard(&self, uuid: &str) -> Result<bool, DbError> {
         self.db.with_connection(|conn| {
-            Ok(conn.execute("DELETE FROM flashcards WHERE uuid = ?1", [uuid])? > 0)
+            let stack: Option<String> = conn
+                .query_row(
+                    "SELECT s.uuid FROM flashcards f JOIN stacks s ON s.id = f.stack_id WHERE f.uuid = ?1",
+                    [uuid],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            let deleted = conn.execute("DELETE FROM flashcards WHERE uuid = ?1", [uuid])? > 0;
+            if let Some(stack) = stack {
+                dissolve_if_small(conn, &stack)?;
+            }
+            Ok(deleted)
         })
+    }
+
+    fn find_flashcards_by_stack(&self, stack_uuid: &str) -> Result<Vec<Flashcard>, DbError> {
+        let uuids: Vec<String> = self.db.with_connection(|conn| {
+            conn.prepare(
+                "SELECT f.uuid FROM flashcards f JOIN stacks s ON s.id = f.stack_id
+                 WHERE s.uuid = ?1 ORDER BY f.created_at, f.id",
+            )?
+            .query_map([stack_uuid], |row| row.get(0))?
+            .collect()
+        })?;
+        let mut cards = Vec::with_capacity(uuids.len());
+        for uuid in uuids {
+            if let Some(card) = self.find_flashcard(&uuid)? {
+                cards.push(card);
+            }
+        }
+        Ok(cards)
+    }
+
+    fn set_flashcard_stack(&self, uuid: &str, stack_uuid: Option<&str>) -> Result<bool, DbError> {
+        self.db.with_connection(|conn| {
+            let tx = conn.unchecked_transaction()?;
+            let found: Option<(i64, Option<String>)> = tx
+                .query_row(
+                    "SELECT f.id, (SELECT s.uuid FROM stacks s WHERE s.id = f.stack_id)
+                     FROM flashcards f WHERE f.uuid = ?1",
+                    [uuid],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()?;
+            let Some((id, previous)) = found else { return Ok(false) };
+            match stack_uuid {
+                Some(stack) => link_to_stack(&tx, id, stack)?,
+                None => {
+                    tx.execute("UPDATE flashcards SET stack_id = NULL WHERE id = ?1", [id])?;
+                }
+            }
+            if let Some(previous) = previous.filter(|p| Some(p.as_str()) != stack_uuid) {
+                dissolve_if_small(&tx, &previous)?;
+            }
+            tx.commit()?;
+            Ok(true)
+        })
+    }
+
+    fn delete_flashcards_in_stack(&self, stack_uuid: &str) -> Result<usize, DbError> {
+        self.db.with_connection(|conn| {
+            let tx = conn.unchecked_transaction()?;
+            let deleted = tx.execute(
+                "DELETE FROM flashcards WHERE stack_id = (SELECT id FROM stacks WHERE uuid = ?1)",
+                [stack_uuid],
+            )?;
+            tx.execute("DELETE FROM stacks WHERE uuid = ?1", [stack_uuid])?;
+            tx.commit()?;
+            Ok(deleted)
+        })
+    }
+
+    fn dissolve_stack_if_small(&self, stack_uuid: &str) -> Result<(), DbError> {
+        self.db.with_connection(|conn| dissolve_if_small(conn, stack_uuid))
     }
 
     fn count_by_type(&self, deck_id: i64) -> Result<Vec<TypeCount>, DbError> {
@@ -482,39 +630,44 @@ impl FlashcardRepository for SqliteFlashcardRepository {
         self.db.with_connection(|conn| {
             conn.query_row(
                 &format!(
-                    "INSERT INTO flashcard_drafts (uuid, deck_id, flashcard_type_id, position, values_json)
+                    "INSERT INTO flashcard_drafts (uuid, deck_id, flashcard_type_id, position, values_json, stack_uuid)
                      VALUES (?1, ?2, ?3,
                              (SELECT COALESCE(MAX(position) + 1, 0) FROM flashcard_drafts
                               WHERE deck_id = ?2),
-                             ?4)
+                             ?4, ?5)
                      RETURNING {DRAFT_COLUMNS}"
                 ),
                 params![
                     draft.uuid(),
                     draft.deck_id(),
                     draft.flashcard_type_id(),
-                    values_to_json(draft.values())?
+                    values_to_json(draft.values())?,
+                    draft.stack_uuid()
                 ],
                 draft_from_row,
             )
         })
     }
 
-    fn insert_draft_after(
+    fn insert_draft_copy(
         &self,
-        source_uuid: &str,
+        copy_of_uuid: &str,
+        after_uuid: &str,
         draft: &FlashcardDraft,
     ) -> Result<Option<FlashcardDraft>, DbError> {
         self.db.with_connection(|conn| {
             let tx = conn.unchecked_transaction()?;
-            let source: Option<(i64, i64, i64)> = tx
+            let source: Option<(i64, i64)> = tx
                 .query_row(
-                    "SELECT deck_id, flashcard_type_id, position FROM flashcard_drafts WHERE uuid = ?1",
-                    [source_uuid],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                    "SELECT deck_id, flashcard_type_id FROM flashcard_drafts WHERE uuid = ?1",
+                    [copy_of_uuid],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
                 )
                 .optional()?;
-            let Some((deck_id, type_id, position)) = source else { return Ok(None) };
+            let after: Option<i64> = tx
+                .query_row("SELECT position FROM flashcard_drafts WHERE uuid = ?1", [after_uuid], |row| row.get(0))
+                .optional()?;
+            let (Some((deck_id, type_id)), Some(position)) = (source, after) else { return Ok(None) };
 
             tx.execute(
                 "UPDATE flashcard_drafts SET position = position + 1 WHERE deck_id = ?1 AND position > ?2",
@@ -522,10 +675,17 @@ impl FlashcardRepository for SqliteFlashcardRepository {
             )?;
             let saved = tx.query_row(
                 &format!(
-                    "INSERT INTO flashcard_drafts (uuid, deck_id, flashcard_type_id, position, values_json)
-                     VALUES (?1, ?2, ?3, ?4, ?5) RETURNING {DRAFT_COLUMNS}"
+                    "INSERT INTO flashcard_drafts (uuid, deck_id, flashcard_type_id, position, values_json, stack_uuid)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING {DRAFT_COLUMNS}"
                 ),
-                params![draft.uuid(), deck_id, type_id, position + 1, values_to_json(draft.values())?],
+                params![
+                    draft.uuid(),
+                    deck_id,
+                    type_id,
+                    position + 1,
+                    values_to_json(draft.values())?,
+                    draft.stack_uuid()
+                ],
                 draft_from_row,
             )?;
             let new_id = saved.id().expect("restored drafts have an id");
@@ -536,7 +696,7 @@ impl FlashcardRepository for SqliteFlashcardRepository {
                      FROM flashcard_draft_media m JOIN flashcard_drafts d ON d.id = m.draft_id
                      WHERE d.uuid = ?2"
                 ),
-                params![new_id, source_uuid],
+                params![new_id, copy_of_uuid],
             )?;
             let media = load_draft_media(&tx, &[new_id])?.remove(&new_id).unwrap_or_default();
             tx.commit()?;
@@ -595,20 +755,58 @@ impl FlashcardRepository for SqliteFlashcardRepository {
         })
     }
 
-    fn swap_draft_positions(&self, uuid_a: &str, uuid_b: &str) -> Result<bool, DbError> {
+    fn find_drafts_by_stack(&self, stack_uuid: &str) -> Result<Vec<FlashcardDraft>, DbError> {
+        self.db.with_connection(|conn| {
+            let drafts: Vec<FlashcardDraft> = conn
+                .prepare(&format!(
+                    "SELECT {DRAFT_COLUMNS} FROM flashcard_drafts WHERE stack_uuid = ?1 ORDER BY position, id"
+                ))?
+                .query_map([stack_uuid], draft_from_row)?
+                .collect::<rusqlite::Result<_>>()?;
+            let ids: Vec<i64> = drafts.iter().filter_map(FlashcardDraft::id).collect();
+            let mut media = load_draft_media(conn, &ids)?;
+            Ok(drafts
+                .into_iter()
+                .map(|d| {
+                    let m = d.id().and_then(|id| media.remove(&id)).unwrap_or_default();
+                    d.with_media(m)
+                })
+                .collect())
+        })
+    }
+
+    fn reorder_drafts(&self, deck_id: i64, ordered_uuids: &[String]) -> Result<(), DbError> {
         self.db.with_connection(|conn| {
             let tx = conn.unchecked_transaction()?;
-            let position = |uuid: &str| -> rusqlite::Result<Option<i64>> {
-                tx.query_row("SELECT position FROM flashcard_drafts WHERE uuid = ?1", [uuid], |r| r.get(0))
-                    .optional()
-            };
-            let (Some(a), Some(b)) = (position(uuid_a)?, position(uuid_b)?) else {
-                return Ok(false);
-            };
-            tx.execute("UPDATE flashcard_drafts SET position = ?1 WHERE uuid = ?2", params![b, uuid_a])?;
-            tx.execute("UPDATE flashcard_drafts SET position = ?1 WHERE uuid = ?2", params![a, uuid_b])?;
+            let current: Vec<String> = tx
+                .prepare("SELECT uuid FROM flashcard_drafts WHERE deck_id = ?1 ORDER BY position, id")?
+                .query_map([deck_id], |row| row.get(0))?
+                .collect::<rusqlite::Result<_>>()?;
+            let rest = current.iter().filter(|uuid| !ordered_uuids.contains(uuid));
+            for (position, uuid) in ordered_uuids.iter().chain(rest).enumerate() {
+                tx.execute(
+                    "UPDATE flashcard_drafts SET position = ?1 WHERE uuid = ?2 AND deck_id = ?3",
+                    params![position as i64, uuid, deck_id],
+                )?;
+            }
             tx.commit()?;
-            Ok(true)
+            Ok(())
+        })
+    }
+
+    fn set_draft_stack(&self, uuid: &str, stack_uuid: Option<&str>) -> Result<bool, DbError> {
+        self.db.with_connection(|conn| {
+            let rows = conn.execute(
+                "UPDATE flashcard_drafts SET stack_uuid = ?1 WHERE uuid = ?2",
+                params![stack_uuid, uuid],
+            )?;
+            Ok(rows > 0)
+        })
+    }
+
+    fn delete_drafts_in_stack(&self, stack_uuid: &str) -> Result<usize, DbError> {
+        self.db.with_connection(|conn| {
+            Ok(conn.execute("DELETE FROM flashcard_drafts WHERE stack_uuid = ?1", [stack_uuid])?)
         })
     }
 

@@ -10,7 +10,7 @@ use super::media::{media_dto, MediaDto};
 use super::languages::{variant_dto, LanguageVariantDto};
 use crate::modules::card_types::FieldDefinition;
 use crate::modules::flashcards::{Direction, FlashcardDraft};
-use crate::orchestrators::{DraftIssue, EditorForm, FlashcardEditorOrchestrator, PublishOutcome, SavedCard};
+use crate::orchestrators::{DraftIssue, EditorForm, FlashcardEditorOrchestrator, Generated, PublishOutcome, SavedCard};
 
 type Api<'a> = State<'a, Arc<FlashcardEditorOrchestrator>>;
 type CommandResult<T> = Result<T, CommandError>;
@@ -98,6 +98,8 @@ pub struct DraftDto {
     pub position: i64,
     pub values: BTreeMap<String, String>,
     pub media: BTreeMap<String, Vec<MediaDto>>,
+    /// The drafts that share this value are one stack: shown as one, linked once published.
+    pub stack_uuid: Option<String>,
 }
 
 fn draft_dto(
@@ -109,6 +111,7 @@ fn draft_dto(
         uuid: draft.uuid().to_owned(),
         type_slug: slugs.get(&draft.flashcard_type_id()).cloned().unwrap_or_default(),
         position: draft.position(),
+        stack_uuid: draft.stack_uuid().map(str::to_owned),
         values: draft.values().clone(),
         media: draft
             .media()
@@ -138,6 +141,8 @@ pub struct SavedCardDto {
     /// UTC, `YYYY-MM-DD HH:MM:SS`.
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
+    /// The cards that share this value were made together and are edited together.
+    pub stack_uuid: Option<String>,
 }
 
 fn saved_card_dto(api: &FlashcardEditorOrchestrator, card: &SavedCard) -> SavedCardDto {
@@ -153,7 +158,42 @@ fn saved_card_dto(api: &FlashcardEditorOrchestrator, card: &SavedCard) -> SavedC
             .collect(),
         created_at: time(card.created_at),
         updated_at: time(card.updated_at),
+        stack_uuid: card.stack_uuid.clone(),
     }
+}
+
+/// A draft after something was generated for it, with what did not work or was left out.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedDraftDto {
+    pub draft: DraftDto,
+    pub warnings: Vec<String>,
+}
+
+/// The deck's drafts after a stack generated its audio and pronunciation.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedDraftsDto {
+    pub drafts: Vec<DraftDto>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedSavedCardDto {
+    pub card: SavedCardDto,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedSavedCardsDto {
+    pub cards: Vec<SavedCardDto>,
+    pub warnings: Vec<String>,
+}
+
+fn generated_draft_dto(api: &FlashcardEditorOrchestrator, generated: Generated<FlashcardDraft>) -> CommandResult<GeneratedDraftDto> {
+    Ok(GeneratedDraftDto { draft: single_draft_dto(api, &generated.value)?, warnings: generated.warnings })
 }
 
 #[derive(Debug, Serialize)]
@@ -275,6 +315,53 @@ pub async fn generate_media(
     single_draft_dto(&api, &draft)
 }
 
+/// Fills an IPA field of a draft with the pronunciation of the words of its phrase. The text is
+/// the one saved with the draft.
+#[tauri::command]
+pub async fn generate_pronunciation(
+    api: Api<'_>,
+    draft_uuid: String,
+    field_key: String,
+) -> CommandResult<GeneratedDraftDto> {
+    generated_draft_dto(&api, api.generate_pronunciation(&draft_uuid, &field_key)?)
+}
+
+/// Adds a stack of drafts (vocabulary, phonetic and orthographic) and returns the list.
+#[tauri::command]
+pub async fn add_stack(api: Api<'_>, deck_name: String) -> CommandResult<Vec<DraftDto>> {
+    draft_dtos(&api, &api.add_stack(&deck_name)?)
+}
+
+/// Adds a card of a type the stack does not have, with the shared phrase copied in.
+#[tauri::command]
+pub async fn add_stack_member(
+    api: Api<'_>,
+    stack_uuid: String,
+    type_slug: String,
+) -> CommandResult<Vec<DraftDto>> {
+    draft_dtos(&api, &api.add_stack_member(&stack_uuid, &type_slug)?)
+}
+
+/// Takes a draft out of its stack. It becomes a regular draft.
+#[tauri::command]
+pub async fn unstack_draft(api: Api<'_>, draft_uuid: String) -> CommandResult<Vec<DraftDto>> {
+    draft_dtos(&api, &api.unstack(&draft_uuid)?)
+}
+
+/// Deletes every draft of a stack.
+#[tauri::command]
+pub async fn delete_stack(api: Api<'_>, stack_uuid: String) -> CommandResult<Vec<DraftDto>> {
+    draft_dtos(&api, &api.delete_stack(&stack_uuid)?)
+}
+
+/// Generates the audio and the pronunciation of a stack from the phrase of each card. What works
+/// is applied, and what does not is in the warnings.
+#[tauri::command]
+pub async fn generate_stack(api: Api<'_>, stack_uuid: String) -> CommandResult<GeneratedDraftsDto> {
+    let generated = api.generate_stack(&stack_uuid).await?;
+    Ok(GeneratedDraftsDto { drafts: draft_dtos(&api, &generated.value)?, warnings: generated.warnings })
+}
+
 #[tauri::command]
 pub async fn remove_media(
     api: Api<'_>,
@@ -319,6 +406,54 @@ pub async fn generate_saved_card_media(
 ) -> CommandResult<SavedCardDto> {
     let card = api.generate_saved_media(&card_uuid, &field_key).await?;
     Ok(saved_card_dto(&api, &card))
+}
+
+/// New text for one saved card of a stack. A key left out is cleared.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedCardUpdate {
+    card_uuid: String,
+    values: BTreeMap<String, String>,
+}
+
+/// Replaces the text of several saved cards at once (the cards of a stack). Nothing is saved
+/// unless every card passes the checks.
+#[tauri::command]
+pub async fn update_saved_cards(api: Api<'_>, updates: Vec<SavedCardUpdate>) -> CommandResult<Vec<SavedCardDto>> {
+    let updates = updates.into_iter().map(|u| (u.card_uuid, u.values)).collect();
+    Ok(api.update_saved_many(updates)?.iter().map(|c| saved_card_dto(&api, c)).collect())
+}
+
+#[tauri::command]
+pub async fn generate_saved_card_pronunciation(
+    api: Api<'_>,
+    card_uuid: String,
+    field_key: String,
+) -> CommandResult<GeneratedSavedCardDto> {
+    let generated = api.generate_saved_pronunciation(&card_uuid, &field_key)?;
+    Ok(GeneratedSavedCardDto { card: saved_card_dto(&api, &generated.value), warnings: generated.warnings })
+}
+
+/// Takes a saved card out of its stack. The card is kept.
+#[tauri::command]
+pub async fn unstack_saved_card(api: Api<'_>, card_uuid: String) -> CommandResult<SavedCardDto> {
+    Ok(saved_card_dto(&api, &api.unstack_saved(&card_uuid)?))
+}
+
+/// Deletes every card of a stack, with their review history.
+#[tauri::command]
+pub async fn delete_saved_stack(api: Api<'_>, stack_uuid: String) -> CommandResult<()> {
+    Ok(api.delete_saved_stack(&stack_uuid)?)
+}
+
+/// Generates the audio and the pronunciation of the saved cards of a stack, from the saved text.
+#[tauri::command]
+pub async fn generate_saved_stack(api: Api<'_>, stack_uuid: String) -> CommandResult<GeneratedSavedCardsDto> {
+    let generated = api.generate_saved_stack(&stack_uuid).await?;
+    Ok(GeneratedSavedCardsDto {
+        cards: generated.value.iter().map(|c| saved_card_dto(&api, c)).collect(),
+        warnings: generated.warnings,
+    })
 }
 
 #[tauri::command]
@@ -379,11 +514,11 @@ mod tests {
                 file_name: "ab.png".into(),
             }],
         );
-        let draft = DraftDto { uuid: "u".into(), type_slug: "vocabulary".into(), position: 1, values, media };
+        let draft = DraftDto { uuid: "u".into(), type_slug: "vocabulary".into(), position: 1, values, media, stack_uuid: Some("s".into()) };
         assert_eq!(
             serde_json::to_value(draft).unwrap(),
             json!({
-                "uuid": "u", "typeSlug": "vocabulary", "position": 1, "values": {"phrase": "hi"},
+                "uuid": "u", "typeSlug": "vocabulary", "position": 1, "values": {"phrase": "hi"}, "stackUuid": "s",
                 "media": {"phrase": [{"sha256": "ab", "kind": "IMAGE", "mimeType": "image/png", "path": "/data/media/ab.png", "fileName": "ab.png"}]}
             })
         );
@@ -395,11 +530,12 @@ mod tests {
             media: BTreeMap::new(),
             created_at: Some("2026-10-12 08:00:00".into()),
             updated_at: None,
+            stack_uuid: None,
         };
         assert_eq!(
             serde_json::to_value(saved).unwrap(),
             json!({"uuid": "c", "typeSlug": "vocabulary", "values": {}, "media": {},
-                   "createdAt": "2026-10-12 08:00:00", "updatedAt": null})
+                   "createdAt": "2026-10-12 08:00:00", "updatedAt": null, "stackUuid": null})
         );
 
         let result = PublishResultDto {

@@ -15,6 +15,8 @@ pub struct PublishedDraft {
     pub flashcard_type_id: i64,
     pub fields: Vec<FieldValue>,
     pub media: Vec<FieldMedia>,
+    /// The drafts published together with the same value become flashcards linked by one stack.
+    pub stack_uuid: Option<String>,
 }
 
 /// Public API of the flashcards module. Other modules depend on this trait only.
@@ -51,15 +53,40 @@ pub trait FlashcardApi: Send + Sync {
 
     /// Adds an empty draft of a type at the end of the deck's list.
     fn create_draft(&self, deck_id: i64, flashcard_type_id: i64) -> FlashcardsResult<FlashcardDraft>;
+    /// Adds an empty draft that is part of the stack with this uuid. A stack is a set of drafts
+    /// that the editor shows as one and that are linked when published.
+    fn create_draft_in_stack(
+        &self,
+        deck_id: i64,
+        flashcard_type_id: i64,
+        stack_uuid: &str,
+    ) -> FlashcardsResult<FlashcardDraft>;
     fn get_draft(&self, uuid: &str) -> FlashcardsResult<FlashcardDraft>;
-    /// The drafts of a deck, of every type, in the order they are edited.
+    /// The drafts of a deck, of every type, in the order they are edited. The drafts of a stack
+    /// come together, where its first draft is.
     fn list_drafts(&self, deck_id: i64) -> FlashcardsResult<Vec<FlashcardDraft>>;
+    /// The drafts of a stack, in order.
+    fn list_stack_drafts(&self, stack_uuid: &str) -> FlashcardsResult<Vec<FlashcardDraft>>;
+    /// Takes a draft out of its stack. A stack left with fewer than two drafts is dissolved.
+    fn unstack_draft(&self, uuid: &str) -> FlashcardsResult<FlashcardDraft>;
+    /// Deletes every draft of a stack.
+    fn delete_stack_drafts(&self, stack_uuid: &str) -> FlashcardsResult<()>;
+    /// The flashcards linked by a stack, oldest first.
+    fn list_stack_flashcards(&self, stack_uuid: &str) -> FlashcardsResult<Vec<Flashcard>>;
+    /// Takes a flashcard out of its stack. A stack left with fewer than two flashcards is
+    /// dissolved.
+    fn unstack_flashcard(&self, uuid: &str) -> FlashcardsResult<Flashcard>;
+    /// Deletes every flashcard of a stack, with their review history.
+    fn delete_stack_flashcards(&self, stack_uuid: &str) -> FlashcardsResult<()>;
     /// Replaces the typed values of a draft.
     fn update_draft(&self, uuid: &str, values: BTreeMap<String, String>) -> FlashcardsResult<FlashcardDraft>;
-    /// Copies a draft and puts the copy right after it.
+    /// Copies a draft and puts the copy right after it. A draft in a stack copies the whole stack
+    /// (the copy is a new stack) and returns the copy of that draft.
     fn duplicate_draft(&self, uuid: &str) -> FlashcardsResult<FlashcardDraft>;
-    /// Moves a draft one place. Moving the first draft up or the last one down changes nothing.
+    /// Moves a draft one place. A draft in a stack moves the whole stack past the neighbor draft
+    /// or stack. Moving the first one up or the last one down changes nothing.
     fn move_draft(&self, uuid: &str, direction: Direction) -> FlashcardsResult<()>;
+    /// Deletes only this draft. A stack left with fewer than two drafts is dissolved.
     fn delete_draft(&self, uuid: &str) -> FlashcardsResult<()>;
     /// Attaches a stored file to a field of a draft. The same file attached twice counts once.
     fn attach_draft_media(
@@ -93,6 +120,33 @@ impl FlashcardService {
     fn draft(&self, uuid: &str) -> FlashcardsResult<FlashcardDraft> {
         self.repository.find_draft(uuid)?.ok_or(FlashcardsError::NotFound("draft"))
     }
+
+    /// A deck's drafts as units: each draft on its own, and the drafts of a stack together, at the
+    /// place of the first one.
+    fn units(&self, deck_id: i64) -> FlashcardsResult<Vec<Vec<FlashcardDraft>>> {
+        let mut units: Vec<Vec<FlashcardDraft>> = Vec::new();
+        for draft in self.repository.find_drafts(deck_id)? {
+            let existing = draft
+                .stack_uuid()
+                .and_then(|stack| units.iter().position(|u| u[0].stack_uuid() == Some(stack)));
+            match existing {
+                Some(index) => units[index].push(draft),
+                None => units.push(vec![draft]),
+            }
+        }
+        Ok(units)
+    }
+
+    /// A stack with fewer than two drafts is not a stack: its draft becomes a regular one.
+    fn dissolve_if_small(&self, stack_uuid: &str) -> FlashcardsResult<()> {
+        let members = self.repository.find_drafts_by_stack(stack_uuid)?;
+        if members.len() < 2 {
+            for member in members {
+                self.repository.set_draft_stack(member.uuid(), None)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl FlashcardApi for FlashcardService {
@@ -113,6 +167,24 @@ impl FlashcardApi for FlashcardService {
 
     fn list_flashcards(&self, deck_id: i64) -> FlashcardsResult<Vec<Flashcard>> {
         Ok(self.repository.find_flashcards_by_deck(deck_id)?)
+    }
+
+    fn list_stack_flashcards(&self, stack_uuid: &str) -> FlashcardsResult<Vec<Flashcard>> {
+        Ok(self.repository.find_flashcards_by_stack(stack_uuid)?)
+    }
+
+    fn unstack_flashcard(&self, uuid: &str) -> FlashcardsResult<Flashcard> {
+        if !self.repository.set_flashcard_stack(uuid, None)? {
+            return Err(FlashcardsError::NotFound("flashcard"));
+        }
+        self.get_flashcard(uuid)
+    }
+
+    fn delete_stack_flashcards(&self, stack_uuid: &str) -> FlashcardsResult<()> {
+        if self.repository.delete_flashcards_in_stack(stack_uuid)? == 0 {
+            return Err(FlashcardsError::NotFound("stack"));
+        }
+        Ok(())
     }
 
     fn delete_flashcard(&self, uuid: &str) -> FlashcardsResult<()> {
@@ -162,12 +234,42 @@ impl FlashcardApi for FlashcardService {
         Ok(self.repository.insert_draft(&draft)?)
     }
 
+    fn create_draft_in_stack(
+        &self,
+        deck_id: i64,
+        flashcard_type_id: i64,
+        stack_uuid: &str,
+    ) -> FlashcardsResult<FlashcardDraft> {
+        let draft = FlashcardDraft::new(deck_id, flashcard_type_id).in_stack(Some(stack_uuid.to_owned()));
+        Ok(self.repository.insert_draft(&draft)?)
+    }
+
     fn get_draft(&self, uuid: &str) -> FlashcardsResult<FlashcardDraft> {
         self.draft(uuid)
     }
 
     fn list_drafts(&self, deck_id: i64) -> FlashcardsResult<Vec<FlashcardDraft>> {
-        Ok(self.repository.find_drafts(deck_id)?)
+        Ok(self.units(deck_id)?.into_iter().flatten().collect())
+    }
+
+    fn list_stack_drafts(&self, stack_uuid: &str) -> FlashcardsResult<Vec<FlashcardDraft>> {
+        Ok(self.repository.find_drafts_by_stack(stack_uuid)?)
+    }
+
+    fn unstack_draft(&self, uuid: &str) -> FlashcardsResult<FlashcardDraft> {
+        let draft = self.draft(uuid)?;
+        if let Some(stack) = draft.stack_uuid() {
+            self.repository.set_draft_stack(uuid, None)?;
+            self.dissolve_if_small(stack)?;
+        }
+        self.draft(uuid)
+    }
+
+    fn delete_stack_drafts(&self, stack_uuid: &str) -> FlashcardsResult<()> {
+        if self.repository.delete_drafts_in_stack(stack_uuid)? == 0 {
+            return Err(FlashcardsError::NotFound("stack"));
+        }
+        Ok(())
     }
 
     fn update_draft(&self, uuid: &str, values: BTreeMap<String, String>) -> FlashcardsResult<FlashcardDraft> {
@@ -180,35 +282,62 @@ impl FlashcardApi for FlashcardService {
     }
 
     fn duplicate_draft(&self, uuid: &str) -> FlashcardsResult<FlashcardDraft> {
-        let copy = self.draft(uuid)?.duplicate();
-        self.repository
-            .insert_draft_after(uuid, &copy)?
-            .ok_or(FlashcardsError::NotFound("draft"))
+        let draft = self.draft(uuid)?;
+        let Some(stack) = draft.stack_uuid() else {
+            let copy = draft.duplicate();
+            return self
+                .repository
+                .insert_draft_after(uuid, &copy)?
+                .ok_or(FlashcardsError::NotFound("draft"));
+        };
+
+        // A stack is copied whole, as a new stack, right after its last draft.
+        let members = self.repository.find_drafts_by_stack(stack)?;
+        let new_stack = uuid::Uuid::new_v4().to_string();
+        let mut after = members.last().map_or(uuid.to_owned(), |m| m.uuid().to_owned());
+        let mut copy_of_requested = None;
+        for member in &members {
+            let copy = member.duplicate().in_stack(Some(new_stack.clone()));
+            let saved = self
+                .repository
+                .insert_draft_copy(member.uuid(), &after, &copy)?
+                .ok_or(FlashcardsError::NotFound("draft"))?;
+            after = saved.uuid().to_owned();
+            if member.uuid() == uuid {
+                copy_of_requested = Some(saved);
+            }
+        }
+        copy_of_requested.ok_or(FlashcardsError::NotFound("draft"))
     }
 
     fn move_draft(&self, uuid: &str, direction: Direction) -> FlashcardsResult<()> {
         let draft = self.draft(uuid)?;
-        let drafts = self.repository.find_drafts(draft.deck_id())?;
-        let index = drafts
+        let mut units = self.units(draft.deck_id())?;
+        let index = units
             .iter()
-            .position(|d| d.uuid() == uuid)
+            .position(|unit| unit.iter().any(|d| d.uuid() == uuid))
             .ok_or(FlashcardsError::NotFound("draft"))?;
         let neighbor = match direction {
             Direction::Up => index.checked_sub(1),
-            Direction::Down => Some(index + 1).filter(|i| *i < drafts.len()),
+            Direction::Down => Some(index + 1).filter(|i| *i < units.len()),
         };
         if let Some(neighbor) = neighbor {
-            self.repository.swap_draft_positions(uuid, drafts[neighbor].uuid())?;
+            units.swap(index, neighbor);
+            let order: Vec<String> = units.iter().flatten().map(|d| d.uuid().to_owned()).collect();
+            self.repository.reorder_drafts(draft.deck_id(), &order)?;
         }
         Ok(())
     }
 
     fn delete_draft(&self, uuid: &str) -> FlashcardsResult<()> {
-        if self.repository.delete_draft(uuid)? {
-            Ok(())
-        } else {
-            Err(FlashcardsError::NotFound("draft"))
+        let draft = self.draft(uuid)?;
+        if !self.repository.delete_draft(uuid)? {
+            return Err(FlashcardsError::NotFound("draft"));
         }
+        if let Some(stack) = draft.stack_uuid() {
+            self.dissolve_if_small(stack)?;
+        }
+        Ok(())
     }
 
     fn attach_draft_media(
@@ -235,7 +364,10 @@ impl FlashcardApi for FlashcardService {
         let mut flashcards = Vec::with_capacity(drafts.len());
         let mut draft_uuids = Vec::with_capacity(drafts.len());
         for draft in drafts {
-            flashcards.push(Flashcard::new(deck_id, draft.flashcard_type_id, draft.fields, draft.media)?);
+            flashcards.push(
+                Flashcard::new(deck_id, draft.flashcard_type_id, draft.fields, draft.media)?
+                    .in_stack(draft.stack_uuid),
+            );
             draft_uuids.push(draft.draft_uuid);
         }
         Ok(self.repository.publish(&flashcards, &draft_uuids)?)
@@ -403,14 +535,159 @@ mod tests {
         assert_eq!(order(&f), vec![c.uuid(), b.uuid(), copy.uuid()]);
     }
 
+    const ORTHOGRAPHIC: i64 = 3;
+
+    fn stack_of_three(f: &Fixture, stack: &str) -> Vec<FlashcardDraft> {
+        [VOCABULARY, PHONETIC, ORTHOGRAPHIC]
+            .into_iter()
+            .map(|t| f.service.create_draft_in_stack(f.deck_id, t, stack).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn the_drafts_of_a_stack_come_together_where_the_first_one_is() {
+        let f = fixture();
+        let stack = stack_of_three(&f, "s1");
+        let single = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
+        // Added later, so it is stored after the single draft, but it is listed with its stack.
+        let late = f.service.create_draft_in_stack(f.deck_id, VOCABULARY, "s1").unwrap();
+        let listed = uuids(&f.service.list_drafts(f.deck_id).unwrap());
+        let expected: Vec<String> = stack.iter().chain([&late, &single]).map(|d| d.uuid().to_owned()).collect();
+        assert_eq!(listed, expected);
+        assert_eq!(f.service.list_stack_drafts("s1").unwrap().len(), 4);
+    }
+
+    #[test]
+    fn moving_a_draft_of_a_stack_moves_the_whole_stack() {
+        let f = fixture();
+        let before = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
+        let stack = stack_of_three(&f, "s1");
+        let after = f.service.create_draft(f.deck_id, PHONETIC).unwrap();
+
+        f.service.move_draft(stack[1].uuid(), Direction::Up).unwrap();
+        let order = uuids(&f.service.list_drafts(f.deck_id).unwrap());
+        let mut expected: Vec<String> = stack.iter().map(|d| d.uuid().to_owned()).collect();
+        expected.extend([before.uuid().to_owned(), after.uuid().to_owned()]);
+        assert_eq!(order, expected, "the stack went past the draft above it");
+
+        f.service.move_draft(stack[0].uuid(), Direction::Up).unwrap();
+        assert_eq!(uuids(&f.service.list_drafts(f.deck_id).unwrap()), expected, "already first");
+
+        f.service.move_draft(before.uuid(), Direction::Up).unwrap();
+        let order = uuids(&f.service.list_drafts(f.deck_id).unwrap());
+        assert_eq!(order[0], before.uuid(), "a single draft moves past a whole stack as one step");
+        assert_eq!(order[1..4], expected[0..3], "and the stack is not split");
+    }
+
+    #[test]
+    fn duplicating_a_stack_copies_all_of_it_as_a_new_stack() {
+        let f = fixture();
+        let stack = stack_of_three(&f, "s1");
+        f.service
+            .update_draft(stack[0].uuid(), values(&[("phrase", "hello")]))
+            .unwrap();
+        let copy = f.service.duplicate_draft(stack[1].uuid()).unwrap();
+        assert_eq!(copy.flashcard_type_id(), PHONETIC, "the copy of the draft that was asked for");
+
+        let drafts = f.service.list_drafts(f.deck_id).unwrap();
+        assert_eq!(drafts.len(), 6);
+        let new_stack = copy.stack_uuid().unwrap().to_owned();
+        assert_ne!(new_stack, "s1");
+        let copies: Vec<_> = drafts.iter().filter(|d| d.stack_uuid() == Some(new_stack.as_str())).collect();
+        assert_eq!(copies.iter().map(|d| d.flashcard_type_id()).collect::<Vec<_>>(), vec![VOCABULARY, PHONETIC, ORTHOGRAPHIC]);
+        assert_eq!(copies[0].values()["phrase"], "hello");
+        assert_eq!(drafts[3].stack_uuid(), Some(new_stack.as_str()), "right after the original");
+    }
+
+    #[test]
+    fn deleting_or_taking_out_one_draft_leaves_the_rest_and_dissolves_a_small_stack() {
+        let f = fixture();
+        let stack = stack_of_three(&f, "s1");
+
+        f.service.delete_draft(stack[2].uuid()).unwrap();
+        assert_eq!(f.service.list_stack_drafts("s1").unwrap().len(), 2, "two are still a stack");
+
+        let taken = f.service.unstack_draft(stack[0].uuid()).unwrap();
+        assert!(taken.stack_uuid().is_none());
+        let left = f.service.get_draft(stack[1].uuid()).unwrap();
+        assert!(left.stack_uuid().is_none(), "one draft alone is not a stack");
+        assert_eq!(f.service.list_drafts(f.deck_id).unwrap().len(), 2, "nothing was deleted by taking out");
+    }
+
+    #[test]
+    fn a_whole_stack_of_drafts_can_be_deleted() {
+        let f = fixture();
+        stack_of_three(&f, "s1");
+        let single = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
+        f.service.delete_stack_drafts("s1").unwrap();
+        assert_eq!(uuids(&f.service.list_drafts(f.deck_id).unwrap()), vec![single.uuid().to_owned()]);
+        assert!(matches!(f.service.delete_stack_drafts("s1"), Err(FlashcardsError::NotFound(_))));
+    }
+
+    fn published_stack(f: &Fixture) -> Vec<Flashcard> {
+        let stack = stack_of_three(f, "s1");
+        let items = stack
+            .iter()
+            .zip([1_i64, 4, 6])
+            .map(|(draft, field)| PublishedDraft {
+                draft_uuid: draft.uuid().into(),
+                flashcard_type_id: draft.flashcard_type_id(),
+                fields: vec![FieldValue::new(field, "x".into()).unwrap()],
+                media: vec![],
+                stack_uuid: draft.stack_uuid().map(str::to_owned),
+            })
+            .collect();
+        f.service.publish_drafts(f.deck_id, items).unwrap()
+    }
+
+    #[test]
+    fn publishing_a_stack_makes_independent_flashcards_linked_by_one_stack() {
+        let f = fixture();
+        let cards = published_stack(&f);
+        assert!(cards.iter().all(|c| c.stack_uuid() == Some("s1")));
+        assert_eq!(count(&f, "stacks"), 1);
+        assert_eq!(count(&f, "flashcards"), 3);
+        assert!(f.service.list_drafts(f.deck_id).unwrap().is_empty());
+
+        let listed = f.service.list_flashcards(f.deck_id).unwrap();
+        assert!(listed.iter().all(|c| c.stack_uuid() == Some("s1")), "the link is read back");
+        assert_eq!(f.service.list_stack_flashcards("s1").unwrap().len(), 3);
+        assert!(f.service.get_flashcard(cards[0].uuid()).unwrap().stack_uuid().is_some());
+    }
+
+    #[test]
+    fn a_flashcard_can_leave_its_stack_and_a_small_stack_dissolves() {
+        let f = fixture();
+        let cards = published_stack(&f);
+
+        f.service.delete_flashcard(cards[2].uuid()).unwrap();
+        assert_eq!(f.service.list_stack_flashcards("s1").unwrap().len(), 2, "two are still a stack");
+
+        let free = f.service.unstack_flashcard(cards[0].uuid()).unwrap();
+        assert!(free.stack_uuid().is_none());
+        assert!(f.service.get_flashcard(cards[1].uuid()).unwrap().stack_uuid().is_none());
+        assert_eq!(count(&f, "stacks"), 0, "the stack row goes with its last link");
+        assert_eq!(count(&f, "flashcards"), 2);
+    }
+
+    #[test]
+    fn a_whole_stack_of_flashcards_can_be_deleted() {
+        let f = fixture();
+        published_stack(&f);
+        f.service.delete_stack_flashcards("s1").unwrap();
+        assert_eq!(count(&f, "flashcards"), 0);
+        assert_eq!(count(&f, "stacks"), 0);
+        assert!(matches!(f.service.delete_stack_flashcards("s1"), Err(FlashcardsError::NotFound(_))));
+    }
+
     #[test]
     fn publishing_creates_each_flashcard_with_the_type_of_its_draft() {
         let f = fixture();
         let a = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
         let b = f.service.create_draft(f.deck_id, PHONETIC).unwrap();
         let items = vec![
-            PublishedDraft { draft_uuid: a.uuid().into(), flashcard_type_id: VOCABULARY, fields: vec![FieldValue::new(1, "one".into()).unwrap()], media: vec![] },
-            PublishedDraft { draft_uuid: b.uuid().into(), flashcard_type_id: PHONETIC, fields: vec![FieldValue::new(4, "two".into()).unwrap()], media: vec![] },
+            PublishedDraft { draft_uuid: a.uuid().into(), flashcard_type_id: VOCABULARY, fields: vec![FieldValue::new(1, "one".into()).unwrap()], media: vec![], stack_uuid: None },
+            PublishedDraft { draft_uuid: b.uuid().into(), flashcard_type_id: PHONETIC, fields: vec![FieldValue::new(4, "two".into()).unwrap()], media: vec![], stack_uuid: None },
         ];
         let published = f.service.publish_drafts(f.deck_id, items).unwrap();
         assert_eq!(
@@ -447,8 +724,8 @@ mod tests {
         let a = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
         let b = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
         let items = vec![
-            PublishedDraft { draft_uuid: a.uuid().into(), flashcard_type_id: VOCABULARY, fields: vec![FieldValue::new(1, "one".into()).unwrap()], media: vec![] },
-            PublishedDraft { draft_uuid: b.uuid().into(), flashcard_type_id: VOCABULARY, fields: vec![FieldValue::new(1, "two".into()).unwrap()], media: vec![] },
+            PublishedDraft { draft_uuid: a.uuid().into(), flashcard_type_id: VOCABULARY, fields: vec![FieldValue::new(1, "one".into()).unwrap()], media: vec![], stack_uuid: None },
+            PublishedDraft { draft_uuid: b.uuid().into(), flashcard_type_id: VOCABULARY, fields: vec![FieldValue::new(1, "two".into()).unwrap()], media: vec![], stack_uuid: None },
         ];
         let published = f.service.publish_drafts(f.deck_id, items).unwrap();
         assert_eq!(published.len(), 2);
@@ -462,8 +739,8 @@ mod tests {
         let a = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
         let b = f.service.create_draft(f.deck_id, VOCABULARY).unwrap();
         let items = vec![
-            PublishedDraft { draft_uuid: a.uuid().into(), flashcard_type_id: VOCABULARY, fields: vec![FieldValue::new(1, "ok".into()).unwrap()], media: vec![] },
-            PublishedDraft { draft_uuid: b.uuid().into(), flashcard_type_id: VOCABULARY, fields: vec![FieldValue::new(999, "bad".into()).unwrap()], media: vec![] },
+            PublishedDraft { draft_uuid: a.uuid().into(), flashcard_type_id: VOCABULARY, fields: vec![FieldValue::new(1, "ok".into()).unwrap()], media: vec![], stack_uuid: None },
+            PublishedDraft { draft_uuid: b.uuid().into(), flashcard_type_id: VOCABULARY, fields: vec![FieldValue::new(999, "bad".into()).unwrap()], media: vec![], stack_uuid: None },
         ];
         assert!(f.service.publish_drafts(f.deck_id, items).is_err());
         assert_eq!(count(&f, "flashcards"), 0);
@@ -544,6 +821,7 @@ mod tests {
             flashcard_type_id: VOCABULARY,
             fields: vec![FieldValue::new(2, "word".into()).unwrap()],
             media: vec![FieldMedia { field_definition_id: 1, attachment: media('a', MediaKind::Image) }],
+            stack_uuid: None,
         };
         let published = f.service.publish_drafts(f.deck_id, vec![item]).unwrap();
 

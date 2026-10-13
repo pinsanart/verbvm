@@ -53,10 +53,10 @@ export const FLASHCARD_TYPE_STYLES: Record<string, FlashcardTypeStyle> = {
 };
 
 /**
- * The types the editor lets you add today, in the order of their buttons. Phonetic and orthographic
- * have their fields but are not offered yet, and stack is not a type but a way to link cards.
+ * What the editor lets you add, in the order of the buttons: the three card types, and the stack,
+ * which is not a type but makes one card of each type at once.
  */
-export const ENABLED_TYPE_SLUGS: readonly string[] = ["vocabulary", "orthographic"];
+export const ENABLED_TYPE_SLUGS: readonly string[] = ["stack", "vocabulary", "phonetic", "orthographic"];
 
 const NEUTRAL: FlashcardTypeStyle = {
     icon: CaseSensitive,

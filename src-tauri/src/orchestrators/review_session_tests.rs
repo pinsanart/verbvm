@@ -62,6 +62,7 @@ fn fixture() -> Fixture {
             Arc::new(AmmoniaSanitizer::new()),
             media.clone(),
             Arc::new(super::fake_speech::FakeSpeech::default()),
+            Arc::new(super::fake_pronunciation::FakePronunciation::installed()),
         ),
         review: ReviewSessionOrchestrator::new(
             decks,

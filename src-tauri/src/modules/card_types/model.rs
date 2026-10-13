@@ -37,6 +37,9 @@ pub enum FieldKind {
     /// Audio only, with no text of its own. It is uploaded or generated from the text of another
     /// field (its source key).
     Audio,
+    /// HTML with the pronunciation (IPA) of the words of another field (its source key). It is
+    /// edited like a rich field and can be generated from a pronunciation dictionary.
+    Ipa,
 }
 
 impl FieldKind {
@@ -46,6 +49,7 @@ impl FieldKind {
             FieldKind::Plain => "PLAIN",
             FieldKind::Rich => "RICH",
             FieldKind::Audio => "AUDIO",
+            FieldKind::Ipa => "IPA",
         }
     }
 
@@ -54,7 +58,8 @@ impl FieldKind {
             "PLAIN" => Ok(FieldKind::Plain),
             "RICH" => Ok(FieldKind::Rich),
             "AUDIO" => Ok(FieldKind::Audio),
-            _ => Err(CardTypesError::Invalid { field: "kind", reason: "must be PLAIN, RICH or AUDIO" }),
+            "IPA" => Ok(FieldKind::Ipa),
+            _ => Err(CardTypesError::Invalid { field: "kind", reason: "must be PLAIN, RICH, AUDIO or IPA" }),
         }
     }
 }
@@ -137,10 +142,10 @@ impl FieldDefinition {
     ) -> CardTypesResult<Self> {
         let source_key = source_key.map(|k| validate_identifier("source_key", k)).transpose()?;
         match (kind, &source_key) {
-            (FieldKind::Audio, None) => {
+            (FieldKind::Audio | FieldKind::Ipa, None) => {
                 return Err(CardTypesError::Invalid {
                     field: "source_key",
-                    reason: "an audio field needs the key of the field it is spoken from",
+                    reason: "an audio or IPA field needs the key of the field it is generated from",
                 })
             }
             (FieldKind::Audio, Some(_)) if !media_allowed => {
@@ -152,7 +157,7 @@ impl FieldDefinition {
             (FieldKind::Plain | FieldKind::Rich, Some(_)) => {
                 return Err(CardTypesError::Invalid {
                     field: "source_key",
-                    reason: "only an audio field has a source key",
+                    reason: "only an audio or IPA field has a source key",
                 })
             }
             _ => {}
@@ -237,9 +242,14 @@ impl FieldDefinition {
         self.kind
     }
 
-    /// The field holds HTML.
+    /// The field holds HTML (rich text and IPA).
     pub fn is_rich(&self) -> bool {
-        self.kind == FieldKind::Rich
+        matches!(self.kind, FieldKind::Rich | FieldKind::Ipa)
+    }
+
+    /// The field holds the pronunciation of another field's words.
+    pub fn is_ipa(&self) -> bool {
+        self.kind == FieldKind::Ipa
     }
 
     /// The field holds audio only.
@@ -247,7 +257,7 @@ impl FieldDefinition {
         self.kind == FieldKind::Audio
     }
 
-    /// For an audio field, the key of the field its audio is spoken from.
+    /// For an audio or IPA field, the key of the field it is generated from.
     pub fn source_key(&self) -> Option<&str> {
         self.source_key.as_deref()
     }
@@ -315,5 +325,9 @@ mod tests {
         assert!(build(FieldKind::Audio, Some("phrase"), false).is_err());
         assert!(build(FieldKind::Plain, Some("phrase"), true).is_err());
         assert!(build(FieldKind::Rich, None, true).is_ok());
+
+        let ipa = build(FieldKind::Ipa, Some("phrase"), false).unwrap();
+        assert!(ipa.is_ipa() && ipa.is_rich() && !ipa.is_audio());
+        assert!(build(FieldKind::Ipa, None, false).is_err());
     }
 }

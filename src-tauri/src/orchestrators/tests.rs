@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use super::fake_pronunciation::FakePronunciation;
 use super::fake_speech::{FakeSpeech, FAKE_MP3};
 use super::*;
 use crate::dependencies::db::connection::SqliteHandle;
@@ -37,7 +38,11 @@ fn fixture() -> Fixture {
 
 /// `fail` makes the fake speech service report that it is offline.
 fn fixture_with_speech(fail: bool) -> Fixture {
-    let fail = fail;
+    fixture_with(fail, false)
+}
+
+/// `dictionary_missing` makes the pronunciation dictionary report that it is not installed.
+fn fixture_with(fail: bool, dictionary_missing: bool) -> Fixture {
     let path = std::env::temp_dir().join(format!(
         "verbvm-orchestrators-{}-{:?}.db",
         std::process::id(),
@@ -65,6 +70,7 @@ fn fixture_with_speech(fail: bool) -> Fixture {
             Arc::new(AmmoniaSanitizer::new()),
             Arc::new(LocalMediaStore::new(path.with_extension("media"))),
             speech.clone(),
+            Arc::new(FakePronunciation { missing: dictionary_missing }),
         ),
         languages,
         card_types,
@@ -548,7 +554,7 @@ async fn generating_audio_speaks_the_phrase_in_the_decks_language_and_attaches_i
     assert_eq!(attached.len(), 1);
     assert_eq!(attached[0].mime_type(), "audio/mpeg");
     let stored = f.editor.media_path(attached[0].file_name()).unwrap();
-    assert_eq!(std::fs::read(stored).unwrap(), FAKE_MP3);
+    assert!(std::fs::read(stored).unwrap().starts_with(FAKE_MP3));
     assert_eq!(*f.speech.requests.lock().unwrap(), vec![("hello there".to_string(), "en-US".to_string())]);
 
     let again = f.editor.generate_media(&uuid, "audio").await.unwrap();
@@ -588,4 +594,296 @@ async fn generating_audio_for_a_saved_card_uses_its_saved_phrase() {
     assert_eq!(updated.media["audio"].len(), 1);
     let requests = f.speech.requests.lock().unwrap();
     assert_eq!(requests.last().unwrap().0, "good evening");
+}
+
+// ---- pronunciation and stacks ----
+
+fn phrase(text: &str) -> BTreeMap<String, String> {
+    BTreeMap::from([("phrase".to_string(), text.to_string())])
+}
+
+#[test]
+fn the_phonetic_type_has_an_ipa_field_made_from_the_phrase() {
+    let f = fixture();
+    let fields = f.card_types.fields_for("phonetic", None).unwrap();
+    let summary: Vec<_> = fields.iter().map(|d| (d.side().as_str(), d.key(), d.kind(), d.source_key())).collect();
+    assert_eq!(
+        summary,
+        vec![("FRONT", "phrase", FieldKind::Plain, None), ("BACK", "ipa_phonetics", FieldKind::Ipa, Some("phrase"))]
+    );
+    assert!(fields[1].is_rich(), "IPA is HTML, so it is sanitized and rendered like rich text");
+}
+
+#[test]
+fn generating_the_pronunciation_writes_one_line_per_word_and_names_the_missing_ones() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    let draft = f.editor.add_draft("Deck", "phonetic").unwrap().remove(0);
+    f.editor.update_draft(draft.uuid(), phrase("Hello, everyone! Zzz")).unwrap();
+
+    let generated = f.editor.generate_pronunciation(draft.uuid(), "ipa_phonetics").unwrap();
+    assert_eq!(
+        generated.value.values()["ipa_phonetics"],
+        "<b>Hello</b>: /həˈɫoʊ/<br><b>everyone</b>: /ˈɛvɹiˌwən/"
+    );
+    assert_eq!(generated.value.values()["phrase"], "Hello, everyone! Zzz", "the phrase is untouched");
+    assert_eq!(generated.warnings, vec!["No pronunciation found for: Zzz"]);
+
+    // Generating again replaces what the field had.
+    f.editor.update_draft(draft.uuid(), BTreeMap::from([
+        ("phrase".to_string(), "world".to_string()),
+        ("ipa_phonetics".to_string(), "old".to_string()),
+    ])).unwrap();
+    let again = f.editor.generate_pronunciation(draft.uuid(), "ipa_phonetics").unwrap();
+    assert_eq!(again.value.values()["ipa_phonetics"], "<b>world</b>: /wɝɫd/");
+}
+
+#[test]
+fn generating_the_pronunciation_needs_text_a_dictionary_and_an_ipa_field() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    let draft = f.editor.add_draft("Deck", "phonetic").unwrap().remove(0);
+    assert!(matches!(f.editor.generate_pronunciation(draft.uuid(), "ipa_phonetics"), Err(OrchestratorError::Invalid(_))), "no phrase yet");
+    f.editor.update_draft(draft.uuid(), phrase("zzz")).unwrap();
+    assert!(matches!(f.editor.generate_pronunciation(draft.uuid(), "ipa_phonetics"), Err(OrchestratorError::Invalid(_))), "no word found");
+    assert!(matches!(f.editor.generate_pronunciation(draft.uuid(), "phrase"), Err(OrchestratorError::Invalid(_))), "not an IPA field");
+
+    let none = fixture_with(false, true);
+    none.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    let draft = none.editor.add_draft("Deck", "phonetic").unwrap().remove(0);
+    none.editor.update_draft(draft.uuid(), phrase("hello")).unwrap();
+    assert!(matches!(none.editor.generate_pronunciation(draft.uuid(), "ipa_phonetics"), Err(OrchestratorError::Unavailable(_))));
+}
+
+#[test]
+fn a_language_the_dictionary_does_not_have_is_reported_as_unavailable() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "fra", None, None, DeckSettings::default()).unwrap();
+    let draft = f.editor.add_draft("Deck", "phonetic").unwrap().remove(0);
+    f.editor.update_draft(draft.uuid(), phrase("bonjour")).unwrap();
+    assert!(matches!(f.editor.generate_pronunciation(draft.uuid(), "ipa_phonetics"), Err(OrchestratorError::Unavailable(_))));
+}
+
+#[test]
+fn a_stack_is_three_drafts_that_share_a_stack_and_can_be_edited_alone() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.editor.add_draft("Deck", "vocabulary").unwrap();
+    let drafts = f.editor.add_stack("Deck").unwrap();
+    assert_eq!(drafts.len(), 4);
+    let stack: Vec<_> = drafts.iter().filter(|d| d.stack_uuid().is_some()).collect();
+    let slugs = f.editor.type_slugs().unwrap();
+    assert_eq!(
+        stack.iter().map(|d| slugs[&d.flashcard_type_id()].as_str()).collect::<Vec<_>>(),
+        vec!["vocabulary", "phonetic", "orthographic"]
+    );
+    let uuid = stack[0].stack_uuid().unwrap();
+    assert!(stack.iter().all(|d| d.stack_uuid() == Some(uuid)));
+    assert!(drafts[0].stack_uuid().is_none(), "the regular draft is not part of it");
+
+    // Each card is edited with the ordinary operations, so it can be changed on its own.
+    f.editor.update_draft(stack[1].uuid(), phrase("only the phonetic card")).unwrap();
+    let drafts = f.editor.drafts("Deck").unwrap();
+    assert_eq!(drafts[2].values()["phrase"], "only the phonetic card");
+    assert!(drafts[1].values().get("phrase").is_none());
+
+    // One card can leave, or be deleted, without touching the others.
+    f.editor.delete_draft(stack[2].uuid()).unwrap();
+    assert_eq!(f.editor.drafts("Deck").unwrap().len(), 3);
+    let rest = f.editor.unstack(stack[1].uuid()).unwrap();
+    assert!(rest.iter().all(|d| d.stack_uuid().is_none()), "one card alone is not a stack");
+}
+
+#[test]
+fn a_card_can_be_added_back_to_a_stack_with_the_phrase_copied() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    let stack = f.editor.add_stack("Deck").unwrap();
+    let uuid = stack[0].stack_uuid().unwrap().to_owned();
+    f.editor.update_draft(stack[0].uuid(), phrase("<b>Hello</b> there")).unwrap();
+    f.editor.delete_draft(stack[2].uuid()).unwrap();
+
+    assert!(matches!(f.editor.add_stack_member(&uuid, "vocabulary"), Err(OrchestratorError::Invalid(_))), "it is already in");
+    let drafts = f.editor.add_stack_member(&uuid, "orthographic").unwrap();
+    assert_eq!(drafts.len(), 3);
+    let added = drafts.iter().find(|d| d.values().contains_key("phrase") && d.uuid() != stack[0].uuid()).unwrap();
+    assert_eq!(added.values()["phrase"], "Hello there", "copied as plain text");
+    assert!(matches!(f.editor.add_stack_member("nope", "phonetic"), Err(OrchestratorError::NotFound(_))));
+}
+
+#[tokio::test]
+async fn generating_a_stack_makes_the_audio_and_the_pronunciation() {
+    let f = fixture();
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    let stack = f.editor.add_stack("Deck").unwrap();
+    for draft in &stack {
+        f.editor.update_draft(draft.uuid(), phrase("Hello, everyone!")).unwrap();
+    }
+    let uuid = stack[0].stack_uuid().unwrap();
+
+    let generated = f.editor.generate_stack(uuid).await.unwrap();
+    assert!(generated.warnings.is_empty(), "{:?}", generated.warnings);
+    let drafts = generated.value;
+    assert_eq!(drafts[1].values()["ipa_phonetics"], "<b>Hello</b>: /həˈɫoʊ/<br><b>everyone</b>: /ˈɛvɹiˌwən/");
+    assert_eq!(drafts[2].media()["audio"].len(), 1);
+    assert_eq!(f.speech.requests.lock().unwrap().len(), 1, "one request for the one audio field");
+}
+
+#[tokio::test]
+async fn one_side_of_a_stack_failing_does_not_lose_the_other() {
+    let offline = fixture_with_speech(true);
+    offline.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    let stack = offline.editor.add_stack("Deck").unwrap();
+    for draft in &stack {
+        offline.editor.update_draft(draft.uuid(), phrase("hello")).unwrap();
+    }
+    let generated = offline.editor.generate_stack(stack[0].stack_uuid().unwrap()).await.unwrap();
+    assert_eq!(generated.value[1].values()["ipa_phonetics"], "<b>hello</b>: /həˈɫoʊ/", "the pronunciation was applied");
+    assert_eq!(generated.warnings.len(), 1);
+    assert!(generated.warnings[0].starts_with("Orthographic, Audio"), "{}", generated.warnings[0]);
+
+    let no_dictionary = fixture_with(false, true);
+    no_dictionary.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    let stack = no_dictionary.editor.add_stack("Deck").unwrap();
+    for draft in &stack {
+        no_dictionary.editor.update_draft(draft.uuid(), phrase("hello")).unwrap();
+    }
+    let generated = no_dictionary.editor.generate_stack(stack[0].stack_uuid().unwrap()).await.unwrap();
+    assert_eq!(generated.value[2].media()["audio"].len(), 1, "the audio was applied");
+    assert!(generated.warnings[0].starts_with("Phonetic, IPA phonetics"), "{}", generated.warnings[0]);
+}
+
+#[tokio::test]
+async fn generating_audio_again_for_a_new_phrase_replaces_the_old_audio() {
+    let f = fixture();
+    let uuid = orthographic_draft(&f, "first phrase");
+    f.editor.generate_media(&uuid, "audio").await.unwrap();
+    // The fake voice makes a different file for a different phrase.
+    f.editor.update_draft(&uuid, phrase("second phrase")).unwrap();
+    let draft = f.editor.generate_media(&uuid, "audio").await.unwrap();
+    assert_eq!(draft.media()["audio"].len(), 1, "only the audio of the current phrase is kept");
+}
+
+fn publish_a_stack(f: &Fixture) -> Vec<SavedCard> {
+    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    let stack = f.editor.add_stack("Deck").unwrap();
+    let values = [
+        BTreeMap::from([
+            ("phrase".to_string(), "Hello".to_string()),
+            ("word_or_expression".to_string(), "hello".to_string()),
+            ("meaning".to_string(), "a greeting".to_string()),
+        ]),
+        BTreeMap::from([
+            ("phrase".to_string(), "Hello".to_string()),
+            ("ipa_phonetics".to_string(), "<b>hello</b>: /həˈɫoʊ/".to_string()),
+        ]),
+        BTreeMap::from([("phrase".to_string(), "Hello".to_string())]),
+    ];
+    for (draft, values) in stack.iter().zip(values) {
+        f.editor.update_draft(draft.uuid(), values).unwrap();
+    }
+    let source = f.path.with_extension("src");
+    std::fs::create_dir_all(&source).unwrap();
+    let mp3 = source.join("hello.mp3");
+    std::fs::write(&mp3, FAKE_MP3).unwrap();
+    f.editor.attach_media(stack[2].uuid(), "audio", &mp3).unwrap();
+    let outcome = f.editor.publish_drafts("Deck").unwrap();
+    assert!(outcome.issues.is_empty(), "{:?}", outcome.issues);
+    f.editor.saved_cards("Deck").unwrap()
+}
+
+#[test]
+fn publishing_a_stack_saves_three_cards_linked_by_the_stack() {
+    let f = fixture();
+    let cards = publish_a_stack(&f);
+    assert_eq!(cards.len(), 3);
+    let stack = cards[0].stack_uuid.clone().expect("linked");
+    assert!(cards.iter().all(|c| c.stack_uuid.as_deref() == Some(stack.as_str())));
+    let mut types: Vec<_> = cards.iter().map(|c| c.type_slug.as_str()).collect();
+    types.sort_unstable();
+    assert_eq!(types, vec!["orthographic", "phonetic", "vocabulary"]);
+}
+
+#[test]
+fn the_cards_of_a_saved_stack_are_edited_together_all_or_nothing() {
+    let f = fixture();
+    let cards = publish_a_stack(&f);
+    let by_type = |slug: &str| cards.iter().find(|c| c.type_slug == slug).unwrap().clone();
+    let (vocabulary, phonetic, orthographic) = (by_type("vocabulary"), by_type("phonetic"), by_type("orthographic"));
+
+    let updated = f.editor.update_saved_many(vec![
+        (vocabulary.uuid.clone(), BTreeMap::from([
+            ("phrase".to_string(), "Goodbye".to_string()),
+            ("word_or_expression".to_string(), "bye".to_string()),
+            ("meaning".to_string(), "farewell".to_string()),
+        ])),
+        (phonetic.uuid.clone(), BTreeMap::from([
+            ("phrase".to_string(), "Goodbye".to_string()),
+            ("ipa_phonetics".to_string(), "<b>bye</b>".to_string()),
+        ])),
+        (orthographic.uuid.clone(), phrase("Goodbye")),
+    ]).unwrap();
+    assert!(updated.iter().all(|c| c.values["phrase"] == "Goodbye"));
+
+    // One card that does not pass leaves all of them as they were.
+    let refused = f.editor.update_saved_many(vec![
+        (vocabulary.uuid.clone(), BTreeMap::from([
+            ("phrase".to_string(), "Changed".to_string()),
+            ("word_or_expression".to_string(), "x".to_string()),
+            ("meaning".to_string(), "y".to_string()),
+        ])),
+        (phonetic.uuid.clone(), phrase("Changed")), // the IPA field is required
+    ]);
+    assert!(matches!(refused, Err(OrchestratorError::Invalid(_))));
+    let again = f.editor.saved_cards("Deck").unwrap();
+    assert!(again.iter().all(|c| c.values["phrase"] == "Goodbye"), "nothing was stored");
+}
+
+#[test]
+fn a_saved_card_can_leave_its_stack_and_a_stack_can_be_deleted() {
+    let f = fixture();
+    let cards = publish_a_stack(&f);
+    let stack = cards[0].stack_uuid.clone().unwrap();
+
+    let free = f.editor.unstack_saved(&cards[0].uuid).unwrap();
+    assert!(free.stack_uuid.is_none());
+    let rest = f.editor.saved_cards("Deck").unwrap();
+    assert_eq!(rest.iter().filter(|c| c.stack_uuid.is_some()).count(), 2, "two are still a stack");
+
+    f.editor.delete_saved_stack(&stack).unwrap();
+    let left = f.editor.saved_cards("Deck").unwrap();
+    assert_eq!(left.len(), 1, "only the card that left is kept");
+    assert_eq!(left[0].uuid, cards[0].uuid);
+}
+
+#[test]
+fn deleting_one_card_of_a_saved_stack_leaves_the_others_stacked() {
+    let f = fixture();
+    let cards = publish_a_stack(&f);
+    f.editor.delete_saved(&cards[2].uuid).unwrap();
+    let rest = f.editor.saved_cards("Deck").unwrap();
+    assert_eq!(rest.len(), 2);
+    assert!(rest.iter().all(|c| c.stack_uuid.is_some()));
+    f.editor.delete_saved(&cards[1].uuid).unwrap();
+    assert!(f.editor.saved_cards("Deck").unwrap()[0].stack_uuid.is_none(), "one card alone is not a stack");
+}
+
+#[tokio::test]
+async fn generating_a_saved_stack_uses_the_saved_text() {
+    let f = fixture();
+    let cards = publish_a_stack(&f);
+    let stack = cards[0].stack_uuid.clone().unwrap();
+    let phonetic = cards.iter().find(|c| c.type_slug == "phonetic").unwrap();
+    f.editor.update_saved_many(vec![(phonetic.uuid.clone(), BTreeMap::from([
+        ("phrase".to_string(), "world".to_string()),
+        ("ipa_phonetics".to_string(), "old".to_string()),
+    ]))]).unwrap();
+
+    let generated = f.editor.generate_saved_stack(&stack).await.unwrap();
+    assert_eq!(generated.value.len(), 3);
+    let phonetic = generated.value.iter().find(|c| c.type_slug == "phonetic").unwrap();
+    assert_eq!(phonetic.values["ipa_phonetics"], "<b>world</b>: /wɝɫd/");
+    let orthographic = generated.value.iter().find(|c| c.type_slug == "orthographic").unwrap();
+    assert_eq!(orthographic.media["audio"].len(), 1);
+    assert!(generated.warnings.is_empty(), "{:?}", generated.warnings);
 }

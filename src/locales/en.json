@@ -108,7 +108,8 @@
     "generateHint": "Write the phrase, then generate its audio or attach a file.",
     "replay": "Replay",
     "loadingAudio": "Loading audio",
-    "autoplayBlocked": "The audio could not start by itself. Press play to hear it."
+    "autoplayBlocked": "The audio could not start by itself. Press play to hear it.",
+    "generatePronunciation": "Generate pronunciation from the text"
   },
   "rich": {
     "editHtml": "Edit HTML",
@@ -164,7 +165,7 @@
     "dailyLimitReached": "This deck's daily limit has been reached. The rest of its cards come back in {{interval}}.",
     "remembered": "Right answers",
     "missed": "Missed answers",
-    "undoAria": "Undo the last answer (Z)",
+    "undoAria": "Undo the last answer",
     "reloadFailed": "Your answer was saved, but the next card could not be loaded.",
     "retry": "Try again",
     "diffBoth": "{{extra}} extra and {{missing}} missing letters",
@@ -172,7 +173,7 @@
     "diffExtra_other": "{{count}} extra letters",
     "diffMissing_one": "{{count}} letter missing",
     "diffMissing_other": "{{count}} letters missing",
-    "dictationHint": "Alt+R plays the audio again",
+    "dictationHint": "Alt+R plays the audio again, Alt+Space shows the answer",
     "waitingLabel": "Cards waiting",
     "cardAria": "{{type}} card, {{state}}"
   },
@@ -193,7 +194,11 @@
     "count_other": "{{count}} saved cards",
     "countOf": "{{shown}} of {{total}} saved cards",
     "noMatch": "No saved card matches this search.",
-    "mediaOnly": "Media only"
+    "mediaOnly": "Media only",
+    "stackRow": "Stack",
+    "expandAria": "Show the cards of this stack",
+    "collapseAria": "Hide the cards of this stack",
+    "openStackAria": "Edit the whole stack: {{phrase}}"
   },
   "panel": {
     "editAria": "Edit {{type}} flashcard",
@@ -201,7 +206,9 @@
     "saved": "Changes saved. The review history of this card is kept.",
     "discardPrompt": "Discard your unsaved changes?",
     "keepEditing": "Keep editing",
-    "discard": "Discard"
+    "discard": "Discard",
+    "stackTitle": "Edit stack",
+    "stackAria": "Edit the stack"
   },
   "errors": {
     "tauriUnavailable": "Tauri is not available here. Run the app with `npm run tauri dev`."
@@ -212,5 +219,34 @@
     "meaning": "Meaning",
     "ipa_phonetics": "IPA phonetics",
     "audio": "Audio"
+  },
+  "stack": {
+    "aria": "Stack",
+    "phrase": "Phrase",
+    "sharedHint": "Shared by the cards of this stack. Each card can have its own.",
+    "generate": "Generate audio and pronunciation",
+    "generating": "Generating audio and pronunciation",
+    "settingsLink": "Pronunciation dictionary settings",
+    "linkedAria": "Phrase linked to the stack. Press to give this card its own phrase.",
+    "unlinkedAria": "This card has its own phrase. Press to link it to the stack.",
+    "useStackPhrase": "Use the stack's phrase",
+    "takeOutAria": "Take this card out of the stack",
+    "addBack": "Add {{type}}",
+    "deleteAria": "Delete the stack and all of its cards",
+    "confirmDeleteAria": "Confirm deleting the stack and all of its cards"
+  },
+  "dictionary": {
+    "title": "Pronunciation dictionary",
+    "intro": "Pronunciations (IPA) come from the ipa-dict word lists, which are not part of the app. Import their folder once and it stays on this computer.",
+    "installed": "Installed",
+    "notInstalled": "Not installed",
+    "words_one": "{{count}} word",
+    "words_other": "{{count}} words",
+    "import": "Import from folder…",
+    "importing": "Importing…",
+    "importingHint": "Reading about 2.5 million words. This can take a minute.",
+    "imported": "The dictionary was imported.",
+    "empty": "Nothing is installed yet, so the pronunciation buttons will say the dictionary is missing.",
+    "licenseNote": "The word lists have different licenses. Read the notes in docs/development.md before sharing the app."
   }
 }

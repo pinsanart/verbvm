@@ -7,6 +7,7 @@
 mod deck_overview;
 mod error;
 mod flashcard_editor;
+mod pronunciation_text;
 mod review_session;
 
 pub use deck_overview::{DeckOverview, DeckOverviewOrchestrator};
@@ -16,9 +17,11 @@ pub use review_session::{
     TypeReview,
 };
 pub use flashcard_editor::{
-    DraftIssue, EditorForm, FlashcardEditorOrchestrator, PublishOutcome, SavedCard, TypeForm,
+    DraftIssue, EditorForm, FlashcardEditorOrchestrator, Generated, PublishOutcome, SavedCard, TypeForm,
 };
 
+#[cfg(test)]
+mod fake_pronunciation;
 #[cfg(test)]
 mod fake_speech;
 #[cfg(test)]

@@ -4,8 +4,11 @@ import type { Media } from "./Media";
 
 export type FieldSide = "FRONT" | "BACK";
 
-/** How a field is filled in. An audio field holds only audio, uploaded or generated. */
-export type FieldKind = "PLAIN" | "RICH" | "AUDIO";
+/**
+ * How a field is filled in. An audio field holds only audio, uploaded or generated. An IPA field
+ * holds HTML with the pronunciation of the words of another field, and can be generated.
+ */
+export type FieldKind = "PLAIN" | "RICH" | "AUDIO" | "IPA";
 
 /** One field of a flashcard type, as defined by the backend for the deck's language. */
 export interface FieldDefinition {
@@ -17,7 +20,7 @@ export interface FieldDefinition {
     /** The content is HTML and is edited in the rich editor. */
     isRich: boolean;
     kind: FieldKind;
-    /** For an audio field, the key of the field its audio is spoken from. */
+    /** For an audio or IPA field, the key of the field it is generated from. */
     sourceKey: string | null;
     mediaAllowed: boolean;
 }
@@ -51,6 +54,8 @@ export interface Draft {
     position: number;
     values: Record<string, string>;
     media: Record<string, Media[]>;
+    /** The drafts that share this value are one stack: shown as one, linked once published. */
+    stackUuid: string | null;
 }
 
 /** A flashcard that is already saved, shaped like a draft so the same form edits both. */
@@ -62,6 +67,14 @@ export interface SavedCard {
     /** UTC, `YYYY-MM-DD HH:MM:SS`. */
     createdAt: string | null;
     updatedAt: string | null;
+    /** The cards that share this value were made together and are edited together. */
+    stackUuid: string | null;
+}
+
+/** What a generation produced, with what did not work or was left out (for example the words with no pronunciation). */
+export interface Generated<T> {
+    value: T;
+    warnings: string[];
 }
 
 export interface DraftIssue {

@@ -123,6 +123,7 @@ pub struct Flashcard {
     updated_at: Option<DateTime<Utc>>,
     fields: Vec<FieldValue>,
     media: Vec<FieldMedia>,
+    stack_uuid: Option<String>,
 }
 
 impl Flashcard {
@@ -146,9 +147,17 @@ impl Flashcard {
             updated_at: None,
             fields,
             media,
+            stack_uuid: None,
         })
     }
 
+    /// The same unsaved flashcard, linked to the stack with this uuid when it is saved.
+    pub fn in_stack(mut self, stack_uuid: Option<String>) -> Self {
+        self.stack_uuid = stack_uuid;
+        self
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn restore(
         id: i64,
         uuid: String,
@@ -158,6 +167,7 @@ impl Flashcard {
         updated_at: Option<DateTime<Utc>>,
         fields: Vec<FieldValue>,
         media: Vec<FieldMedia>,
+        stack_uuid: Option<String>,
     ) -> Self {
         Self {
             id: Some(id),
@@ -168,7 +178,13 @@ impl Flashcard {
             updated_at,
             fields,
             media,
+            stack_uuid,
         }
+    }
+
+    /// The stack that links this flashcard to the others made with it, if any.
+    pub fn stack_uuid(&self) -> Option<&str> {
+        self.stack_uuid.as_deref()
     }
 
     pub fn id(&self) -> Option<i64> {
@@ -215,6 +231,7 @@ pub struct FlashcardDraft {
     values: BTreeMap<String, String>,
     /// Attached media by field key.
     media: BTreeMap<String, Vec<MediaAttachment>>,
+    stack_uuid: Option<String>,
     updated_at: Option<DateTime<Utc>>,
 }
 
@@ -229,10 +246,18 @@ impl FlashcardDraft {
             position: 0,
             values: BTreeMap::new(),
             media: BTreeMap::new(),
+            stack_uuid: None,
             updated_at: None,
         }
     }
 
+    /// The same unsaved draft, part of the stack with this uuid.
+    pub fn in_stack(mut self, stack_uuid: Option<String>) -> Self {
+        self.stack_uuid = stack_uuid;
+        self
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn restore(
         id: i64,
         uuid: String,
@@ -241,6 +266,7 @@ impl FlashcardDraft {
         position: i64,
         values: BTreeMap<String, String>,
         media: BTreeMap<String, Vec<MediaAttachment>>,
+        stack_uuid: Option<String>,
         updated_at: DateTime<Utc>,
     ) -> Self {
         Self {
@@ -251,8 +277,14 @@ impl FlashcardDraft {
             position,
             values,
             media,
+            stack_uuid,
             updated_at: Some(updated_at),
         }
+    }
+
+    /// The stack this draft belongs to in the editor, if any. A stack needs at least two drafts.
+    pub fn stack_uuid(&self) -> Option<&str> {
+        self.stack_uuid.as_deref()
     }
 
     pub fn id(&self) -> Option<i64> {
@@ -314,6 +346,7 @@ impl FlashcardDraft {
             position: self.position + 1,
             values: self.values.clone(),
             media: self.media.clone(),
+            stack_uuid: self.stack_uuid.clone(),
             updated_at: None,
         }
     }

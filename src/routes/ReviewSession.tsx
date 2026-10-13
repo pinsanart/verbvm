@@ -21,7 +21,8 @@ import type { Rating } from "../types/Review";
 import { useReviewSessionViewModel } from "../viewmodels/useReviewSessionViewModel";
 
 /** The only keys a review listens to. Any other key is ignored before it reaches this screen. */
-const REVIEW_KEYS = ["r", " ", "Enter", "1", "2", "3", "4", "z", "Escape"] as const;
+// "®" and a non-breaking space are what Alt+R and Alt+Space type on macOS.
+const REVIEW_KEYS = ["r", " ", "Enter", "1", "2", "3", "4", "z", "Escape", "®", "\u00a0"] as const;
 
 /** Reviews the flashcards of one type in a deck, one card at a time. */
 export default function ReviewSession() {
@@ -42,15 +43,36 @@ export default function ReviewSession() {
   const expectedKey = audioFields.find((field) => field.sourceKey !== null)?.sourceKey;
   const expected = vm.card?.fields.find((field) => field.key === expectedKey)?.content ?? "";
 
-  // Space or Enter shows the response, 1 to 4 answer, R plays the audio again, Z (or Ctrl+Z)
-  // takes the last answer back and Escape leaves the session, so a review can run without the
-  // mouse. Answers are saved as they are given, so leaving loses nothing.
+  // Space or Enter shows the response, 1 to 4 answer, R plays the audio again, Z takes the last
+  // answer back and Escape leaves the session, so a review can run without the mouse. Answers are
+  // saved as they are given, so leaving loses nothing. Alt+Space shows the response, Alt+R plays
+  // the audio and Ctrl+Z undoes from anywhere, including a text box, where the plain keys write.
   const { showResponse, answer, undo, revealed, card } = vm;
   // Only Space and Enter press a focused button or link themselves, so only they step aside for
   // one. The other keys keep working after a Tab onto the answers.
   useKeys(REVIEW_KEYS, (e) => {
+    // Ctrl+Z (Cmd+Z) does what the Undo button does, from anywhere, including the dictation box.
+    // With no answer to take back it is left alone, so the box can still undo its own typing.
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "z") {
+      if (vm.canUndo) {
+        e.preventDefault();
+        undo();
+      }
+      return;
+    }
+    if (e.altKey && !e.ctrlKey && !e.metaKey) {
+      if (!card) return;
+      if (e.key === " " || e.key === "\u00a0") {
+        e.preventDefault();
+        if (!revealed) showResponse();
+      } else if (e.key.toLowerCase() === "r" || e.key === "®") {
+        e.preventDefault();
+        replayAudio();
+      }
+      return;
+    }
     if (e.altKey || isTyping(e.target)) return;
-    if (e.key.toLowerCase() === "z") {
+    if (e.key.toLowerCase() === "z" && !hasModifier(e)) {
       e.preventDefault();
       undo();
       return;
@@ -86,7 +108,12 @@ export default function ReviewSession() {
       actions={
         vm.status === "ready" ? (
           <div className="flex items-center gap-3">
-            {vm.card && <ReviewCountsInline counts={vm.counts} current={vm.card?.state ?? null} />}
+            {/* On a phone the bar has room only for the undo button, so the counts move below it. */}
+            {vm.card && (
+              <div className="hidden md:block">
+                <ReviewCountsInline counts={vm.counts} current={vm.card.state} />
+              </div>
+            )}
             <IconButton
               label={t("review.undoAria")}
               icon={Undo2}
@@ -98,6 +125,12 @@ export default function ReviewSession() {
         ) : undefined
       }
     >
+      {vm.card && (
+        <div className="flex justify-center md:hidden">
+          <ReviewCountsInline counts={vm.counts} current={vm.card.state} />
+        </div>
+      )}
+
       <AnimatePresence initial={false}>
         {vm.error && (
           <Notice key="error" tone="error">

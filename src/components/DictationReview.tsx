@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { Check, CircleAlert } from "lucide-react";
 import { ReviewCardFace } from "./ReviewCardFace";
 import { controlClass } from "./formStyles";
-import { replayAudio } from "../lib/audio";
 import { diffText } from "../lib/textDiff";
 import type { DiffKind, DiffSegment, TextDiff } from "../lib/textDiff";
 import type { ReviewField } from "../types/Review";
@@ -118,10 +117,6 @@ export function DictationReview({
                             if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                                 e.preventDefault();
                                 onSubmit();
-                            } else if (e.altKey && e.key.toLowerCase() === "r") {
-                                // R types a letter in this box, so replaying has its own chord.
-                                e.preventDefault();
-                                replayAudio();
                             }
                         }}
                         placeholder={t("review.typeWhatYouHear")}

@@ -7,6 +7,7 @@ import { FieldInput } from "./FieldInput";
 import { IconButton } from "./IconButton";
 import { useTypeLabel } from "../i18n/useTypeLabel";
 import { styleForType } from "../data/FlashcardTypeStyles";
+import { canGenerate as canGenerateField } from "../lib/stackFields";
 import type { FieldDefinition } from "../types/FlashcardForm";
 import type { Media } from "../types/Media";
 
@@ -26,7 +27,7 @@ export interface FlashcardInputProps {
     isLast: boolean;
     onChange: (key: string, value: string) => void;
     onAttachMedia: (key: string) => void;
-    onGenerateMedia: (key: string) => Promise<unknown>;
+    onGenerate: (key: string) => Promise<unknown>;
     onRemoveMedia: (key: string, sha256: string) => void;
     onMoveUp: () => void;
     onMoveDown: () => void;
@@ -74,6 +75,9 @@ function ControlBar({
     );
 }
 
+/** The kinds of field that fill a row on their own when the face has two columns. */
+const WIDE_KINDS: readonly string[] = ["RICH", "IPA", "AUDIO"];
+
 // Front and back share one surface and one palette. They differ in structure: the front has a
 // solid top rule and an open eye (what you see first), the back a dashed top rule and a closed one
 // (what stays hidden until you flip).
@@ -101,7 +105,7 @@ function Face({
     media,
     onChange,
     onAttachMedia,
-    onGenerateMedia,
+    onGenerate,
     onRemoveMedia,
     columns,
 }: {
@@ -112,7 +116,7 @@ function Face({
     media: Record<string, Media[]>;
     onChange: (key: string, value: string) => void;
     onAttachMedia: (key: string) => void;
-    onGenerateMedia: (key: string) => Promise<unknown>;
+    onGenerate: (key: string) => Promise<unknown>;
     onRemoveMedia: (key: string, sha256: string) => void;
     columns?: boolean;
 }) {
@@ -132,20 +136,20 @@ function Face({
             </header>
             <div className={columns ? "grid grid-cols-1 gap-5 md:grid-cols-2" : "flex flex-col gap-5"}>
                 {fields.map((field) => (
-                    <FieldInput
-                        key={field.key}
-                        definition={field}
-                        value={values[field.key] ?? ""}
-                        error={errors[field.key]}
-                        media={media[field.key]}
-                        onChange={(value) => onChange(field.key, value)}
-                        onAttachMedia={() => onAttachMedia(field.key)}
-                        onGenerateMedia={() => onGenerateMedia(field.key)}
-                        canGenerate={
-                            field.sourceKey !== null && (values[field.sourceKey] ?? "").trim() !== ""
-                        }
-                        onRemoveMedia={(sha256) => onRemoveMedia(field.key, sha256)}
-                    />
+                    // Rich text, pronunciation and audio need the width, so they take the whole row.
+                    <div key={field.key} className={columns && WIDE_KINDS.includes(field.kind) ? "md:col-span-2" : undefined}>
+                        <FieldInput
+                            definition={field}
+                            value={values[field.key] ?? ""}
+                            error={errors[field.key]}
+                            media={media[field.key]}
+                            onChange={(value) => onChange(field.key, value)}
+                            onAttachMedia={() => onAttachMedia(field.key)}
+                            onGenerate={() => onGenerate(field.key)}
+                            canGenerate={canGenerateField(field, values)}
+                            onRemoveMedia={(sha256) => onRemoveMedia(field.key, sha256)}
+                        />
+                    </div>
                 ))}
             </div>
         </section>
@@ -160,18 +164,15 @@ export interface FlashcardFacesProps {
     media: Record<string, Media[]>;
     onChange: (key: string, value: string) => void;
     onAttachMedia: (key: string) => void;
-    onGenerateMedia: (key: string) => Promise<unknown>;
+    onGenerate: (key: string) => Promise<unknown>;
     onRemoveMedia: (key: string, sha256: string) => void;
 }
 
-/** The two faces of a card with the flip divider between them. Drafts and saved cards share it. */
+/** The two faces of a card, one after the other. Drafts and saved cards share it. */
 export function FlashcardFaces({ frontFields, backFields, ...faceProps }: FlashcardFacesProps) {
     return (
         <>
             <Face face="front" fields={frontFields} {...faceProps} />
-            {frontFields.length > 0 && backFields.length > 0 && (
-                <hr className="border-line" aria-hidden />
-            )}
             <Face face="back" fields={backFields} {...faceProps} columns />
         </>
     );
@@ -194,7 +195,7 @@ export function FlashcardInput({
     isLast,
     onChange,
     onAttachMedia,
-    onGenerateMedia,
+    onGenerate,
     onRemoveMedia,
     onMoveUp,
     onMoveDown,
@@ -218,7 +219,7 @@ export function FlashcardInput({
                 <FlashcardFaces
                     frontFields={frontFields}
                     backFields={backFields}
-                    {...{ values, errors, media, onChange, onAttachMedia, onGenerateMedia, onRemoveMedia }}
+                    {...{ values, errors, media, onChange, onAttachMedia, onGenerate, onRemoveMedia }}
                 />
             </div>
         </article>

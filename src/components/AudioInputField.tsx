@@ -15,7 +15,7 @@ export interface AudioInputFieldProps {
     canGenerate: boolean;
     onAttachMedia?: () => void;
     /** Generates the audio. Resolves when the attempt is over, whether or not it worked. */
-    onGenerateMedia?: () => Promise<unknown>;
+    onGenerate?: () => Promise<unknown>;
     onRemoveMedia?: (sha256: string) => void;
 }
 
@@ -30,7 +30,7 @@ export function AudioInputField({
     media,
     canGenerate,
     onAttachMedia,
-    onGenerateMedia,
+    onGenerate,
     onRemoveMedia,
 }: AudioInputFieldProps) {
     const { t } = useTranslation();
@@ -38,10 +38,10 @@ export function AudioInputField({
     const [generating, setGenerating] = useState(false);
 
     const generate = async () => {
-        if (!onGenerateMedia) return;
+        if (!onGenerate) return;
         setGenerating(true);
         try {
-            await onGenerateMedia();
+            await onGenerate();
         } finally {
             setGenerating(false);
         }
@@ -49,7 +49,7 @@ export function AudioInputField({
 
     return (
         <div role="group" aria-labelledby={id}>
-            <div className="mb-2 flex min-h-10 items-center justify-between md:min-h-9">
+            <div className="mb-1 flex min-h-10 items-center justify-between md:min-h-9">
                 <span id={id} className={`${editorLabelClass} mb-0`}>
                     {label}
                     {required && (

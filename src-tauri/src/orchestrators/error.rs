@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 use crate::dependencies::media_store::MediaError;
+use crate::dependencies::pronunciation::PronunciationError;
 use crate::dependencies::speech::SpeechError;
 use crate::modules::card_types::CardTypesError;
 use crate::modules::decks::DecksError;
@@ -60,6 +61,19 @@ impl From<MediaError> for OrchestratorError {
                 OrchestratorError::Invalid(message)
             }
             MediaError::Io(_) => OrchestratorError::Internal(message),
+        }
+    }
+}
+
+impl From<PronunciationError> for OrchestratorError {
+    fn from(err: PronunciationError) -> Self {
+        let message = err.to_string();
+        match err {
+            PronunciationError::NotInstalled | PronunciationError::Unsupported(_) => {
+                OrchestratorError::Unavailable(message)
+            }
+            PronunciationError::NothingToImport => OrchestratorError::Invalid(message),
+            PronunciationError::Db(_) | PronunciationError::Io(_) => OrchestratorError::Internal(message),
         }
     }
 }

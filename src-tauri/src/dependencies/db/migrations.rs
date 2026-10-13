@@ -59,11 +59,12 @@ pub fn migrations() -> Migrations<'static> {
                 position         INTEGER NOT NULL DEFAULT 0,
                 is_required      INTEGER NOT NULL DEFAULT 0 CHECK (is_required IN (0, 1)),
                 media_allowed    INTEGER NOT NULL DEFAULT 0 CHECK (media_allowed IN (0, 1)),
-                -- PLAIN fields hold text, RICH fields hold HTML (rich editor) and AUDIO fields hold only
-                -- audio, uploaded or spoken from the text of the field named by `source_key`.
-                kind             TEXT NOT NULL DEFAULT 'PLAIN' CHECK (kind IN ('PLAIN', 'RICH', 'AUDIO')),
+                -- PLAIN fields hold text, RICH fields hold HTML (rich editor), AUDIO fields hold only
+                -- audio, uploaded or spoken from the text of the field named by `source_key`, and IPA
+                -- fields hold HTML with the pronunciation of the words of the `source_key` field.
+                kind             TEXT NOT NULL DEFAULT 'PLAIN' CHECK (kind IN ('PLAIN', 'RICH', 'AUDIO', 'IPA')),
                 source_key       TEXT,
-                CHECK ((kind = 'AUDIO') = (source_key IS NOT NULL)),
+                CHECK ((kind IN ('AUDIO', 'IPA')) = (source_key IS NOT NULL)),
                 CHECK (kind <> 'AUDIO' OR media_allowed = 1)
             );
             CREATE UNIQUE INDEX idx_field_definitions_unique
@@ -72,6 +73,8 @@ pub fn migrations() -> Migrations<'static> {
             -- A link between independent flashcards, for features that relate them.
             CREATE TABLE stacks (
                 id         INTEGER PRIMARY KEY,
+                -- Opaque public identifier. Database ids never leave the backend.
+                uuid       TEXT NOT NULL UNIQUE,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
@@ -110,10 +113,14 @@ pub fn migrations() -> Migrations<'static> {
                 flashcard_type_id INTEGER NOT NULL REFERENCES flashcard_types(id) ON DELETE RESTRICT,
                 position          INTEGER NOT NULL,
                 values_json       TEXT NOT NULL DEFAULT '{}',
+                -- Drafts that share a value are one stack in the editor and are linked by a stack
+                -- when published.
+                stack_uuid        TEXT,
                 updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_flashcard_drafts_deck_position
                 ON flashcard_drafts(deck_id, position);
+            CREATE INDEX idx_flashcard_drafts_stack_uuid ON flashcard_drafts(stack_uuid);
 
             -- Media files are kept in S3 and cached in a local folder. `file_name` is
             -- `<sha256>.<ext>` inside that folder. `remote_key` is the S3 object key, NULL until the
@@ -198,7 +205,9 @@ pub fn migrations() -> Migrations<'static> {
             INSERT INTO languages (iso_639_1, iso_639_3, name) VALUES
                 ('en', 'eng', 'English'),
                 ('fr', 'fra', 'French'),
-                ('pt', 'por', 'Portuguese');
+                ('pt', 'por', 'Portuguese'),
+                ('es', 'spa', 'Spanish'),
+                ('de', 'deu', 'German');
 
             INSERT INTO language_variants (language_id, bcp47_code, variant_name, country_code)
             SELECT l.id, v.bcp47_code, v.variant_name, v.country_code
@@ -207,6 +216,9 @@ pub fn migrations() -> Migrations<'static> {
                 UNION ALL SELECT 'eng', 'en-GB', 'English (United Kingdom)', 'GB'
                 UNION ALL SELECT 'fra', 'fr-FR', 'French (France)', 'FR'
                 UNION ALL SELECT 'por', 'pt-BR', 'Portuguese (Brazil)', 'BR'
+                UNION ALL SELECT 'spa', 'es-ES', 'Spanish (Spain)', 'ES'
+                UNION ALL SELECT 'spa', 'es-MX', 'Spanish (Mexico)', 'MX'
+                UNION ALL SELECT 'deu', 'de-DE', 'German (Germany)', 'DE'
             ) AS v
             JOIN languages l ON l.iso_639_3 = v.iso;
 
@@ -229,7 +241,7 @@ pub fn migrations() -> Migrations<'static> {
                 UNION ALL SELECT 'vocabulary', 'BACK', 'word_or_expression', 'Word or expression', 0, 1, 0, 'PLAIN', NULL
                 UNION ALL SELECT 'vocabulary', 'BACK', 'meaning', 'Meaning', 1, 1, 1, 'PLAIN', NULL
                 UNION ALL SELECT 'phonetic', 'FRONT', 'phrase', 'Phrase', 0, 1, 0, 'PLAIN', NULL
-                UNION ALL SELECT 'phonetic', 'BACK', 'ipa_phonetics', 'IPA phonetics', 0, 1, 0, 'RICH', NULL
+                UNION ALL SELECT 'phonetic', 'BACK', 'ipa_phonetics', 'IPA phonetics', 0, 1, 0, 'IPA', 'phrase'
                 UNION ALL SELECT 'orthographic', 'FRONT', 'audio', 'Audio', 0, 1, 1, 'AUDIO', 'phrase'
                 UNION ALL SELECT 'orthographic', 'FRONT', 'phrase', 'Phrase', 1, 1, 0, 'PLAIN', NULL
             ) AS d

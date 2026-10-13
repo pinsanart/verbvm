@@ -25,7 +25,7 @@ export function ReviewCardFace({ fields, size, autoPlay }: ReviewCardFaceProps) 
                     {field.content.trim() !== "" &&
                         (field.isRich ? (
                             <div
-                                className={`rich max-w-prose text-balance ${text}`}
+                                className={`rich max-w-prose text-balance ${field.kind === "IPA" ? "ipa" : ""} ${text}`}
                                 dangerouslySetInnerHTML={{ __html: field.content }}
                             />
                         ) : (

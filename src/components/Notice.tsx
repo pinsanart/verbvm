@@ -2,13 +2,14 @@ import { motion } from "motion/react";
 import { TRANSITION_BASE } from "../lib/motion";
 
 export interface NoticeProps {
-    tone: "success" | "error";
+    tone: "success" | "error" | "info";
     children: React.ReactNode;
 }
 
 const TONES = {
     success: "border-orthographic/50 text-orthographic",
     error: "border-stack/70 text-stack-ink",
+    info: "border-line-strong text-muted",
 } as const;
 
 /**
