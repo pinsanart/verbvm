@@ -4,12 +4,14 @@
 //! the natural keys the view uses (deck name, type slug, ISO and BCP 47 codes) into the ids the
 //! modules use, so no database id crosses the boundary to the view.
 
+mod anki_import;
 mod deck_overview;
 mod error;
 mod flashcard_editor;
 mod pronunciation_text;
 mod review_session;
 
+pub use anki_import::{AnkiImportOrchestrator, AnkiImportReport, DeckImport};
 pub use deck_overview::{DeckOverview, DeckOverviewOrchestrator};
 pub use error::{OrchestratorError, OrchestratorResult};
 pub use review_session::{

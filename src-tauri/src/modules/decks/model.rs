@@ -4,8 +4,8 @@ use super::error::{DecksError, DecksResult};
 
 const MAX_NAME_LEN: usize = 100;
 
-/// The options of a deck that shape how it is studied. They are kept together so a new option
-/// does not change the signature of every function that creates or edits a deck.
+/// The options that shape how the cards of one type of a deck are studied. They are kept together so
+/// a new option does not change the signature of every function that sets them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DeckSettings {
     new_cards_per_day: i64,
@@ -64,7 +64,6 @@ pub struct Deck {
     name: String,
     language_variant_id: i64,
     description: Option<String>,
-    settings: DeckSettings,
     created_at: Option<DateTime<Utc>>,
 }
 
@@ -75,14 +74,12 @@ impl Deck {
         name: String,
         language_variant_id: i64,
         description: Option<String>,
-        settings: DeckSettings,
     ) -> DecksResult<Self> {
         Ok(Self {
             id: None,
             name: validate_name(name)?,
             language_variant_id,
             description: normalize_description(description),
-            settings,
             created_at: None,
         })
     }
@@ -92,10 +89,9 @@ impl Deck {
         name: String,
         language_variant_id: i64,
         description: Option<String>,
-        settings: DeckSettings,
         created_at: DateTime<Utc>,
     ) -> Self {
-        Self { id: Some(id), name, language_variant_id, description, settings, created_at: Some(created_at) }
+        Self { id: Some(id), name, language_variant_id, description, created_at: Some(created_at) }
     }
 
     pub fn id(&self) -> Option<i64> {
@@ -114,26 +110,15 @@ impl Deck {
         self.description.as_deref()
     }
 
-    pub fn settings(&self) -> DeckSettings {
-        self.settings
-    }
-
     /// `None` until the deck is saved.
     pub fn created_at(&self) -> Option<DateTime<Utc>> {
         self.created_at
     }
 
-    /// Replaces the name, the description and the settings. Nothing changes if the name is
-    /// invalid.
-    pub fn revise(
-        &mut self,
-        name: String,
-        description: Option<String>,
-        settings: DeckSettings,
-    ) -> DecksResult<()> {
+    /// Replaces the name and the description. Nothing changes if the name is invalid.
+    pub fn revise(&mut self, name: String, description: Option<String>) -> DecksResult<()> {
         self.name = validate_name(name)?;
         self.description = normalize_description(description);
-        self.settings = settings;
         Ok(())
     }
 }
@@ -156,15 +141,15 @@ mod tests {
 
     #[test]
     fn name_is_trimmed_and_bounded() {
-        assert_eq!(Deck::new("  Travel ".into(), 1, None, DeckSettings::default()).unwrap().name(), "Travel");
-        assert!(Deck::new("   ".into(), 1, None, DeckSettings::default()).is_err());
-        assert!(Deck::new("x".repeat(101), 1, None, DeckSettings::default()).is_err());
+        assert_eq!(Deck::new("  Travel ".into(), 1, None).unwrap().name(), "Travel");
+        assert!(Deck::new("   ".into(), 1, None).is_err());
+        assert!(Deck::new("x".repeat(101), 1, None).is_err());
     }
 
     #[test]
     fn blank_description_becomes_none() {
-        assert_eq!(Deck::new("A".into(), 1, Some("  ".into()), DeckSettings::default()).unwrap().description(), None);
-        assert_eq!(Deck::new("A".into(), 1, Some(" hi ".into()), DeckSettings::default()).unwrap().description(), Some("hi"));
+        assert_eq!(Deck::new("A".into(), 1, Some("  ".into())).unwrap().description(), None);
+        assert_eq!(Deck::new("A".into(), 1, Some(" hi ".into())).unwrap().description(), Some("hi"));
     }
 
     #[test]
@@ -184,9 +169,8 @@ mod tests {
 
     #[test]
     fn failed_revise_leaves_the_deck_untouched() {
-        let mut deck = Deck::new("A".into(), 1, Some("d".into()), DeckSettings::default()).unwrap();
-        assert!(deck.revise("".into(), None, DeckSettings::new(1, 1, false).unwrap()).is_err());
-        assert_eq!(deck.settings(), DeckSettings::default());
+        let mut deck = Deck::new("A".into(), 1, Some("d".into())).unwrap();
+        assert!(deck.revise("".into(), None).is_err());
         assert_eq!((deck.name(), deck.description()), ("A", Some("d")));
     }
 }

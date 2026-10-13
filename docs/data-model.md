@@ -39,11 +39,11 @@ erDiagram
 - `languages`: `iso_639_1` (2 letters, optional), `iso_639_3` (3 letters, required and unique), `name` and `default_variant_id`.
 - `language_variants`: `language_id`, `bcp47_code` (unique, up to 10 characters), `variant_name` and `country_code` (2 letters, optional, used for the flag). Deleting a language deletes its variants.
 - The two tables reference each other, so `default_variant_id` is nullable and is set once the variant exists. The first variant created for a language becomes its default.
-- **Seed:** the app starts with English (en-US, which is the default, and en-GB), French (fr-FR), Portuguese (pt-BR), Spanish (es-ES, which is the default, and es-MX) and German (de-DE). More languages and accents are added later as data.
+- **Seed:** the app starts with English (en-US, which is the default, and en-GB), French (fr-FR), Portuguese (pt-BR), Spanish (es-ES, which is the default, and es-MX), German (de-DE) and Italian (it-IT). More languages and accents are added later as data.
 
 ## Decks
 
-`decks`: a unique `name`, `language_variant_id` (`ON DELETE RESTRICT`, so a variant in use by a deck cannot be deleted), `description`, the study settings and `created_at`. The settings are `new_cards_per_day` (default 20, 0 to 9999), `max_reviews_per_day` (default 200, 0 to 9999) and `autoplay_audio` (default 1, whether the audio of a card plays by itself in a review). Both limits are counted per **UTC day**.
+`decks`: a unique `name`, `language_variant_id` (`ON DELETE RESTRICT`, so a variant in use by a deck cannot be deleted), `description` and `created_at`. The study options are not on the deck but on `deck_type_settings`, one row per (deck, flashcard type), like the subdecks of Anki (`ON DELETE CASCADE` with the deck, `RESTRICT` with the type). A type with no row uses the defaults, so a deck starts with none. The options are `new_cards_per_day` (default 20, 0 to 9999), `max_reviews_per_day` (default 200, 0 to 9999) and `autoplay_audio` (default 1, whether the audio of a card plays by itself in a review). Both limits are counted per **UTC day**.
 
 ## Flashcards
 

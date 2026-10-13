@@ -1,14 +1,17 @@
 import { useTranslation } from "react-i18next";
+import { AnkiImportSettings } from "../components/AnkiImportSettings";
 import { DictionarySettings } from "../components/DictionarySettings";
 import { Page } from "../components/Page";
 import { Select } from "../components/Select";
 import { labelClass } from "../components/formStyles";
 import { LANGUAGES, setUiLanguage, type UiLanguage } from "../i18n";
+import { useAnkiImportViewModel } from "../viewmodels/useAnkiImportViewModel";
 import { useDictionaryViewModel } from "../viewmodels/useDictionaryViewModel";
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
   const dictionary = useDictionaryViewModel();
+  const anki = useAnkiImportViewModel();
 
   return (
     <Page title={t("nav.settings")}>
@@ -32,6 +35,13 @@ export default function Settings() {
           imported={dictionary.imported}
           error={dictionary.error}
           onImport={dictionary.importFromFolder}
+        />
+
+        <AnkiImportSettings
+          report={anki.report}
+          importing={anki.importing}
+          error={anki.error}
+          onImport={anki.importCollection}
         />
       </div>
     </Page>

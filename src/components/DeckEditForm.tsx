@@ -6,8 +6,10 @@ import { DeckSettingsFields } from "./DeckSettingsFields";
 import { Notice } from "./Notice";
 import { controlClass, labelClass } from "./formStyles";
 import { fromDraft, toDraft } from "../lib/deckSettings";
+import type { DeckSettingsDraft } from "../lib/deckSettings";
 import { TRANSITION_BASE } from "../lib/motion";
 import { useLanguageNames } from "../i18n/useLanguageNames";
+import { useTypeLabel } from "../i18n/useTypeLabel";
 import type { Deck, UpdateDeck } from "../types/Deck";
 
 export interface DeckEditFormProps {
@@ -21,23 +23,26 @@ export interface DeckEditFormProps {
 
 /**
  * Edits a deck in the place where its card was. The name, the description and the study options
- * can change: the language and accent are fixed, because the fields of its flashcards depend on
+ * can change, and the study options of each flashcard type: the language and accent are fixed, because the fields of its flashcards depend on
  * them.
  */
 export function DeckEditForm({ deck, onSave, onCancel, busy, error }: DeckEditFormProps) {
     const { t } = useTranslation();
     const names = useLanguageNames();
+    const typeLabel = useTypeLabel();
     const id = useId();
     const [name, setName] = useState(deck.name);
     const [description, setDescription] = useState(deck.description ?? "");
-    const [settings, setSettings] = useState(toDraft(deck));
+    const [settings, setSettings] = useState<Record<string, DeckSettingsDraft>>(() =>
+        Object.fromEntries(deck.typeSettings.map((s) => [s.typeSlug, toDraft(s)])),
+    );
 
     const submit = async (e: FormEvent) => {
         e.preventDefault();
         const saved = await onSave({
             name,
             description: description.trim() === "" ? null : description,
-            ...fromDraft(settings),
+            typeSettings: Object.entries(settings).map(([typeSlug, draft]) => ({ typeSlug, ...fromDraft(draft) })),
         });
         if (saved) onCancel();
     };
@@ -93,7 +98,17 @@ export function DeckEditForm({ deck, onSave, onCancel, busy, error }: DeckEditFo
                 />
             </div>
 
-            <DeckSettingsFields value={settings} onChange={setSettings} />
+            <div className="flex flex-col gap-3">
+                <h3 className="text-ui font-medium text-ink">{t("decks.studyOptions")}</h3>
+                {deck.typeSettings.map(({ typeSlug }) => (
+                    <DeckSettingsFields
+                        key={typeSlug}
+                        legend={typeLabel(typeSlug)}
+                        value={settings[typeSlug]}
+                        onChange={(next) => setSettings((current) => ({ ...current, [typeSlug]: next }))}
+                    />
+                ))}
+            </div>
 
             <p className="text-meta text-muted">
                 {t("decks.fixedNote", { language: names.language(deck.variant.bcp47Code, deck.language.name), accent: names.variant(deck.variant) })}

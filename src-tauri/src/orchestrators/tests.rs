@@ -16,8 +16,9 @@ struct Fixture {
     languages: Arc<dyn LanguageApi>,
     card_types: Arc<dyn CardTypeApi>,
     flashcards: Arc<dyn FlashcardApi>,
-    overview: DeckOverviewOrchestrator,
-    editor: FlashcardEditorOrchestrator,
+    overview: Arc<DeckOverviewOrchestrator>,
+    editor: Arc<FlashcardEditorOrchestrator>,
+    anki: AnkiImportOrchestrator,
     speech: Arc<FakeSpeech>,
     path: std::path::PathBuf,
 }
@@ -55,23 +56,26 @@ fn fixture_with(fail: bool, dictionary_missing: bool) -> Fixture {
     let card_types: Arc<dyn CardTypeApi> = Arc::new(CardTypeService::sqlite(db.clone()));
     let flashcards: Arc<dyn FlashcardApi> = Arc::new(FlashcardService::sqlite(db));
     let speech = Arc::new(FakeSpeech { fail, ..Default::default() });
+    let overview = Arc::new(DeckOverviewOrchestrator::new(
+        decks.clone(),
+        languages.clone(),
+        card_types.clone(),
+        flashcards.clone(),
+    ));
+    let editor = Arc::new(FlashcardEditorOrchestrator::new(
+        decks,
+        languages.clone(),
+        card_types.clone(),
+        flashcards.clone(),
+        Arc::new(AmmoniaSanitizer::new()),
+        Arc::new(LocalMediaStore::new(path.with_extension("media"))),
+        speech.clone(),
+        Arc::new(FakePronunciation { missing: dictionary_missing }),
+    ));
     Fixture {
-        overview: DeckOverviewOrchestrator::new(
-            decks.clone(),
-            languages.clone(),
-            card_types.clone(),
-            flashcards.clone(),
-        ),
-        editor: FlashcardEditorOrchestrator::new(
-            decks,
-            languages.clone(),
-            card_types.clone(),
-            flashcards.clone(),
-            Arc::new(AmmoniaSanitizer::new()),
-            Arc::new(LocalMediaStore::new(path.with_extension("media"))),
-            speech.clone(),
-            Arc::new(FakePronunciation { missing: dictionary_missing }),
-        ),
+        anki: AnkiImportOrchestrator::new(overview.clone(), editor.clone()),
+        overview,
+        editor,
         languages,
         card_types,
         flashcards,
@@ -94,7 +98,7 @@ fn keys<'a>(form: &'a EditorForm, type_slug: &str) -> Vec<&'a str> {
 #[test]
 fn creating_a_deck_uses_the_language_default_variant() {
     let f = fixture();
-    let created = f.overview.create("Travel".into(), "por", None, Some("Trip words".into()), DeckSettings::default()).unwrap();
+    let created = f.overview.create("Travel".into(), "por", None, Some("Trip words".into())).unwrap();
     assert_eq!(created.variant.bcp47_code(), "pt-BR");
     assert_eq!(created.language.iso_639_3(), "por");
     assert_eq!(created.deck.description(), Some("Trip words"));
@@ -103,36 +107,46 @@ fn creating_a_deck_uses_the_language_default_variant() {
 }
 
 #[test]
-fn a_deck_keeps_its_settings_and_they_can_be_updated() {
+fn a_deck_keeps_the_study_options_of_each_type_and_they_can_be_updated() {
     let f = fixture();
-    let created = f.overview.create("Travel".into(), "eng", None, None, DeckSettings::default()).unwrap();
-    assert_eq!(created.deck.settings(), DeckSettings::default());
+    let created = f.overview.create("Travel".into(), "eng", None, None).unwrap();
+    assert_eq!(created.settings.len(), created.counts.len(), "every type has options, the defaults at first");
+    assert!(created.settings.iter().all(|(_, s)| *s == DeckSettings::default()));
     assert_eq!(
-        (created.deck.settings().new_cards_per_day(), created.deck.settings().max_reviews_per_day()),
+        (DeckSettings::default().new_cards_per_day(), DeckSettings::default().max_reviews_per_day()),
         (20, 200)
     );
+    f.overview.create("Other".into(), "eng", None, None).unwrap();
 
     let custom = DeckSettings::new(5, 50, false).unwrap();
-    let other = f.overview.create("Other".into(), "eng", None, None, custom).unwrap();
-    assert_eq!(other.deck.settings(), custom);
+    let updated = f.overview.update("Travel", "Travel".into(), None, &[("phonetic".to_owned(), custom)]).unwrap();
+    let of = |overview: &DeckOverview, slug: &str| {
+        overview.settings.iter().find(|(t, _)| t.slug() == slug).map(|(_, s)| *s).unwrap()
+    };
+    assert_eq!(of(&updated, "phonetic"), custom);
+    assert_eq!(of(&updated, "vocabulary"), DeckSettings::default(), "the other types keep theirs");
 
-    let updated = f.overview.update("Travel", "Travel".into(), None, custom).unwrap();
-    assert_eq!(updated.deck.settings(), custom);
     let listed = f.overview.list().unwrap();
-    assert!(listed.iter().all(|d| d.deck.settings() == custom), "stored, not just returned");
+    let travel = listed.iter().find(|d| d.deck.name() == "Travel").unwrap();
+    let other = listed.iter().find(|d| d.deck.name() == "Other").unwrap();
+    assert_eq!(of(travel, "phonetic"), custom, "stored, not just returned");
+    assert_eq!(of(other, "phonetic"), DeckSettings::default(), "another deck is not affected");
+
+    let unknown = f.overview.update("Travel", "Travel".into(), None, &[("nope".to_owned(), custom)]);
+    assert!(matches!(unknown, Err(OrchestratorError::NotFound(_))));
 }
 
 #[test]
 fn creating_a_deck_with_an_accent_checks_it_belongs_to_the_language() {
     let f = fixture();
-    let deck = f.overview.create("London".into(), "eng", Some("en-GB"), None, DeckSettings::default()).unwrap();
+    let deck = f.overview.create("London".into(), "eng", Some("en-GB"), None).unwrap();
     assert_eq!(deck.variant.bcp47_code(), "en-GB");
     assert!(matches!(
-        f.overview.create("Wrong".into(), "por", Some("en-US"), None, DeckSettings::default()),
+        f.overview.create("Wrong".into(), "por", Some("en-US"), None),
         Err(OrchestratorError::Invalid(_))
     ));
     assert!(matches!(
-        f.overview.create("Unknown".into(), "xxx", None, None, DeckSettings::default()),
+        f.overview.create("Unknown".into(), "xxx", None, None),
         Err(OrchestratorError::NotFound(_))
     ));
 }
@@ -140,9 +154,9 @@ fn creating_a_deck_with_an_accent_checks_it_belongs_to_the_language() {
 #[test]
 fn duplicate_deck_names_conflict() {
     let f = fixture();
-    f.overview.create("Travel".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Travel".into(), "eng", None, None).unwrap();
     assert!(matches!(
-        f.overview.create("Travel".into(), "fra", None, None, DeckSettings::default()),
+        f.overview.create("Travel".into(), "fra", None, None),
         Err(OrchestratorError::Conflict(_))
     ));
 }
@@ -150,27 +164,27 @@ fn duplicate_deck_names_conflict() {
 #[test]
 fn updating_a_deck_renames_it_and_keeps_its_language_and_cards() {
     let f = fixture();
-    f.overview.create("Trips".into(), "fra", None, Some("Old".into()), DeckSettings::default()).unwrap();
-    f.overview.create("Other".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Trips".into(), "fra", None, Some("Old".into())).unwrap();
+    f.overview.create("Other".into(), "eng", None, None).unwrap();
     f.editor.add_draft("Trips", "vocabulary").unwrap();
 
-    let updated = f.overview.update("Trips", " Travel ".into(), None, DeckSettings::default()).unwrap();
+    let updated = f.overview.update("Trips", " Travel ".into(), None, &[]).unwrap();
     assert_eq!(updated.deck.name(), "Travel");
     assert_eq!(updated.deck.description(), None, "the description is replaced");
     assert_eq!(updated.variant.bcp47_code(), "fr-FR");
     assert_eq!(f.editor.drafts("Travel").unwrap().len(), 1, "the deck keeps what it had");
     assert!(matches!(f.overview.get("Trips"), Err(OrchestratorError::NotFound(_))));
 
-    assert!(matches!(f.overview.update("Travel", "Other".into(), None, DeckSettings::default()), Err(OrchestratorError::Conflict(_))));
-    assert!(matches!(f.overview.update("Travel", "  ".into(), None, DeckSettings::default()), Err(OrchestratorError::Invalid(_))));
-    assert!(matches!(f.overview.update("Nope", "X".into(), None, DeckSettings::default()), Err(OrchestratorError::NotFound(_))));
+    assert!(matches!(f.overview.update("Travel", "Other".into(), None, &[]), Err(OrchestratorError::Conflict(_))));
+    assert!(matches!(f.overview.update("Travel", "  ".into(), None, &[]), Err(OrchestratorError::Invalid(_))));
+    assert!(matches!(f.overview.update("Nope", "X".into(), None, &[]), Err(OrchestratorError::NotFound(_))));
 }
 
 #[test]
 fn the_list_has_counts_by_type_and_delete_removes_the_deck() {
     let f = fixture();
-    f.overview.create("B deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
-    f.overview.create("A deck".into(), "fra", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("B deck".into(), "eng", None, None).unwrap();
+    f.overview.create("A deck".into(), "fra", None, None).unwrap();
     f.editor.add_draft("A deck", "vocabulary").unwrap();
     let draft = f.editor.drafts("A deck").unwrap().remove(0);
     f.editor
@@ -195,8 +209,8 @@ fn the_list_has_counts_by_type_and_delete_removes_the_deck() {
 #[test]
 fn the_form_has_every_type_and_follows_the_deck_language() {
     let f = fixture();
-    f.overview.create("English".into(), "eng", None, None, DeckSettings::default()).unwrap();
-    f.overview.create("French".into(), "fra", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("English".into(), "eng", None, None).unwrap();
+    f.overview.create("French".into(), "fra", None, None).unwrap();
     let french = f.languages.get_language_by_iso("fra").unwrap();
     f.card_types
         .add_field_definition("vocabulary", french.id(), Side::Back, "gender".into(), "Gender".into(), 2, false, FieldKind::Plain, None, false)
@@ -218,7 +232,7 @@ fn the_form_has_every_type_and_follows_the_deck_language() {
 #[test]
 fn unknown_decks_and_types_are_not_found() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     assert!(matches!(f.editor.form("Nope"), Err(OrchestratorError::NotFound(_))));
     assert!(matches!(f.editor.drafts("Nope"), Err(OrchestratorError::NotFound(_))));
     assert!(matches!(f.editor.add_draft("Nope", "vocabulary"), Err(OrchestratorError::NotFound(_))));
@@ -228,7 +242,7 @@ fn unknown_decks_and_types_are_not_found() {
 #[test]
 fn updating_a_draft_sanitizes_rich_fields_and_rejects_unknown_keys() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
 
     let saved = f
@@ -254,7 +268,7 @@ fn updating_a_draft_sanitizes_rich_fields_and_rejects_unknown_keys() {
 #[test]
 fn structural_actions_return_the_updated_list() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     f.editor.add_draft("Deck", "vocabulary").unwrap();
     let list = f.editor.add_draft("Deck", "vocabulary").unwrap();
     let (a, b) = (list[0].uuid().to_owned(), list[1].uuid().to_owned());
@@ -271,7 +285,7 @@ fn structural_actions_return_the_updated_list() {
 #[test]
 fn publishing_reports_missing_required_fields_and_saves_nothing() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     f.editor.add_draft("Deck", "vocabulary").unwrap();
     let list = f.editor.add_draft("Deck", "vocabulary").unwrap();
     f.editor
@@ -293,7 +307,7 @@ fn publishing_reports_missing_required_fields_and_saves_nothing() {
 #[test]
 fn publishing_valid_drafts_creates_flashcards_and_clears_the_list() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     f.editor.add_draft("Deck", "vocabulary").unwrap();
     let list = f.editor.add_draft("Deck", "vocabulary").unwrap();
     for (draft, phrase) in list.iter().zip(["It's <b>raining</b>", "Good morning"]) {
@@ -316,7 +330,7 @@ fn publishing_valid_drafts_creates_flashcards_and_clears_the_list() {
 #[test]
 fn publishing_with_no_drafts_does_nothing() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let outcome = f.editor.publish_drafts("Deck").unwrap();
     assert_eq!((outcome.published, outcome.issues.len()), (0, 0));
 }
@@ -336,7 +350,7 @@ fn source_file(f: &Fixture, name: &str, bytes: &[u8]) -> std::path::PathBuf {
 #[test]
 fn attaching_media_stores_the_file_and_adds_it_to_the_draft() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
 
     let updated = f.editor.attach_media(draft.uuid(), "phrase", &source_file(&f, "a.png", PNG)).unwrap();
@@ -357,7 +371,7 @@ fn attaching_media_stores_the_file_and_adds_it_to_the_draft() {
 #[test]
 fn media_is_only_accepted_for_fields_that_allow_it_and_for_real_images_and_audio() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
     let png = source_file(&f, "a.png", PNG);
 
@@ -374,7 +388,7 @@ fn media_is_only_accepted_for_fields_that_allow_it_and_for_real_images_and_audio
 #[test]
 fn a_required_field_with_only_media_can_be_published() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
     f.editor.update_draft(draft.uuid(), values(&[("word_or_expression", "cat"), ("meaning", "an animal")])).unwrap();
 
@@ -396,7 +410,7 @@ fn a_required_field_with_only_media_can_be_published() {
 #[test]
 fn a_deck_mixes_types_in_one_list_and_each_draft_uses_its_own_fields() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     f.editor.add_draft("Deck", "vocabulary").unwrap();
     let list = f.editor.add_draft("Deck", "phonetic").unwrap();
     let kinds = |l: &[crate::modules::flashcards::FlashcardDraft]| -> Vec<i64> {
@@ -425,7 +439,7 @@ fn a_deck_mixes_types_in_one_list_and_each_draft_uses_its_own_fields() {
 #[test]
 fn publishing_a_mixed_list_creates_cards_of_each_type_or_nothing() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     f.editor.add_draft("Deck", "vocabulary").unwrap();
     let list = f.editor.add_draft("Deck", "phonetic").unwrap();
     f.editor
@@ -465,7 +479,7 @@ fn publish_one(f: &Fixture, deck: &str, pairs: &[(&str, &str)]) -> String {
 #[test]
 fn saved_cards_are_listed_by_field_key_and_can_be_edited() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let uuid = publish_one(&f, "Deck", &[("phrase", "It's raining"), ("word_or_expression", "rain"), ("meaning", "water")]);
 
     let saved = f.editor.saved_cards("Deck").unwrap();
@@ -490,7 +504,7 @@ fn saved_cards_are_listed_by_field_key_and_can_be_edited() {
 #[test]
 fn editing_a_saved_card_keeps_the_rules_of_its_type() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let uuid = publish_one(&f, "Deck", &[("phrase", "hi"), ("word_or_expression", "w"), ("meaning", "m")]);
 
     assert!(matches!(
@@ -505,7 +519,7 @@ fn editing_a_saved_card_keeps_the_rules_of_its_type() {
 #[test]
 fn media_of_a_saved_card_can_be_added_removed_and_a_card_deleted() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let uuid = publish_one(&f, "Deck", &[("phrase", "cat"), ("word_or_expression", "cat"), ("meaning", "an animal")]);
 
     let with = f.editor.attach_saved_media(&uuid, "phrase", &source_file(&f, "a.png", PNG)).unwrap();
@@ -526,7 +540,7 @@ fn media_of_a_saved_card_can_be_added_removed_and_a_card_deleted() {
 }
 
 fn orthographic_draft(f: &Fixture, phrase: &str) -> String {
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let draft = f.editor.add_draft("Deck", "orthographic").unwrap().remove(0);
     let values = BTreeMap::from([("phrase".to_string(), phrase.to_string())]);
     f.editor.update_draft(draft.uuid(), values).unwrap();
@@ -617,7 +631,7 @@ fn the_phonetic_type_has_an_ipa_field_made_from_the_phrase() {
 #[test]
 fn generating_the_pronunciation_writes_one_line_per_word_and_names_the_missing_ones() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let draft = f.editor.add_draft("Deck", "phonetic").unwrap().remove(0);
     f.editor.update_draft(draft.uuid(), phrase("Hello, everyone! Zzz")).unwrap();
 
@@ -641,7 +655,7 @@ fn generating_the_pronunciation_writes_one_line_per_word_and_names_the_missing_o
 #[test]
 fn generating_the_pronunciation_needs_text_a_dictionary_and_an_ipa_field() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let draft = f.editor.add_draft("Deck", "phonetic").unwrap().remove(0);
     assert!(matches!(f.editor.generate_pronunciation(draft.uuid(), "ipa_phonetics"), Err(OrchestratorError::Invalid(_))), "no phrase yet");
     f.editor.update_draft(draft.uuid(), phrase("zzz")).unwrap();
@@ -649,7 +663,7 @@ fn generating_the_pronunciation_needs_text_a_dictionary_and_an_ipa_field() {
     assert!(matches!(f.editor.generate_pronunciation(draft.uuid(), "phrase"), Err(OrchestratorError::Invalid(_))), "not an IPA field");
 
     let none = fixture_with(false, true);
-    none.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    none.overview.create("Deck".into(), "eng", None, None).unwrap();
     let draft = none.editor.add_draft("Deck", "phonetic").unwrap().remove(0);
     none.editor.update_draft(draft.uuid(), phrase("hello")).unwrap();
     assert!(matches!(none.editor.generate_pronunciation(draft.uuid(), "ipa_phonetics"), Err(OrchestratorError::Unavailable(_))));
@@ -658,7 +672,7 @@ fn generating_the_pronunciation_needs_text_a_dictionary_and_an_ipa_field() {
 #[test]
 fn a_language_the_dictionary_does_not_have_is_reported_as_unavailable() {
     let f = fixture();
-    f.overview.create("Deck".into(), "fra", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "fra", None, None).unwrap();
     let draft = f.editor.add_draft("Deck", "phonetic").unwrap().remove(0);
     f.editor.update_draft(draft.uuid(), phrase("bonjour")).unwrap();
     assert!(matches!(f.editor.generate_pronunciation(draft.uuid(), "ipa_phonetics"), Err(OrchestratorError::Unavailable(_))));
@@ -667,7 +681,7 @@ fn a_language_the_dictionary_does_not_have_is_reported_as_unavailable() {
 #[test]
 fn a_stack_is_three_drafts_that_share_a_stack_and_can_be_edited_alone() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     f.editor.add_draft("Deck", "vocabulary").unwrap();
     let drafts = f.editor.add_stack("Deck").unwrap();
     assert_eq!(drafts.len(), 4);
@@ -697,7 +711,7 @@ fn a_stack_is_three_drafts_that_share_a_stack_and_can_be_edited_alone() {
 #[test]
 fn a_card_can_be_added_back_to_a_stack_with_the_phrase_copied() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let stack = f.editor.add_stack("Deck").unwrap();
     let uuid = stack[0].stack_uuid().unwrap().to_owned();
     f.editor.update_draft(stack[0].uuid(), phrase("<b>Hello</b> there")).unwrap();
@@ -714,7 +728,7 @@ fn a_card_can_be_added_back_to_a_stack_with_the_phrase_copied() {
 #[tokio::test]
 async fn generating_a_stack_makes_the_audio_and_the_pronunciation() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let stack = f.editor.add_stack("Deck").unwrap();
     for draft in &stack {
         f.editor.update_draft(draft.uuid(), phrase("Hello, everyone!")).unwrap();
@@ -732,7 +746,7 @@ async fn generating_a_stack_makes_the_audio_and_the_pronunciation() {
 #[tokio::test]
 async fn one_side_of_a_stack_failing_does_not_lose_the_other() {
     let offline = fixture_with_speech(true);
-    offline.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    offline.overview.create("Deck".into(), "eng", None, None).unwrap();
     let stack = offline.editor.add_stack("Deck").unwrap();
     for draft in &stack {
         offline.editor.update_draft(draft.uuid(), phrase("hello")).unwrap();
@@ -743,7 +757,7 @@ async fn one_side_of_a_stack_failing_does_not_lose_the_other() {
     assert!(generated.warnings[0].starts_with("Orthographic, Audio"), "{}", generated.warnings[0]);
 
     let no_dictionary = fixture_with(false, true);
-    no_dictionary.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    no_dictionary.overview.create("Deck".into(), "eng", None, None).unwrap();
     let stack = no_dictionary.editor.add_stack("Deck").unwrap();
     for draft in &stack {
         no_dictionary.editor.update_draft(draft.uuid(), phrase("hello")).unwrap();
@@ -765,7 +779,7 @@ async fn generating_audio_again_for_a_new_phrase_replaces_the_old_audio() {
 }
 
 fn publish_a_stack(f: &Fixture) -> Vec<SavedCard> {
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let stack = f.editor.add_stack("Deck").unwrap();
     let values = [
         BTreeMap::from([
@@ -886,4 +900,193 @@ async fn generating_a_saved_stack_uses_the_saved_text() {
     let orthographic = generated.value.iter().find(|c| c.type_slug == "orthographic").unwrap();
     assert_eq!(orthographic.media["audio"].len(), 1);
     assert!(generated.warnings.is_empty(), "{:?}", generated.warnings);
+}
+
+// ---- the Anki import ----
+
+const PNG_BYTES: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0];
+
+/// Writes an Anki collection with these notes and a media folder with one image, and returns its path.
+fn anki_collection(f: &Fixture, notes: &[(&str, &[&str])]) -> std::path::PathBuf {
+    let dir = f.path.with_extension("src");
+    std::fs::create_dir_all(dir.join("collection.media")).unwrap();
+    std::fs::write(dir.join("collection.media").join("pic.png"), PNG_BYTES).unwrap();
+    let path = dir.join("collection.anki2");
+    let _ = std::fs::remove_file(&path);
+    crate::dependencies::anki_collection::fixtures::write_collection(&path, notes);
+    path
+}
+
+const ENGLISH_PRON: &str = "Línguas\u{1f}Inglês\u{1f}Pronúncia";
+const ENGLISH_VOCAB: &str = "Línguas\u{1f}Inglês\u{1f}Vocabulário";
+const GERMAN_PRON: &str = "Línguas\u{1f}Alemão\u{1f}Pronúncia";
+const GERMAN_VOCAB: &str = "Línguas\u{1f}Alemão\u{1f}Vocabulário";
+const ITALIAN_PRON: &str = "Línguas\u{1f}Italiano\u{1f}Pronúncia";
+const ITALIAN_VOCAB: &str = "Línguas\u{1f}Italiano\u{1f}Vocabulário";
+
+fn sample_notes() -> Vec<(&'static str, Vec<&'static str>)> {
+    vec![
+        (ENGLISH_PRON, vec!["It's my elder brother.", "<strong>it's</strong>: /ɪts/<br><strong>my</strong>: /maɪ/<br><strong>elder</strong>: /ɛldɝ/<br>"]),
+        (ENGLISH_PRON, vec!["Only pronounced.", "<strong>only</strong>: /oʊnli/<br>"]),
+        (ENGLISH_VOCAB, vec!["It's my <strong>elder</strong> brother.", "<strong>elder:</strong> older<br><img src=\"pic.png\">"]),
+        (GERMAN_PRON, vec!["Sie sollten die U-Bahn nehmen.", "<strong>sie</strong>: /ziː/<br>"]),
+        (GERMAN_VOCAB, vec!["<strong>Sie sollten die U-Bahn nehmen.</strong>", "<strong>Sie</strong>: você<br><strong>sollten</strong>: deveria(m)"]),
+        (ITALIAN_PRON, vec!["Gira a sinistra.", "<strong>gira</strong>: /dʒira/<br>"]),
+        (ITALIAN_VOCAB, vec!["<strong>Gira a sinistra.</strong>", "<strong>Gira a sinistra.:</strong> Vire à esquerda."]),
+    ]
+}
+
+fn as_notes<'a>(notes: &'a [(&'static str, Vec<&'static str>)]) -> Vec<(&'a str, &'a [&'a str])> {
+    notes.iter().map(|(deck, fields)| (*deck, fields.as_slice())).collect()
+}
+
+#[test]
+fn importing_makes_a_deck_per_language_with_stacks_and_loose_cards() {
+    let f = fixture();
+    let notes = sample_notes();
+    let report = f.anki.import(&anki_collection(&f, &as_notes(&notes))).unwrap();
+    assert!(!report.partial && report.warnings.is_empty(), "{:?}", report.warnings);
+
+    let by_name = |name: &str| report.decks.iter().find(|d| d.name == name).unwrap();
+    assert_eq!((by_name("Inglês").stacks, by_name("Inglês").vocabulary, by_name("Inglês").phonetic), (1, 0, 1));
+    assert_eq!(by_name("Inglês").images, 1);
+    assert_eq!((by_name("Alemão").stacks, by_name("Italiano").stacks), (1, 1));
+    assert!(report.decks.iter().all(|d| d.skipped.is_none()));
+
+    let decks = f.overview.list().unwrap();
+    let accent = |name: &str| decks.iter().find(|d| d.deck.name() == name).unwrap().variant.bcp47_code().to_owned();
+    assert_eq!(
+        (accent("Inglês"), accent("Alemão"), accent("Italiano")),
+        ("en-US".to_owned(), "de-DE".to_owned(), "it-IT".to_owned())
+    );
+    assert!(f.editor.drafts("Inglês").unwrap().is_empty(), "everything was published");
+}
+
+#[test]
+fn a_pair_becomes_a_stack_of_a_vocabulary_card_and_a_phonetic_card() {
+    let f = fixture();
+    let notes = sample_notes();
+    f.anki.import(&anki_collection(&f, &as_notes(&notes))).unwrap();
+
+    let cards = f.editor.saved_cards("Inglês").unwrap();
+    assert_eq!(cards.len(), 3);
+    let vocabulary = cards.iter().find(|c| c.type_slug == "vocabulary").unwrap();
+    let phonetic_in_stack = cards.iter().find(|c| c.type_slug == "phonetic" && c.stack_uuid.is_some()).unwrap();
+    let loose = cards.iter().find(|c| c.type_slug == "phonetic" && c.stack_uuid.is_none()).unwrap();
+    assert_eq!(vocabulary.stack_uuid, phonetic_in_stack.stack_uuid);
+
+    assert_eq!(vocabulary.values["phrase"], "It's my <strong>elder</strong> brother.");
+    assert_eq!(vocabulary.values["word_or_expression"], "elder");
+    assert_eq!(vocabulary.values["meaning"], "older");
+    assert_eq!(vocabulary.media["meaning"].len(), 1, "the image of the back is the media of the meaning");
+    assert_eq!(phonetic_in_stack.values["phrase"], "It's my elder brother.", "the pronunciation sentence is plain text");
+    assert_eq!(phonetic_in_stack.values["ipa_phonetics"], "<b>it's</b>: /ɪts/<br><b>my</b>: /maɪ/<br><b>elder</b>: /ɛldɝ/");
+    assert_eq!(loose.values["phrase"], "Only pronounced.");
+
+    let german = f.editor.saved_cards("Alemão").unwrap();
+    let german_vocabulary = german.iter().find(|c| c.type_slug == "vocabulary").unwrap();
+    assert_eq!(german_vocabulary.values["word_or_expression"], "Sie, sollten");
+    assert_eq!(german_vocabulary.values["meaning"], "Sie: você\nsollten: deveria(m)");
+    let italian = f.editor.saved_cards("Italiano").unwrap();
+    let italian_vocabulary = italian.iter().find(|c| c.type_slug == "vocabulary").unwrap();
+    assert_eq!(italian_vocabulary.values["word_or_expression"], "Gira a sinistra.");
+    assert_eq!(italian_vocabulary.values["meaning"], "Vire à esquerda.");
+}
+
+#[test]
+fn importing_again_creates_nothing_and_a_deck_that_exists_is_skipped() {
+    let f = fixture();
+    let notes = sample_notes();
+    let path = anki_collection(&f, &as_notes(&notes));
+    f.anki.import(&path).unwrap();
+    let before = f.editor.saved_cards("Inglês").unwrap().len();
+
+    let again = f.anki.import(&path).unwrap();
+    assert!(again.decks.iter().all(|d| d.skipped.is_some() && d.stacks == 0), "{again:?}");
+    assert_eq!(f.editor.saved_cards("Inglês").unwrap().len(), before);
+
+    // A deck made by hand with the same name is also left alone.
+    let f2 = fixture();
+    f2.overview.create("Inglês".into(), "eng", None, None).unwrap();
+    let report = f2.anki.import(&anki_collection(&f2, &as_notes(&notes))).unwrap();
+    assert!(report.decks.iter().find(|d| d.name == "Inglês").unwrap().skipped.is_some());
+    assert_eq!(report.decks.iter().find(|d| d.name == "Alemão").unwrap().stacks, 1, "the others are still imported");
+    assert!(f2.editor.saved_cards("Inglês").unwrap().is_empty());
+}
+
+#[test]
+fn a_language_that_fails_is_removed_and_the_others_stay() {
+    let f = fixture();
+    let too_long: &str = Box::leak("x".repeat(60_000).into_boxed_str());
+    let notes: Vec<(&str, Vec<&str>)> = vec![
+        (ITALIAN_PRON, vec!["Gira a sinistra.", "<strong>gira</strong>: /dʒira/"]),
+        (ITALIAN_VOCAB, vec!["Gira a sinistra.", too_long]),
+        (GERMAN_PRON, vec!["Hallo.", "<strong>hallo</strong>: /haˈloː/"]),
+        (GERMAN_VOCAB, vec!["<strong>Hallo.</strong>", "<strong>Hallo.:</strong> Olá."]),
+    ];
+    let report = f.anki.import(&anki_collection(&f, &as_notes(&notes))).unwrap();
+    let italian = report.decks.iter().find(|d| d.name == "Italiano").unwrap();
+    assert!(italian.skipped.is_some() && italian.stacks == 0, "{italian:?}");
+    assert_eq!(report.decks.iter().find(|d| d.name == "Alemão").unwrap().stacks, 1);
+
+    let names: Vec<_> = f.overview.list().unwrap().iter().map(|d| d.deck.name().to_owned()).collect();
+    assert_eq!(names, vec!["Alemão"], "nothing of the failed language is left");
+}
+
+#[test]
+fn decks_that_are_not_recognised_are_reported_and_a_missing_image_is_a_warning() {
+    let f = fixture();
+    let notes: Vec<(&str, Vec<&str>)> = vec![
+        ("Padrão", vec!["front", "back"]),
+        (ENGLISH_VOCAB, vec!["A <strong>pan</strong>.", "<strong>pan:</strong> a pot<br><img src=\"missing.png\">"]),
+        (ENGLISH_PRON, vec!["A pan.", "<strong>a</strong>: /ə/"]),
+    ];
+    let report = f.anki.import(&anki_collection(&f, &as_notes(&notes))).unwrap();
+    assert!(report.warnings.iter().any(|w| w.contains("Padrão")), "{:?}", report.warnings);
+    assert!(report.warnings.iter().any(|w| w.contains("missing.png")), "{:?}", report.warnings);
+    assert_eq!(report.decks.len(), 1);
+    assert_eq!((report.decks[0].stacks, report.decks[0].images), (1, 0));
+}
+
+#[test]
+fn a_file_that_is_not_an_anki_collection_is_refused() {
+    let f = fixture();
+    let dir = f.path.with_extension("src");
+    std::fs::create_dir_all(&dir).unwrap();
+    let other = dir.join("other.db");
+    std::fs::write(&other, b"not a database").unwrap();
+    assert!(matches!(f.anki.import(&other), Err(OrchestratorError::Invalid(_))));
+}
+
+/// Imports the real collection into a temporary database and prints what came out. Run it by hand:
+/// `VERBVM_ANKI_COLLECTION="/path/collection.anki2" cargo test real_anki -- --ignored --nocapture`.
+#[test]
+#[ignore = "needs the owner's Anki collection"]
+fn real_anki_collection() {
+    let path = std::path::PathBuf::from(std::env::var("VERBVM_ANKI_COLLECTION").expect("set VERBVM_ANKI_COLLECTION"));
+    let f = fixture();
+    let started = std::time::Instant::now();
+    let report = f.anki.import(&path).unwrap();
+    println!("imported in {:?}; partial: {}", started.elapsed(), report.partial);
+    let (mut stacks, mut vocabulary, mut phonetic, mut images) = (0, 0, 0, 0);
+    for deck in &report.decks {
+        println!("{:10} stacks {:4} vocabulary {:3} phonetic {:3} images {:2} skipped {:?}", deck.name, deck.stacks, deck.vocabulary, deck.phonetic, deck.images, deck.skipped);
+        stacks += deck.stacks;
+        vocabulary += deck.vocabulary;
+        phonetic += deck.phonetic;
+        images += deck.images;
+    }
+    println!("TOTAL stacks {stacks} loose vocabulary {vocabulary} loose phonetic {phonetic} images {images} cards {}", stacks * 2 + vocabulary + phonetic);
+    for warning in &report.warnings {
+        println!("WARNING {warning}");
+    }
+    for deck in ["Alemão", "Espanhol", "Francês", "Inglês", "Italiano"] {
+        let cards = f.editor.saved_cards(deck).unwrap();
+        println!("== {deck}: {} saved cards", cards.len());
+        for slug in ["vocabulary", "phonetic"] {
+            if let Some(card) = cards.iter().rev().find(|c| c.type_slug == slug) {
+                println!("  {slug} (stack {}): {:?}", card.stack_uuid.is_some(), card.values);
+            }
+        }
+    }
 }

@@ -14,6 +14,8 @@ pub struct DeckOverview {
     pub variant: LanguageVariant,
     /// How many flashcards the deck has of each type, including types it has none of.
     pub counts: Vec<(FlashcardType, i64)>,
+    /// The study options of each type of the deck, including the types that use the defaults.
+    pub settings: Vec<(FlashcardType, DeckSettings)>,
 }
 
 impl DeckOverview {
@@ -63,7 +65,6 @@ impl DeckOverviewOrchestrator {
         language_iso_639_3: &str,
         variant_bcp47: Option<&str>,
         description: Option<String>,
-        settings: DeckSettings,
     ) -> OrchestratorResult<DeckOverview> {
         let language = self.languages.get_language_by_iso(language_iso_639_3)?;
         let variant = match variant_bcp47 {
@@ -83,21 +84,38 @@ impl DeckOverviewOrchestrator {
             )));
         }
         let variant_id = variant.id().ok_or_else(|| OrchestratorError::Internal("variant was not saved".into()))?;
-        let deck = self.decks.create_deck(name, variant_id, description, settings)?;
+        let deck = self.decks.create_deck(name, variant_id, description)?;
         self.overview(deck, &self.card_types.list_types()?)
     }
 
-    /// Renames a deck and replaces its description and settings. The language and accent do not change, since
-    /// the fields of its flashcards depend on the language. Conflicts when the new name is taken.
+    /// Renames a deck, replaces its description and sets the study options of the types given
+    /// (`(type slug, settings)`; the other types keep theirs). The language and accent do not
+    /// change, since the fields of its flashcards depend on the language. Conflicts when the new
+    /// name is taken. Nothing changes if a type is unknown.
     pub fn update(
         &self,
         deck_name: &str,
         new_name: String,
         description: Option<String>,
-        settings: DeckSettings,
+        type_settings: &[(String, DeckSettings)],
     ) -> OrchestratorResult<DeckOverview> {
-        let deck = self.decks.update_deck(deck_name, new_name, description, settings)?;
+        let type_ids = type_settings
+            .iter()
+            .map(|(slug, settings)| Ok((self.type_id(slug)?, *settings)))
+            .collect::<OrchestratorResult<Vec<_>>>()?;
+        let deck = self.decks.update_deck(deck_name, new_name, description)?;
+        let deck_id = deck.id().ok_or_else(|| OrchestratorError::Internal("deck was not saved".into()))?;
+        for (type_id, settings) in type_ids {
+            self.decks.set_type_settings(deck_id, type_id, settings)?;
+        }
         self.overview(deck, &self.card_types.list_types()?)
+    }
+
+    fn type_id(&self, slug: &str) -> OrchestratorResult<i64> {
+        self.card_types
+            .get_type_by_slug(slug)?
+            .id()
+            .ok_or_else(|| OrchestratorError::Internal("flashcard type was not saved".into()))
     }
 
     /// Deletes the deck with its flashcards and drafts.
@@ -120,6 +138,17 @@ impl DeckOverviewOrchestrator {
                 (t.clone(), count)
             })
             .collect();
-        Ok(DeckOverview { deck, language, variant, counts })
+        let stored = self.decks.list_type_settings(deck_id)?;
+        let settings = types
+            .iter()
+            .map(|t| {
+                let own = stored
+                    .iter()
+                    .find(|(id, _)| Some(*id) == t.id())
+                    .map_or_else(DeckSettings::default, |(_, settings)| *settings);
+                (t.clone(), own)
+            })
+            .collect();
+        Ok(DeckOverview { deck, language, variant, counts, settings })
     }
 }

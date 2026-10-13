@@ -49,7 +49,7 @@ Integer ids stay inside Rust. Orchestrators resolve natural keys into ids, and m
 
 | Module | Tables | Status |
 |---|---|---|
-| `languages` | `languages`, `language_variants` | Implemented. Seeded with English (en-US, en-GB), French (fr-FR), Portuguese (pt-BR), Spanish (es-ES, es-MX) and German (de-DE). Only the lists are exposed to the view |
+| `languages` | `languages`, `language_variants` | Implemented. Seeded with English (en-US, en-GB), French (fr-FR), Portuguese (pt-BR), Spanish (es-ES, es-MX), German (de-DE) and Italian (it-IT). Only the lists are exposed to the view |
 | `decks` | `decks` | Implemented |
 | `card_types` | `flashcard_types`, `field_definitions` | Implemented. Seeded with vocabulary, phonetic and orthographic |
 | `flashcards` | `flashcards`, `flashcard_fields`, `flashcard_drafts`, `flashcard_draft_media`, `field_media` | Implemented: flashcards, drafts, media |

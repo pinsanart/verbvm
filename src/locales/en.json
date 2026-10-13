@@ -57,7 +57,7 @@
     "accent": "Accent",
     "createDeck": "Create deck",
     "fixedNote": "{{language}} · {{accent}} stays as it is, because the cards in this deck depend on it.",
-    "studyOptions": "Study options",
+    "studyOptions": "Study options per card type",
     "newCardsPerDay": "New cards per day",
     "newCardsPerDayHint": "Cards seen for the first time. 0 adds none.",
     "maxReviewsPerDay": "Maximum reviews per day",
@@ -248,5 +248,20 @@
     "imported": "The dictionary was imported.",
     "empty": "Nothing is installed yet, so the pronunciation buttons will say the dictionary is missing.",
     "licenseNote": "The word lists have different licenses. Read the notes in docs/development.md before sharing the app."
+  },
+  "anki": {
+    "title": "Import from Anki",
+    "intro": "Brings the content of an Anki collection (collection.anki2) into new decks: one deck per language, with a stack for each sentence that has both a vocabulary note and a pronunciation note. Reviews, due dates and tags stay in Anki. A deck whose name already exists is skipped, so nothing is duplicated. Close Anki first, so nothing is missing.",
+    "import": "Import from Anki…",
+    "importing": "Importing…",
+    "importingHint": "Creating the cards. This takes a few seconds.",
+    "imported": "The collection was imported.",
+    "skipped": "Skipped: {{reason}}",
+    "partial": "Anki had the collection open, so changes it had not written to the file yet may be missing.",
+    "pickerFilter": "Anki collection",
+    "stacks_one": "{{count}} stack",
+    "stacks_other": "{{count}} stacks",
+    "images_one": "{{count}} image",
+    "images_other": "{{count}} images"
   }
 }

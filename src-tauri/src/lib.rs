@@ -18,7 +18,7 @@ use modules::decks::{DeckApi, DeckService};
 use modules::flashcards::{FlashcardApi, FlashcardService};
 use modules::languages::{LanguageApi, LanguageService};
 use modules::reviews::{ReviewApi, ReviewService};
-use orchestrators::{DeckOverviewOrchestrator, FlashcardEditorOrchestrator, ReviewSessionOrchestrator};
+use orchestrators::{AnkiImportOrchestrator, DeckOverviewOrchestrator, FlashcardEditorOrchestrator, ReviewSessionOrchestrator};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -49,13 +49,14 @@ pub fn run() {
             app.manage(dictionary);
 
             app.manage(languages.clone());
-            app.manage(Arc::new(DeckOverviewOrchestrator::new(
+            let overview = Arc::new(DeckOverviewOrchestrator::new(
                 decks.clone(),
                 languages.clone(),
                 card_types.clone(),
                 flashcards.clone(),
-            )));
-            app.manage(Arc::new(FlashcardEditorOrchestrator::new(
+            ));
+            app.manage(overview.clone());
+            let editor = Arc::new(FlashcardEditorOrchestrator::new(
                 decks.clone(),
                 languages.clone(),
                 card_types.clone(),
@@ -64,7 +65,10 @@ pub fn run() {
                 media.clone(),
                 speech,
                 pronunciation,
-            )));
+            ));
+            app.manage(editor.clone());
+            // The Anki import writes through the same orchestrators, so its cards obey the same rules.
+            app.manage(Arc::new(AnkiImportOrchestrator::new(overview, editor)));
             app.manage(Arc::new(ReviewSessionOrchestrator::new(
                 decks, languages, card_types, flashcards, reviews, clock, media,
             )));
@@ -107,6 +111,7 @@ pub fn run() {
             commands::flashcards::generate_saved_stack,
             commands::pronunciation::pronunciation_status,
             commands::pronunciation::import_pronunciation_dictionary,
+            commands::anki::import_anki_collection,
             commands::flashcards::remove_saved_card_media,
             commands::flashcards::delete_saved_card,
             commands::review::list_review_overview,

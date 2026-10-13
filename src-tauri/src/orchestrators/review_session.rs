@@ -178,6 +178,7 @@ impl ReviewSessionOrchestrator {
             let language = self.languages.get_language(variant.language_id())?;
             let cards = self.flashcards.list_flashcards(deck_id)?;
 
+            let stored = self.decks.list_type_settings(deck_id)?;
             let mut deck_types = Vec::new();
             for flashcard_type in &types {
                 let of_type: Vec<&Flashcard> =
@@ -185,7 +186,11 @@ impl ReviewSessionOrchestrator {
                 if of_type.is_empty() {
                     continue;
                 }
-                let queues = self.queues(&of_type, now, deck.settings())?;
+                let settings = stored
+                    .iter()
+                    .find(|(id, _)| Some(*id) == flashcard_type.id())
+                    .map_or_else(DeckSettings::default, |(_, settings)| *settings);
+                let queues = self.queues(&of_type, now, settings)?;
                 deck_types.push(TypeReview { flashcard_type: flashcard_type.clone(), counts: queues.counts() });
             }
             overview.push(DeckReview { deck, language, variant, types: deck_types });
@@ -221,9 +226,13 @@ impl ReviewSessionOrchestrator {
         let cards = self.flashcards.list_flashcards(deck_id)?;
         let of_type: Vec<&Flashcard> =
             cards.iter().filter(|c| Some(c.flashcard_type_id()) == flashcard_type.id()).collect();
-        let queues = self.queues(&of_type, now, deck.settings())?;
+        let type_id = flashcard_type
+            .id()
+            .ok_or_else(|| OrchestratorError::Internal("flashcard type was not saved".into()))?;
+        let settings = self.decks.type_settings(deck_id, type_id)?;
+        let queues = self.queues(&of_type, now, settings)?;
         let counts = queues.counts();
-        let autoplay_audio = deck.settings().autoplay_audio();
+        let autoplay_audio = settings.autoplay_audio();
 
         let mut counts = counts;
         let forced = match forced {
@@ -346,7 +355,7 @@ impl ReviewSessionOrchestrator {
 
     /// Splits flashcards of one type by state. Flashcards that are not due are left out.
     ///
-    /// The deck's daily limits cut the new and review queues: a limit counts what was already
+    /// The daily limits of the deck for this type cut the new and review queues: a limit counts what was already
     /// done since the start of the UTC day. Cards being learned are never limited.
     fn queues<'a>(
         &self,

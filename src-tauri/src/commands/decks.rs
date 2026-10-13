@@ -37,17 +37,25 @@ pub struct DeckStatsDto {
 /// A deck as the view sees it, identified by its name.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DeckDto {
-    pub name: String,
-    pub description: Option<String>,
-    /// UTC, `YYYY-MM-DD HH:MM:SS`.
-    pub created_at: Option<String>,
+pub struct TypeSettingsDto {
+    pub type_slug: String,
     /// How many cards seen for the first time a day lets in.
     pub new_cards_per_day: i64,
     /// How many answers a day lets in for cards that had been recalled before.
     pub max_reviews_per_day: i64,
     /// Whether the audio of a card plays by itself in a review.
     pub autoplay_audio: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeckDto {
+    pub name: String,
+    pub description: Option<String>,
+    /// UTC, `YYYY-MM-DD HH:MM:SS`.
+    pub created_at: Option<String>,
+    /// The study options of each flashcard type of the deck.
+    pub type_settings: Vec<TypeSettingsDto>,
     pub language: LanguageSummaryDto,
     pub variant: LanguageVariantDto,
     pub stats: DeckStatsDto,
@@ -58,9 +66,16 @@ pub fn deck_dto(overview: &DeckOverview) -> DeckDto {
         name: overview.deck.name().to_owned(),
         description: overview.deck.description().map(str::to_owned),
         created_at: overview.deck.created_at().map(crate::dependencies::clock::format_utc),
-        new_cards_per_day: overview.deck.settings().new_cards_per_day(),
-        max_reviews_per_day: overview.deck.settings().max_reviews_per_day(),
-        autoplay_audio: overview.deck.settings().autoplay_audio(),
+        type_settings: overview
+            .settings
+            .iter()
+            .map(|(flashcard_type, settings)| TypeSettingsDto {
+                type_slug: flashcard_type.slug().to_owned(),
+                new_cards_per_day: settings.new_cards_per_day(),
+                max_reviews_per_day: settings.max_reviews_per_day(),
+                autoplay_audio: settings.autoplay_audio(),
+            })
+            .collect(),
         language: LanguageSummaryDto {
             name: overview.language.name().to_owned(),
             iso_639_3: overview.language.iso_639_3().to_owned(),
@@ -90,10 +105,6 @@ pub struct NewDeckInput {
     /// BCP 47 code of the accent. The language's default variant is used when absent.
     variant_bcp47_code: Option<String>,
     description: Option<String>,
-    /// The defaults (20 new cards, 200 reviews, audio on) are used for what is absent.
-    new_cards_per_day: Option<i64>,
-    max_reviews_per_day: Option<i64>,
-    autoplay_audio: Option<bool>,
 }
 
 #[tauri::command]
@@ -103,19 +114,11 @@ pub async fn list_decks(api: Api<'_>) -> CommandResult<Vec<DeckDto>> {
 
 #[tauri::command]
 pub async fn create_deck(api: Api<'_>, input: NewDeckInput) -> CommandResult<DeckDto> {
-    let defaults = DeckSettings::default();
-    let settings = DeckSettings::new(
-        input.new_cards_per_day.unwrap_or(defaults.new_cards_per_day()),
-        input.max_reviews_per_day.unwrap_or(defaults.max_reviews_per_day()),
-        input.autoplay_audio.unwrap_or(defaults.autoplay_audio()),
-    )
-    .map_err(crate::orchestrators::OrchestratorError::from)?;
     let overview = api.create(
         input.name,
         &input.language_iso_639_3,
         input.variant_bcp47_code.as_deref(),
         input.description,
-        settings,
     )?;
     Ok(deck_dto(&overview))
 }
@@ -126,6 +129,15 @@ pub async fn create_deck(api: Api<'_>, input: NewDeckInput) -> CommandResult<Dec
 pub struct UpdateDeckInput {
     name: String,
     description: Option<String>,
+    /// The options of the types to change. A type that is left out keeps its own.
+    #[serde(default)]
+    type_settings: Vec<TypeSettingsInput>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TypeSettingsInput {
+    type_slug: String,
     new_cards_per_day: i64,
     max_reviews_per_day: i64,
     autoplay_audio: bool,
@@ -133,9 +145,16 @@ pub struct UpdateDeckInput {
 
 #[tauri::command]
 pub async fn update_deck(api: Api<'_>, name: String, input: UpdateDeckInput) -> CommandResult<DeckDto> {
-    let settings = DeckSettings::new(input.new_cards_per_day, input.max_reviews_per_day, input.autoplay_audio)
-        .map_err(crate::orchestrators::OrchestratorError::from)?;
-    Ok(deck_dto(&api.update(&name, input.name, input.description, settings)?))
+    let type_settings = input
+        .type_settings
+        .into_iter()
+        .map(|t| {
+            DeckSettings::new(t.new_cards_per_day, t.max_reviews_per_day, t.autoplay_audio)
+                .map(|settings| (t.type_slug, settings))
+                .map_err(crate::orchestrators::OrchestratorError::from)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(deck_dto(&api.update(&name, input.name, input.description, &type_settings)?))
 }
 
 #[tauri::command]
@@ -154,9 +173,12 @@ mod tests {
             name: "Travel".into(),
             description: None,
             created_at: Some("2026-10-12 08:00:00".into()),
-            new_cards_per_day: 20,
-            max_reviews_per_day: 200,
-            autoplay_audio: true,
+            type_settings: vec![TypeSettingsDto {
+                type_slug: "vocabulary".into(),
+                new_cards_per_day: 20,
+                max_reviews_per_day: 200,
+                autoplay_audio: true,
+            }],
             language: LanguageSummaryDto { name: "English".into(), iso_639_3: "eng".into() },
             variant: LanguageVariantDto {
                 bcp47_code: "en-US".into(),
@@ -178,9 +200,9 @@ mod tests {
                 "name": "Travel",
                 "description": null,
                 "createdAt": "2026-10-12 08:00:00",
-                "newCardsPerDay": 20,
-                "maxReviewsPerDay": 200,
-                "autoplayAudio": true,
+                "typeSettings": [
+                    {"typeSlug": "vocabulary", "newCardsPerDay": 20, "maxReviewsPerDay": 200, "autoplayAudio": true}
+                ],
                 "language": {"name": "English", "iso6393": "eng"},
                 "variant": {"bcp47Code": "en-US", "variantName": "English (United States)", "countryCode": "US"},
                 "stats": {"totalCards": 3, "cardsByType": [{"typeSlug": "vocabulary", "typeName": "Vocabulary", "count": 3}]}
@@ -196,13 +218,6 @@ mod tests {
         .unwrap();
         assert_eq!(input.language_iso_639_3, "eng");
         assert!(input.variant_bcp47_code.is_none());
-        assert!(input.new_cards_per_day.is_none() && input.autoplay_audio.is_none(), "defaults when absent");
-
-        let with: NewDeckInput = serde_json::from_value(json!({
-            "name": "T", "languageIso6393": "eng", "newCardsPerDay": 5, "maxReviewsPerDay": 50, "autoplayAudio": false
-        }))
-        .unwrap();
-        assert_eq!((with.new_cards_per_day, with.max_reviews_per_day, with.autoplay_audio), (Some(5), Some(50), Some(false)));
     }
 
     #[test]
@@ -210,10 +225,16 @@ mod tests {
         let input: UpdateDeckInput =
             serde_json::from_value(json!({
                 "name": "Trips", "description": null,
-                "newCardsPerDay": 10, "maxReviewsPerDay": 100, "autoplayAudio": false
+                "typeSettings": [
+                    {"typeSlug": "phonetic", "newCardsPerDay": 10, "maxReviewsPerDay": 100, "autoplayAudio": false}
+                ]
             }))
             .unwrap();
         assert_eq!((input.name.as_str(), input.description), ("Trips", None));
-        assert_eq!((input.new_cards_per_day, input.max_reviews_per_day, input.autoplay_audio), (10, 100, false));
+        let t = &input.type_settings[0];
+        assert_eq!((t.type_slug.as_str(), t.new_cards_per_day, t.max_reviews_per_day, t.autoplay_audio), ("phonetic", 10, 100, false));
+
+        let without: UpdateDeckInput = serde_json::from_value(json!({"name": "T", "description": null})).unwrap();
+        assert!(without.type_settings.is_empty(), "the types that are left out keep their options");
     }
 }

@@ -1,3 +1,4 @@
+pub mod anki_collection;
 pub mod clock;
 pub mod db;
 pub mod http;

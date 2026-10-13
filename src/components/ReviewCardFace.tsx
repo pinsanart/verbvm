@@ -16,6 +16,8 @@ export interface ReviewCardFaceProps {
 export function ReviewCardFace({ fields, size, autoPlay }: ReviewCardFaceProps) {
     const firstWithAudio = fields.find((field) => field.media.some((item) => item.kind === "AUDIO"));
     const text = size === "front" ? "text-card font-semibold" : "text-heading md:text-title";
+    // Rich text is set light so that its bold, which marks what matters, is far heavier than the rest.
+    const richText = size === "front" ? "text-card font-normal" : "text-heading font-normal md:text-title";
 
     return (
         <div className="flex flex-col divide-y divide-line">
@@ -25,7 +27,7 @@ export function ReviewCardFace({ fields, size, autoPlay }: ReviewCardFaceProps) 
                     {field.content.trim() !== "" &&
                         (field.isRich ? (
                             <div
-                                className={`rich max-w-prose text-balance ${field.kind === "IPA" ? "ipa" : ""} ${text}`}
+                                className={`rich max-w-prose text-balance ${field.kind === "IPA" ? "ipa" : ""} ${richText}`}
                                 dangerouslySetInnerHTML={{ __html: field.content }}
                             />
                         ) : (

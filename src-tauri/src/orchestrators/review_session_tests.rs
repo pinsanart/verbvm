@@ -119,8 +119,8 @@ fn counts_of(new: usize, learning: usize, review: usize) -> ReviewCounts {
 #[test]
 fn the_overview_lists_only_the_types_a_deck_has_cards_of() {
     let f = fixture();
-    f.overview.create("Travel".into(), "fra", None, None, DeckSettings::default()).unwrap();
-    f.overview.create("Empty".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Travel".into(), "fra", None, None).unwrap();
+    f.overview.create("Empty".into(), "eng", None, None).unwrap();
     add_cards(&f, "Travel", "vocabulary", 2);
     add_cards(&f, "Travel", "phonetic", 1);
 
@@ -144,7 +144,7 @@ fn the_overview_lists_only_the_types_a_deck_has_cards_of() {
 #[test]
 fn the_counts_follow_the_schedule() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     add_cards(&f, "Deck", "vocabulary", 3);
     assert_eq!(counts(&f, "Deck", "vocabulary"), counts_of(3, 0, 0));
 
@@ -164,7 +164,7 @@ fn the_counts_follow_the_schedule() {
 #[test]
 fn a_session_goes_learning_then_review_then_new() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     add_cards(&f, "Deck", "vocabulary", 3);
 
     let first = next(&f, "Deck", "vocabulary").unwrap();
@@ -199,7 +199,7 @@ fn a_session_goes_learning_then_review_then_new() {
 #[test]
 fn a_card_answered_again_comes_back_in_the_same_session_until_it_is_recalled() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     add_cards(&f, "Deck", "vocabulary", 1);
 
     let card = next(&f, "Deck", "vocabulary").unwrap();
@@ -218,7 +218,7 @@ fn a_card_answered_again_comes_back_in_the_same_session_until_it_is_recalled() {
 #[test]
 fn a_card_has_its_fields_by_side_with_rich_content_and_nothing_empty() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     add_cards(&f, "Deck", "vocabulary", 1);
 
     let card = next(&f, "Deck", "vocabulary").unwrap();
@@ -239,7 +239,7 @@ fn a_card_has_its_fields_by_side_with_rich_content_and_nothing_empty() {
 #[test]
 fn media_comes_with_the_card_even_when_it_is_the_only_content_of_a_field() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     let draft = f.editor.add_draft("Deck", "vocabulary").unwrap().remove(0);
     f.editor
         .update_draft(draft.uuid(), values(&[("word_or_expression", "cat"), ("meaning", "an animal")]))
@@ -263,7 +263,7 @@ fn media_comes_with_the_card_even_when_it_is_the_only_content_of_a_field() {
 #[test]
 fn unknown_decks_types_cards_and_bad_answers_are_reported() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     add_cards(&f, "Deck", "vocabulary", 1);
     let card = next(&f, "Deck", "vocabulary").unwrap();
 
@@ -280,7 +280,7 @@ fn unknown_decks_types_cards_and_bad_answers_are_reported() {
 #[test]
 fn each_type_of_a_deck_is_reviewed_on_its_own() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     add_cards(&f, "Deck", "vocabulary", 1);
     add_cards(&f, "Deck", "phonetic", 2);
 
@@ -294,7 +294,7 @@ fn each_type_of_a_deck_is_reviewed_on_its_own() {
 #[test]
 fn each_card_says_how_long_every_answer_would_schedule_it() {
     let f = fixture();
-    f.overview.create("Deck".into(), "fra", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "fra", None, None).unwrap();
     add_cards(&f, "Deck", "vocabulary", 1);
 
     let new = f.review.next_card("Deck", "vocabulary").unwrap();
@@ -322,7 +322,7 @@ fn each_card_says_how_long_every_answer_would_schedule_it() {
 #[test]
 fn a_new_card_answered_good_comes_back_for_a_second_review_in_the_same_wave() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     add_cards(&f, "Deck", "vocabulary", 1);
 
     let card = next(&f, "Deck", "vocabulary").unwrap();
@@ -342,7 +342,7 @@ fn a_new_card_answered_good_comes_back_for_a_second_review_in_the_same_wave() {
 #[test]
 fn when_nothing_is_due_the_session_says_when_the_next_card_comes() {
     let f = fixture();
-    f.overview.create("Deck".into(), "eng", None, None, DeckSettings::default()).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
     add_cards(&f, "Deck", "vocabulary", 2);
 
     let first = next(&f, "Deck", "vocabulary").unwrap();
@@ -360,9 +360,11 @@ fn when_nothing_is_due_the_session_says_when_the_next_card_comes() {
     assert_eq!(f.review.next_card("Deck", "vocabulary").unwrap().next_due_in_seconds, Some(soonest - 300));
 }
 
+/// A deck whose vocabulary type has these daily limits.
 fn deck_with(f: &Fixture, new_per_day: i64, max_reviews: i64) {
     let settings = DeckSettings::new(new_per_day, max_reviews, true).unwrap();
-    f.overview.create("Deck".into(), "eng", None, None, settings).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.update("Deck", "Deck".into(), None, &[("vocabulary".to_owned(), settings)]).unwrap();
 }
 
 #[test]
@@ -428,11 +430,22 @@ fn the_daily_limit_of_reviews_counts_cards_that_were_recalled_before() {
 fn a_limit_of_zero_offers_nothing_and_the_deck_setting_reaches_the_session() {
     let f = fixture();
     let settings = DeckSettings::new(0, 200, false).unwrap();
-    f.overview.create("Deck".into(), "eng", None, None, settings).unwrap();
+    f.overview.create("Deck".into(), "eng", None, None).unwrap();
+    f.overview.update("Deck", "Deck".into(), None, &[("vocabulary".to_owned(), settings)]).unwrap();
     add_cards(&f, "Deck", "vocabulary", 2);
     let waiting = f.review.next_card("Deck", "vocabulary").unwrap();
     assert!(waiting.card.is_none() && waiting.daily_limit_reached);
     assert!(!waiting.autoplay_audio, "the deck turned autoplay off");
+}
+
+#[test]
+fn the_options_of_a_type_do_not_reach_the_other_types_of_the_deck() {
+    let f = fixture();
+    deck_with(&f, 1, 200); // vocabulary: one new card a day
+    add_cards(&f, "Deck", "vocabulary", 3);
+    add_cards(&f, "Deck", "phonetic", 3);
+    assert_eq!(counts(&f, "Deck", "vocabulary"), counts_of(1, 0, 0));
+    assert_eq!(counts(&f, "Deck", "phonetic"), counts_of(3, 0, 0), "phonetic keeps the default limit of 20");
 }
 
 #[test]

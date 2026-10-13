@@ -30,12 +30,6 @@ pub fn migrations() -> Migrations<'static> {
                 name                TEXT NOT NULL UNIQUE,
                 language_variant_id INTEGER NOT NULL REFERENCES language_variants(id) ON DELETE RESTRICT,
                 description         TEXT,
-                -- Daily limits, counted per UTC day. A new card is one seen for the first time. A
-                -- review is an answer to a card that had been recalled before.
-                new_cards_per_day   INTEGER NOT NULL DEFAULT 20  CHECK (new_cards_per_day BETWEEN 0 AND 9999),
-                max_reviews_per_day INTEGER NOT NULL DEFAULT 200 CHECK (max_reviews_per_day BETWEEN 0 AND 9999),
-                -- Whether the audio of a card plays by itself in a review.
-                autoplay_audio      INTEGER NOT NULL DEFAULT 1 CHECK (autoplay_audio IN (0, 1)),
                 created_at          TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_decks_language_variant_id ON decks(language_variant_id);
@@ -45,6 +39,19 @@ pub fn migrations() -> Migrations<'static> {
                 slug        TEXT NOT NULL UNIQUE,
                 name        TEXT NOT NULL,
                 description TEXT
+            );
+
+            -- The study options of a deck, one row per flashcard type of the deck (like the subdecks of
+            -- Anki). A type with no row uses the defaults. Daily limits are counted per UTC day: a new
+            -- card is one seen for the first time, a review is an answer to a card that had been
+            -- recalled before. `autoplay_audio` is whether the audio plays by itself in a review.
+            CREATE TABLE deck_type_settings (
+                deck_id             INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+                flashcard_type_id   INTEGER NOT NULL REFERENCES flashcard_types(id) ON DELETE RESTRICT,
+                new_cards_per_day   INTEGER NOT NULL DEFAULT 20  CHECK (new_cards_per_day BETWEEN 0 AND 9999),
+                max_reviews_per_day INTEGER NOT NULL DEFAULT 200 CHECK (max_reviews_per_day BETWEEN 0 AND 9999),
+                autoplay_audio      INTEGER NOT NULL DEFAULT 1 CHECK (autoplay_audio IN (0, 1)),
+                PRIMARY KEY (deck_id, flashcard_type_id)
             );
 
             -- What a card type can hold. language_id NULL = applies to every language,
@@ -207,7 +214,8 @@ pub fn migrations() -> Migrations<'static> {
                 ('fr', 'fra', 'French'),
                 ('pt', 'por', 'Portuguese'),
                 ('es', 'spa', 'Spanish'),
-                ('de', 'deu', 'German');
+                ('de', 'deu', 'German'),
+                ('it', 'ita', 'Italian');
 
             INSERT INTO language_variants (language_id, bcp47_code, variant_name, country_code)
             SELECT l.id, v.bcp47_code, v.variant_name, v.country_code
@@ -219,6 +227,7 @@ pub fn migrations() -> Migrations<'static> {
                 UNION ALL SELECT 'spa', 'es-ES', 'Spanish (Spain)', 'ES'
                 UNION ALL SELECT 'spa', 'es-MX', 'Spanish (Mexico)', 'MX'
                 UNION ALL SELECT 'deu', 'de-DE', 'German (Germany)', 'DE'
+                UNION ALL SELECT 'ita', 'it-IT', 'Italian (Italy)', 'IT'
             ) AS v
             JOIN languages l ON l.iso_639_3 = v.iso;
 

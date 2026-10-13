@@ -238,7 +238,9 @@ mod tests {
             svc.list_variants("eng").unwrap().iter().map(|v| v.bcp47_code().to_owned()).collect();
         assert_eq!(accents, vec!["en-GB", "en-US"], "listed by name");
         assert_eq!(svc.get_variant(english.default_variant_id().unwrap()).unwrap().bcp47_code(), "en-US");
-        assert_eq!(svc.list_languages().unwrap().len(), 5);
+        assert_eq!(svc.list_languages().unwrap().len(), 6);
+        let italian = svc.get_language_by_iso("ita").unwrap();
+        assert_eq!(svc.get_variant(italian.default_variant_id().unwrap()).unwrap().bcp47_code(), "it-IT");
         let spanish: Vec<_> =
             svc.list_variants("spa").unwrap().iter().map(|v| v.bcp47_code().to_owned()).collect();
         assert_eq!(spanish, vec!["es-MX", "es-ES"], "Spanish has Mexico and Spain, listed by name");

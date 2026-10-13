@@ -58,7 +58,7 @@
     "accent": "Accent",
     "createDeck": "Créer le paquet",
     "fixedNote": "{{language}} · {{accent}} reste inchangé, car les cartes de ce paquet en dépendent.",
-    "studyOptions": "Options d'étude",
+    "studyOptions": "Options d'étude par type de carte",
     "newCardsPerDay": "Nouvelles cartes par jour",
     "newCardsPerDayHint": "Cartes vues pour la première fois. 0 n'en ajoute aucune.",
     "maxReviewsPerDay": "Maximum de révisions par jour",
@@ -257,5 +257,22 @@
     "imported": "Le dictionnaire a été importé.",
     "empty": "Rien n'est installé pour l'instant : les boutons de prononciation indiqueront que le dictionnaire manque.",
     "licenseNote": "Les listes de mots ont des licences différentes. Lisez les notes de docs/development.md avant de partager l'application."
+  },
+  "anki": {
+    "title": "Importer depuis Anki",
+    "intro": "Importe le contenu d'une collection Anki (collection.anki2) dans de nouveaux paquets : un paquet par langue, avec une pile pour chaque phrase qui a une note de vocabulaire et une note de prononciation. Les révisions, les échéances et les étiquettes restent dans Anki. Un paquet dont le nom existe déjà est ignoré, donc rien n'est dupliqué. Fermez Anki avant, pour qu'il ne manque rien.",
+    "import": "Importer depuis Anki…",
+    "importing": "Importation…",
+    "importingHint": "Création des cartes. Cela prend quelques secondes.",
+    "imported": "La collection a été importée.",
+    "skipped": "Ignoré : {{reason}}",
+    "partial": "Anki avait la collection ouverte : les changements qu'il n'avait pas encore écrits dans le fichier peuvent manquer.",
+    "pickerFilter": "Collection Anki",
+    "stacks_one": "{{count}} pile",
+    "stacks_many": "{{count}} de piles",
+    "stacks_other": "{{count}} piles",
+    "images_one": "{{count}} image",
+    "images_many": "{{count}} d'images",
+    "images_other": "{{count}} images"
   }
 }
